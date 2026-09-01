@@ -1,0 +1,814 @@
+[
+  {
+    "id": "P.Local - actualidad - 001",
+    "pregunta": "Quina és la magnitud que relaciona espai i temps?",
+    "opcions": [
+      "La massa",
+      "La velocitat",
+      "La força",
+      "L'acceleració"
+    ],
+    "resposta": 1,
+    "explicacio": "La velocitat és la magnitud física que expressa la relació entre l'espai recorregut i el temps emprat.",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 002",
+    "pregunta": "Quina és aproximadament la velocitat del so a l'atmosfera terrestre?",
+    "opcions": [
+      "1.200 m/s a 20°C",
+      "300.000 km/s a 20°C",
+      "344 m/s a 20°C",
+      "150 m/s a 20°C"
+    ],
+    "resposta": 2,
+    "explicacio": "",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 003",
+    "pregunta": "Què és un diürètic?",
+    "opcions": [
+      "Substància que augmenta la producció d'orina",
+      "Medicament utilitzat per reduir la febre",
+      "Hormona encarregada de regular el sucre en sang",
+      "Substància que accelera el ritme cardíac"
+    ],
+    "resposta": 0,
+    "explicacio": "",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 004",
+    "pregunta": "Quan parlem de la capacitat d'identificar l'origen, l'evolució i la localització d'una infecció, a què ens estem referint?",
+    "opcions": [
+      "A la virulència",
+      "A la patogenicitat",
+      "A la traçabilitat",
+      "A la immunitització"
+    ],
+    "resposta": 2,
+    "explicacio": "",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 005",
+    "pregunta": "Quin instrument serveix per mesurar la força?",
+    "opcions": [
+      "Dinamòmetre",
+      "Baròmetre",
+      "Anemòmetre",
+      "Balança"
+    ],
+    "resposta": 0,
+    "explicacio": "Fou inventat per Isaac Newton i no ha de confondre's amb la balança (instrument utilitzat per mesurar pesos).",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 006",
+    "pregunta": "La malària és una infecció provocada per uns protozous paràsits microscòpics anomenats:",
+    "opcions": [
+      "Plasmodi",
+      "Trypanosoma",
+      "Toxoplasma",
+      "Leishmania"
+    ],
+    "resposta": 0,
+    "explicacio": "La primera vacuna mitjanament desenvolupada fou pel doctor Manuel Elkin Patarroyo, metge colombià, tot i que encara no compta amb una efectivitat suficient.",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 007",
+    "pregunta": "La formació de glaç sobre les ales dels avions representa també un problema tecnològic perquè:",
+    "opcions": [
+      "Bloqueja el sistema elèctric dels motors",
+      "Disminueix la visibilitat dels pilots a la cabina",
+      "Fa augmentar el pes dels aparells i això implica un consum afegit, no desitjat, de combustible",
+      "Impedix la comunicació per ràdio amb la torre de control"
+    ],
+    "resposta": 2,
+    "explicacio": "",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 008",
+    "pregunta": "Com s'anomena la magnitud que posseeix un mòbil en virtut del seu moviment?",
+    "opcions": [
+      "Energia potencial",
+      "Energia cinètica",
+      "Energia tèrmica",
+      "Treball mecànic"
+    ],
+    "resposta": 1,
+    "explicacio": "La unitat estàndard d'energia cinètica és el joule, mentre que la unitat imperial d'energia cinètica és la lliura de peu.",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 009",
+    "pregunta": "Què és el vómer?",
+    "opcions": [
+      "Un os de la cama",
+      "Un cartílag de l'orella",
+      "Un os del cap",
+      "Un múscul abdominal"
+    ],
+    "resposta": 2,
+    "explicacio": "El vómer és un os de la cara, de forma laminar i quadrangular. Constitueix la part posterior del septe nasal, que divideix el nas en fosses nasals esquerra i dreta.",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 010",
+    "pregunta": "Per quin motiu és coneguda la biòloga britànica Jane Goodall?",
+    "opcions": [
+      "Pels seus estudis sobre els primats a Tanzània",
+      "Per descobrir la estructura de l'ADN",
+      "Pels seus descobriments sobre la radioactivitat",
+      "Per desenvolupar la primera vacuna contra la ràbia"
+    ],
+    "resposta": 0,
+    "explicacio": "Pertany al comitè del Projecte dels Drets Humans des de la seva fundació el 1996.",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 011",
+    "pregunta": "Què és el Test de Turing?",
+    "opcions": [
+      "Una prova mèdica per mesurar la capacitat pulmonar",
+      "És un examen de la capacitat que té una màquina per exhibir un comportament intel·ligent similar al d'un ésser humà o indistingible d'aquest",
+      "Un assaig clínic per determinar l'eficàcia d'un fàrmac",
+      "Un mètode d'anàlisi química per detectar metalls pesants"
+    ],
+    "resposta": 1,
+    "explicacio": "Va ser proposat el 1950 pel matemàtic Alan Turing per discernir si una màquina mostra o no un comportament intel·ligent en un article, a partir de la qüestió: poden pensar, les màquines?",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 012",
+    "pregunta": "L'estudi de les funcions i malalties de la nefrologia, a quin òrgan es dediquen?",
+    "opcions": [
+      "Al fetge",
+      "Al cor",
+      "Al ronyó",
+      "Als pulmons"
+    ],
+    "resposta": 2,
+    "explicacio": "",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 013",
+    "pregunta": "De qui és la teoria de la separació de poders?",
+    "opcions": [
+      "Rousseau",
+      "Montesquieu",
+      "Voltaire",
+      "John Locke"
+    ],
+    "resposta": 1,
+    "explicacio": "És un principi que estableix que els poders d'un govern sobirà han d'estar dividits entre dues o més entitats fortament independents, així doncs, prevenint que una persona o un grup tingui massa poder.",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 014",
+    "pregunta": "Quin és el procés pel qual, una ona de llum incideix sobre la superfície de separació entre dos medis canviant-ne la direcció de propagació?",
+    "opcions": [
+      "Reflexió",
+      "Refracció",
+      "Difracció",
+      "Polarització"
+    ],
+    "resposta": 1,
+    "explicacio": "",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 015",
+    "pregunta": "L'Observatori Estratosfèric d'Astronomia Infraroja de la NASA (SOFIA, per les seves sigles en anglès) ha confirmat, per primera vegada, el mes d'octubre del 2020, la presència a la Lluna:",
+    "opcions": [
+      "De vida bacteriana",
+      "D'aigua",
+      "De petroli",
+      "De diàmans"
+    ],
+    "resposta": 1,
+    "explicacio": "",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 016",
+    "pregunta": "El científic Guglielmo Marconi, guanyador del Premi Nobel de Física, va destacar en l'estudi i desenvolupament de:",
+    "opcions": [
+      "La dinàmica de fluids",
+      "La comunicació telegràfica sense fils",
+      "La teoria de la relativitat",
+      "La penicil·lina"
+    ],
+    "resposta": 1,
+    "explicacio": "Marconi va compartir el 1909 el Premi Nobel de Física al costat de Karl Ferdinand Braun en reconeixement a les seves contribucions al desenvolupament de la telegrafia sense fils.",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 017",
+    "pregunta": "El lleixiu si volem formular-la de forma química és:",
+    "opcions": [
+      "NaCl",
+      "NaClO",
+      "NaOH",
+      "HCl"
+    ],
+    "resposta": 1,
+    "explicacio": "",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 018",
+    "pregunta": "La unitat de mesura del treball en física és:",
+    "opcions": [
+      "El watt",
+      "El newton",
+      "El joule",
+      "El pascal"
+    ],
+    "resposta": 2,
+    "explicacio": "Com a unitat de treball, el joule es va definir com la quantitat de treball realitzat per una força constant d'un newton en un metre de longitud en la mateixa direcció de la força.",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 019",
+    "pregunta": "En la taula periòdica les inicials Zr, Ta i Mg corresponen a:",
+    "opcions": [
+      "Zinc, Titani i Manganès",
+      "Circoni, Tàntal i Magnesi",
+      "Circoni, Titani i Magnesi",
+      "Zinc, Tàntal i Manganès"
+    ],
+    "resposta": 1,
+    "explicacio": "",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 020",
+    "pregunta": "Què és més dens, l'aigua en estat líquid o estat gelat?",
+    "opcions": [
+      "Tenen exactament la mateixa densitat",
+      "L'aigua en estat gelat",
+      "L'aigua en estat líquid",
+      "Depèn de si és aigua de mar o aigua dolça"
+    ],
+    "resposta": 2,
+    "explicacio": "Quan l'aigua es refreda, es contrau el seu volum, com succeeix en tots els cossos, però en arribar als 4°C cessa la contracció i la seva estructura es dilata fins a transformar-se en gel en el punt de congelació.",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 021",
+    "pregunta": "Quin material és biocompatible amb les persones humanes?",
+    "opcions": [
+      "Plom",
+      "Titani",
+      "Coure",
+      "Níquel"
+    ],
+    "resposta": 1,
+    "explicacio": "",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 022",
+    "pregunta": "Quina hormona produeix la glàndula denominada hipòfisi?",
+    "opcions": [
+      "Insulina",
+      "Adrenalina",
+      "Hormona del creixement",
+      "Melatonina"
+    ],
+    "resposta": 2,
+    "explicacio": "",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 023",
+    "pregunta": "Com s'anomena la fórmula que expressa la relació existent entre la resistència «R» d'un conductor, la intensitat «I» del corrent que hi circula i la diferència de potencial «V» aplicada a través del conductor?",
+    "opcions": [
+      "Llei de Joule",
+      "Llei d'Ohm",
+      "Llei de Faraday",
+      "Llei de Coulomb"
+    ],
+    "resposta": 1,
+    "explicacio": "Postulada pel físic i matemàtic alemany Georg Simon Ohm, és una llei bàsica dels circuits elèctrics.",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 024",
+    "pregunta": "Quin és l'element que s'acumula en els teixits en la Malaltia de Wilson?",
+    "opcions": [
+      "Ferro",
+      "Coure",
+      "Calci",
+      "Sodi"
+    ],
+    "resposta": 1,
+    "explicacio": "",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 025",
+    "pregunta": "Què són els anells de Kayser-Fleischer?",
+    "opcions": [
+      "Formacions rocoses a la superfície de Mart",
+      "Anells de matèria al voltant de Saturn",
+      "Són uns anells que apareixen al voltant de la còrnia dels ulls i formen part d'un conjunt de símptomes de la Malaltia de Wilson",
+      "Estructures cel·lulars encarregades de la síntesi de proteïnes"
+    ],
+    "resposta": 2,
+    "explicacio": "",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 026",
+    "pregunta": "A quines glàndules es produeix el cortisol en l'ésser humà?",
+    "opcions": [
+      "Tiroide",
+      "Pàncrees",
+      "Suprarenals",
+      "Pituïtària"
+    ],
+    "resposta": 2,
+    "explicacio": "Les glàndules suprarenals se situen en el retroperitoneu, a la cara anterosuperior dels ronyons, i són irrigades per les artèries suprarenals superior, mitjana i inferior.",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 027",
+    "pregunta": "Com és coneguda també la Riboflavina?",
+    "opcions": [
+      "Vitamina C",
+      "Vitamina B2",
+      "Vitamina A",
+      "Vitamina B12"
+    ],
+    "resposta": 1,
+    "explicacio": "La vitamina B2 és necessària per a la integritat de la pell, les mucoses i de forma especial per a la còrnia, per la seva activitat oxigenadora, sent imprescindible per a la bona visió.",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 028",
+    "pregunta": "Quina és l'artèria que fa arribar sang al cervell?",
+    "opcions": [
+      "Femoral",
+      "Subclàvia",
+      "Caròtida",
+      "Pulmonar"
+    ],
+    "resposta": 2,
+    "explicacio": "",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 029",
+    "pregunta": "Què és el sartori?",
+    "opcions": [
+      "Un os de la pelvis",
+      "Un múscul",
+      "Un òrgan del sistema digestiu",
+      "Un ligament del genoll"
+    ],
+    "resposta": 1,
+    "explicacio": "És un múscul prim, allargat, el més llarg del cos. Està per sobre del quàdriceps.",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 030",
+    "pregunta": "«Un cos total o parcialment submergit en un fluid en repòs experimenta una empenyeta vertical cap amunt igual al pes del fluid desallotjat» és la definició de:",
+    "opcions": [
+      "La Llei de Pascal",
+      "El Principi d'Arquimedes",
+      "El Teorema de Bernoulli",
+      "La Llei de Gravitació Universal"
+    ],
+    "resposta": 1,
+    "explicacio": "",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 031",
+    "pregunta": "El llautó és un compost produït de l'aliatge de:",
+    "opcions": [
+      "Coure i Zinc",
+      "Ferro i Carboni",
+      "Coure i Estany",
+      "Alumini i Plom"
+    ],
+    "resposta": 0,
+    "explicacio": "",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 032",
+    "pregunta": "Què signifiquen les sigles PCR?",
+    "opcions": [
+      "Protein Cellular Reaction",
+      "Polymerase Chain Reaction",
+      "Pathogen Control Range",
+      "Polymorphic Cell Reconstruction"
+    ],
+    "resposta": 1,
+    "explicacio": "",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 033",
+    "pregunta": "Quants cromosomes té un ésser humà que no pateixi Síndrome de Down?",
+    "opcions": [
+      "44",
+      "47",
+      "46",
+      "48"
+    ],
+    "resposta": 2,
+    "explicacio": "Les cèl·lules somàtiques d'un organisme posseeixen en el seu nucli un total de 46 cromosomes (23 parells): una dotació de 22 autosomes procedents de cada progenitor i un parell de cromosomes sexuals, un cromosoma X de la mare i un X o Y del pare.",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 034",
+    "pregunta": "Què es coneix per periheli?",
+    "opcions": [
+      "Punt on un planeta es troba més llunyà al sol",
+      "Punt on un planeta es troba més proper al sol",
+      "El moment d'un eclipsi solar total",
+      "L'òrbita que descriu la Lluna al voltant de la Terra"
+    ],
+    "resposta": 1,
+    "explicacio": "",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 035",
+    "pregunta": "Què és la pandiculació?",
+    "opcions": [
+      "Un procés inflamatori de la pell",
+      "L'acte d'estirar o despertar",
+      "El moviment involuntari de les parpelles",
+      "Una malaltia respiratòria greu"
+    ],
+    "resposta": 1,
+    "explicacio": "",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 036",
+    "pregunta": "Quants quilòmetres són una milla?",
+    "opcions": [
+      "1,2 km",
+      "1,6 km",
+      "2,0 km",
+      "1,8 km"
+    ],
+    "resposta": 1,
+    "explicacio": "",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 037",
+    "pregunta": "Què és la tecnologia lítica?",
+    "opcions": [
+      "Producció d'eines de pedra",
+      "Ús de metalls per a l'orfebreria antiga",
+      "Elaboració de ceràmica mitjançant fons de calor",
+      "Mètodes antics de fosa de bronze"
+    ],
+    "resposta": 0,
+    "explicacio": "Les eines lítiques van constituir una adquisició important per al desenvolupament de la nostra estirp humana, ajudant a l'adaptació a nous ambients en permetre modificar l'alimentació incorporant tubercles o carn de grans herbívors.",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 038",
+    "pregunta": "Els hidrocarburs són compostos orgànics formats per àtoms de:",
+    "opcions": [
+      "Carboni i oxigen",
+      "Carboni i hidrogen",
+      "Hidrogen i nitrogen",
+      "Oxigen i hidrogen"
+    ],
+    "resposta": 1,
+    "explicacio": "",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 039",
+    "pregunta": "L'instrument de mesura utilitzat per a determinar el contingut d'humitat és:",
+    "opcions": [
+      "Anemòmetre",
+      "Baròmetre",
+      "Higròmetre",
+      "Termòmetre"
+    ],
+    "resposta": 2,
+    "explicacio": "",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 040",
+    "pregunta": "Quina de les següents unitats de mesura informàtiques indica més capacitat?",
+    "opcions": [
+      "Gigabyte (GB)",
+      "Terabyte (TB)",
+      "Megabyte (MB)",
+      "Kilobyte (KB)"
+    ],
+    "resposta": 1,
+    "explicacio": "Equivalent a 1.000.000.000.000 (un bilió) de bytes.",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 041",
+    "pregunta": "Com s'anomena el tub que va de la faringe fins a l'estómac?",
+    "opcions": [
+      "Traquea",
+      "Laringe",
+      "Esòfag",
+      "Bronqui"
+    ],
+    "resposta": 2,
+    "explicacio": "",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 042",
+    "pregunta": "Quin líquid bull als 78 graus?",
+    "opcions": [
+      "Aigua",
+      "Alcohol",
+      "Oli d'oliva",
+      "Mercuri"
+    ],
+    "resposta": 1,
+    "explicacio": "",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 043",
+    "pregunta": "Quin astrònom va proposar el sistema geocèntric, un model en el qual la Terra estava al centre de l'Univers, però amb els planetes girant al voltant del Sol?",
+    "opcions": [
+      "Copèrnic",
+      "Galileu Galilei",
+      "Tycho Brahe",
+      "Johannes Kepler"
+    ],
+    "resposta": 2,
+    "explicacio": "Considerat el més gran observador del cel en el període anterior a la invenció del telescopi.",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 044",
+    "pregunta": "Què mesura un comptador geiger?",
+    "opcions": [
+      "La velocitat del vent",
+      "La pressió atmosfèrica",
+      "La radioactivitat d'un objecte o lloc",
+      "El nivell de soroll ambiental"
+    ],
+    "resposta": 2,
+    "explicacio": "",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 045",
+    "pregunta": "La resistència que ofereix un cos a ser ratllat s'anomena:",
+    "opcions": [
+      "Tenacitat",
+      "Elasticitat",
+      "Duresa",
+      "Fragilitat"
+    ],
+    "resposta": 2,
+    "explicacio": "",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 046",
+    "pregunta": "La propietat que tenen alguns materials de deformar-se permanentment en forma de fil prim sense trencar-se s'anomena:",
+    "opcions": [
+      "Malleabilitat",
+      "Ductilitat",
+      "Plasticitat",
+      "Flexibilitat"
+    ],
+    "resposta": 1,
+    "explicacio": "",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 047",
+    "pregunta": "Què és l'onirologia?",
+    "opcions": [
+      "L'estudi dels ocells",
+      "L'estudi científic dels somnis",
+      "L'estudi de les malalties de les ungles",
+      "L'estudi dels minerals i roques"
+    ],
+    "resposta": 1,
+    "explicacio": "",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 048",
+    "pregunta": "Com es denomina l'agrupació de cèl·lules de la mateixa forma i estructura i que realitzen la mateixa feina?",
+    "opcions": [
+      "Òrgan",
+      "Teixit",
+      "Sistema",
+      "Aparell"
+    ],
+    "resposta": 1,
+    "explicacio": "",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 049",
+    "pregunta": "Com s'anomena el generador de corrent continu que transforma l'energia mecànica en energia elèctrica?",
+    "opcions": [
+      "Alternador",
+      "Transformador",
+      "Dínamo",
+      "Condensador"
+    ],
+    "resposta": 2,
+    "explicacio": "És una màquina elèctrica que utilitza l'electromagnetisme per convertir la rotació mecànica en electricitat, en forma de corrent continu.",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 050",
+    "pregunta": "D'on prové l'energia geotèrmica?",
+    "opcions": [
+      "De les marees oceàniques",
+      "De la calor de l'interior de la Terra",
+      "De la radiació solar directa",
+      "De la descomposició de matèria orgànica"
+    ],
+    "resposta": 1,
+    "explicacio": "",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 051",
+    "pregunta": "El fenomen pel qual se segueix sentint un so per reflexió ambiental durant un temps després d'haver-se deixat d'emetre el senyal de l'emissor s'anomena:",
+    "opcions": [
+      "Ressò",
+      "Reverberació",
+      "Ressonància",
+      "Refracció"
+    ],
+    "resposta": 1,
+    "explicacio": "",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 052",
+    "pregunta": "La freqüència es mesura en:",
+    "opcions": [
+      "Watts",
+      "Hertzs",
+      "Decibels",
+      "Volts"
+    ],
+    "resposta": 1,
+    "explicacio": "Nomenat en honor al físic alemany Heinrich Rudolf Hertz (1857-1894), que va descobrir la propagació de les ones electromagnètriques.",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 053",
+    "pregunta": "Quin element químic ajuda a estabilitzar l'ànim i s'empra en el tractament de la depressió?",
+    "opcions": [
+      "Potassi",
+      "Sodi",
+      "Liti",
+      "Magnesi"
+    ],
+    "resposta": 2,
+    "explicacio": "",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 054",
+    "pregunta": "Com es diu l'interval de temps més petit que pot ser mesurat?",
+    "opcions": [
+      "Nanosegon",
+      "Temps de Planck",
+      "Milisegon",
+      "Segon de Fermi"
+    ],
+    "resposta": 1,
+    "explicacio": "En cosmologia, representa el temps després del Big Bang més enllà del qual s'han de tenir en compte els efectes quàntics de la gravetat. Rep el nom del físic Max Planck.",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 055",
+    "pregunta": "Un isòtop és:",
+    "opcions": [
+      "Un àtom amb càrrega elèctrica positiva",
+      "Cadascun dels elements químics que posseeixen el mateix nombre de protons i diferent nombre de neutrons",
+      "Una molècula formada per tres àtoms d'oxigen",
+      "Un element químic inestable que no conté electrons"
+    ],
+    "resposta": 1,
+    "explicacio": "",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 056",
+    "pregunta": "Com s'anomena la pèrdua de la facultat de reconèixer l’ús dels objectes ordinaris?",
+    "opcions": [
+      "Afàsia",
+      "Amnèsia",
+      "Apràxia",
+      "Atàxia"
+    ],
+    "resposta": 2,
+    "explicacio": "El que succeeix és que hi ha una dissociació entre la idea (el pacient sap el que vol fer) i l'execució motora (manca de control d'acció).",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 057",
+    "pregunta": "LSD és el nom comú de:",
+    "opcions": [
+      "Àcid salicílic",
+      "Àcid lisèrgic",
+      "Àcid clorhídric",
+      "Àcid acètic"
+    ],
+    "resposta": 1,
+    "explicacio": "El químic suís Albert Hofmann va sintetitzar per primera vegada LSD el 16 de novembre de 1938 als laboratoris Sandoz de Basilea (Suïssa).",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+  {
+    "id": "P.Local - actualidad - 058",
+    "pregunta": "Què és la pirèxia?",
+    "opcions": [
+      "Inflamació articular aguda",
+      "Febre essencial, no simptomàtica",
+      "Manca d'oxigen en sang",
+      "Infecció fúngica a la pell"
+    ],
+    "resposta": 1,
+    "explicacio": "",
+    "seccio": "Física, química, ciencia i medicina",
+    "tema": ""
+  },
+]

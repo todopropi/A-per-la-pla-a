@@ -1,0 +1,717 @@
+<!-- [WEB Visual - HEADER] -->
+
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Agent Medina — Plataforma d'estudi</title>
+
+  <!-- Favicon y fuentes -->
+  <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-180.png?v=1">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet">
+
+  <!-- PWA: instal·lable a Android/iOS/escriptori -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#002B5E">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Agent Medina">
+
+  <!-- Arxius CSS locals -->
+  <link rel="stylesheet" href="index-BNhYZkE9.css">
+  <link rel="stylesheet" href="Dashboard-BJqoIV_6.css">
+
+  <style>
+    /* Eliminació absoluta de qualsevol botó o barra de xat */
+    .chat-mini, 
+    .chat-mini-open, 
+    .rightrail, 
+    [title="Obre el xat"],
+    button.chat-mini-open {
+      display: none !important;
+      width: 0 !important;
+      height: 0 !important;
+      visibility: hidden !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+      position: absolute !important;
+      left: -9999px !important;
+    }
+
+    /* Ampliar el layout principal */
+    .layout, 
+    .layout.chat-collapsed {
+      grid-template-columns: 260px 1fr !important;
+    }
+
+    .main {
+      width: 100% !important;
+      max-width: 100% !important;
+    }
+
+    /* Força tots els quadrats del logo a ser blaus i amaga el 5è */
+    .logo-sq i {
+      background-color: #007aff !important;
+    }
+    .logo-sq i:nth-child(n+5) {
+      display: none !important;
+    }
+
+    /* Barra superior centrada */
+    .topbar {
+      display: flex !important;
+      justify-content: center !important;
+      align-items: center !important;
+      position: relative !important;
+      padding: 10px 20px !important;
+    }
+    .topbar .pagetitle {
+      position: absolute !important;
+      left: 20px !important;
+      font-weight: 700;
+    }
+    .topright {
+      display: flex !important;
+      justify-content: center !important;
+      width: 100% !important;
+    }
+    .trio {
+      display: flex !important;
+      justify-content: center !important;
+      align-items: center !important;
+      gap: 12px !important;
+      margin: 0 auto !important;
+      flex-wrap: wrap !important;
+    }
+
+    @media (max-width: 900px) {
+      .topbar {
+        flex-direction: column !important;
+        height: auto !important;
+        padding: 12px 10px !important;
+      }
+      .topbar .pagetitle {
+        position: static !important;
+        margin-bottom: 8px !important;
+      }
+      .trio {
+        width: 100% !important;
+        gap: 8px !important;
+      }
+      .trio .m {
+        flex: 1 1 calc(50% - 10px) !important;
+        text-align: center !important;
+        box-sizing: border-box;
+      }
+    }
+  </style>
+
+  <script async="" src="https://www.googletagmanager.com/gtag/js?id=G-B2S40Q672W">
+</script>
+<style>
+  /* Forçar scroll vertical a tot el navegador d'ordinador */
+  html, body {
+    height: auto !important;
+    min-height: 100vh !important;
+    overflow-y: scroll !important;
+  }
+
+  /* Desbloquejar qualsevol contenidor general que retingui la pantalla fixa a l'ordinador.
+     IMPORTANT: fem servir #root en lloc de "body > div" perquè aquest darrer selector
+     també "capturava" finestres emergents (com el modal de Convocatòries) que s'afegeixen
+     directament al <body> amb position:fixed, convertint-les en blocs normals que
+     apareixien al final de la pàgina en lloc de com a finestra emergent centrada. */
+  #root, .app-container, .main-layout, .dashboard, .view-content, #test-container, .teoria-host {
+    height: auto !important;
+    min-height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    position: static !important;
+  }
+
+  /* Qualsevol finestra emergent (modal) afegida dinàmicament al body ha de continuar
+     funcionant com a overlay fix a pantalla completa, tant a mòbil com a ordinador. */
+  body > div[id^="modal-"] {
+    position: fixed !important;
+    inset: 0 !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: auto !important;
+  }
+
+  /* El .layout i el .content.fit porten "overflow:hidden" i alçada fixa (100dvh)
+     només corregits per mòbil al CSS original. Els desbloquegem també per ordinador
+     perquè es pugui fer scroll i es vegin totes les respostes del test. */
+  .layout {
+    height: auto !important;
+    min-height: 100vh !important;
+    overflow: visible !important;
+  }
+  .content.fit {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding-bottom: 60px !important;
+  }
+
+  /* Donar molt d'aire al final del test per poder baixar fins al fons */
+  #test-container {
+    padding-bottom: 400px !important;
+    margin-bottom: 200px !important;
+  }
+</style>
+
+<style>
+.dash-progress-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:15px;box-shadow:0 2px 10px rgba(0,43,94,.05)}
+.dash-progress-card:hover{box-shadow:0 6px 18px rgba(0,43,94,.10);transform:translateY(-1px)}
+.dash-rank-row{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px 0;border-bottom:1px solid #eef2f7}
+.dash-rank-row:last-child{border-bottom:none}
+.dash-rank-pos{width:30px;height:30px;border-radius:8px;background:#002B5E;color:#E8C000;display:flex;align-items:center;justify-content:center;font-weight:900}
+.dash-rank-q{font-size:.86rem;font-weight:700;color:#1e293b;line-height:1.3}
+.dash-rank-meta{font-size:.7rem;color:#94a3b8;margin-top:3px}
+.dash-rank-count{font-weight:900;color:#dc2626;white-space:nowrap}
+.dash-empty{padding:25px 10px;text-align:center;color:#64748b;font-size:.9rem}
+@media(max-width:760px){
+  .dash-progress-card{padding:12px}
+  .dash-rank-row{grid-template-columns:30px minmax(0,1fr)}
+  .dash-rank-count{grid-column:2}
+}
+</style>
+
+</head>
+
+<body class="sec-inici">
+  <div id="root">
+    <div class="layout chat-collapsed">
+      <aside class="sidebar">
+        <div class="logo">
+          <span class="logo-sq">
+            <i></i><i></i><i></i><i></i><i></i>
+          </span>
+          <span>Agent Medina</span>
+        </div>
+        <nav class="nav">
+          <a data-tab="inici" class="nav-btn active"><span class="ico">🏠</span> Inici</a>
+          <a data-tab="mossos" class="nav-btn"><span class="ico"><img src="Escut.png" alt="Escut" style="width: 20px; height: 20px; vertical-align: middle;"></span> Temari Mossos</a>
+          <a data-tab="policia-local" class="nav-btn"><span class="ico">🚔</span> Policia Local</a>
+          <a data-tab="actualitat" class="nav-btn"><span class="ico">📰</span> Actualitat</a>
+          <a data-tab="editor" class="nav-btn"><span class="ico">✏️</span> Gestor de preguntes</a>
+          <a data-tab="comunitat" class="nav-btn nav-comunitat"><span class="ico">💬</span> Comunitat</a>
+        </nav>
+      </aside>
+
+      <div class="main">
+        <div class="topbar">
+          <span class="pagetitle" title="Agent Medina">Agent Medina</span>
+          <div class="topright">
+            <div class="trio" title="Ratxa · Notes mitjanes · Dies examen">
+              <span class="m"><span class="v fire" id="ratxa-val">🔥 0</span><span class="l">ratxa</span></span>
+              <span class="m"><span class="v gold" id="nota-mossos">📊 0.00</span><span class="l">Mitjana Mossos</span></span>
+              <span class="m"><span class="v gold" id="nota-plocal">🚔 0.00</span><span class="l">Mitjana P.Local</span></span>
+              <a href="https://mossos.gencat.cat/web/.content/home/01_els_mossos_desquadra/ingres-cos/Escala-bAsica/convocatoria-46-26/Previsio-calendari-46-26-16.07.2026.pdf" target="_blank" rel="noopener noreferrer" class="m m-btn" style="text-decoration: none; cursor: pointer;"><span class="v" id="dies-examen">--</span><span class="l">dies examen</span></a>
+            </div>
+          </div>
+        </div>
+
+        <div class="content fit">
+          <!-- PESTANYA INICI -->
+          <div id="view-inici" class="view-content" style="display: block;">
+            <div style="max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px;">
+              
+              <!-- CONVOCATÒRIES ACTIVES -->
+              <div style="background: #eef6ff; border: 1px solid #b8daff; padding: 15px 20px; border-radius: 12px; display: flex; flex-direction: column; gap: 12px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 20px;">📜</span>
+                  <h4 style="margin: 0; font-size: 16px; color: #004085;">Convocatòries Actives</h4>
+                </div>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                  <a href="https://mossos.gencat.cat/ca/els_mossos_desquadra/acces_al_cos/Mosso_a/mosso-a-convocatoria-46-26/" target="_blank" rel="noopener noreferrer" style="background: #007aff; color: white; text-decoration: none; padding: 8px 16px; font-weight: 600; border-radius: 6px; font-size: 13px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    Mossos (Convocatòria 46-26) ↗
+                  </a>
+                  <a href="https://mollerussa.convoca.online/processDetail.html?id=190266bf-4c8b-49eb-4520-08de7dbdb6c7&type=0" target="_blank" rel="noopener noreferrer" style="background: #28a745; color: white; text-decoration: none; padding: 8px 16px; font-weight: 600; border-radius: 6px; font-size: 13px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    Policia Local (Mollerussa) ↗
+                  </a>
+                </div>
+              </div>
+
+              <!-- 1. KPI RESUM -->
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 15px;">
+                <div style="background: #f8f9fa; border: 1px solid #e9ecef; padding: 15px; border-radius: 10px; text-align: center;">
+                  <span style="font-size: 24px; display: block; margin-bottom: 5px;">🔥</span>
+                  <span style="font-size: 18px; font-weight: 700;" id="inici-ratxa">5 dies</span>
+                  <span style="font-size: 12px; color: #6c757d; display: block;">Ratxa activa</span>
+                </div>
+                <div style="background: #fff8e6; border: 1px solid #ffeeba; padding: 15px; border-radius: 10px; text-align: center;">
+                  <span style="font-size: 24px; display: block; margin-bottom: 5px;">🎯</span>
+                  <span style="font-size: 18px; font-weight: 700; color: #b78103;" id="inici-preguntes-seguides">0</span>
+                  <span style="font-size: 12px; color: #856404; display: block;">Preguntes sense fallar</span>
+                </div>
+                <div style="background: #f8f9fa; border: 1px solid #e9ecef; padding: 15px; border-radius: 10px; text-align: center;">
+                  <span style="font-size: 24px; display: block; margin-bottom: 5px;">📝</span>
+                  <span style="font-size: 18px; font-weight: 700;" id="inici-preguntes">0</span>
+                  <span style="font-size: 12px; color: #6c757d; display: block;">Fetes avui</span>
+                </div>
+                <div style="background: #f8f9fa; border: 1px solid #e9ecef; padding: 15px; border-radius: 10px; text-align: center;">
+                  <span style="font-size: 24px; display: block; margin-bottom: 5px;">⏱️</span>
+                  <span style="font-size: 18px; font-weight: 700;" id="inici-temps-estudi">0h 0m</span>
+                  <span style="font-size: 12px; color: #6c757d; display: block;">Temps de sessió</span>
+                </div>
+              </div>
+
+              <!-- 2. ACCÉS DIRECTE -->
+              <div style="background: linear-gradient(135deg, #007aff, #0056b3); color: white; padding: 20px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                <div>
+                  <h3 style="margin: 0 0 5px 0; font-size: 20px;">Missió Tàctica Diària</h3>
+                  <p style="margin: 0; opacity: 0.9; font-size: 14px;">Repeteix errors o llança una sessió ràpida per sumar punts.</p>
+                </div>
+                <button onclick="document.querySelector('[data-tab=&quot;mossos&quot;]').click();" style="background: white; color: #007aff; border: none; padding: 10px 20px; font-weight: 700; border-radius: 8px; cursor: pointer; font-size: 14px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                  Començar Ara 🚀
+                </button>
+              </div>
+              <!-- NOTA: aquesta vista #view-inici es reconstrueix per complet en carregar
+                   la pàgina mitjançant la funció mostrarInici() d'app.js (dashboard real,
+                   botons d'accés ràpid, exportar/importar progrés, etc.). El contingut
+                   estàtic d'aquí sota només es veu una fracció de segon abans que el JS
+                   pinti la versió definitiva. -->
+
+              <!-- 3. FLASHCARDS -->
+              <div style="background: white; border: 1px solid #e9ecef; padding: 20px; border-radius: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                  <h3 style="margin: 0; font-size: 18px;">⚡ Flashcards d'Alt Rendiment</h3>
+                  <span style="font-size: 12px; background: #e2f0d9; color: #385723; padding: 4px 8px; border-radius: 4px; font-weight: 600;">Prioritat Oficial</span>
+                </div>
+                
+                <div id="flashcard-container" onclick="girarFlashcard()" style="background: #fdfdfd; border: 2px dashed #007aff; border-radius: 10px; padding: 25px; text-align: center; cursor: pointer; min-height: 100px; display: flex; flex-direction: column; justify-content: center; align-items: center; transition: all 0.3s ease;">
+                  <span id="flashcard-badge" style="font-size: 11px; text-transform: uppercase; color: #007aff; font-weight: 700; margin-bottom: 8px;">Pregunta freqüent #1 (Clica per girar)</span>
+                  <p id="flashcard-text" style="font-size: 16px; font-weight: 600; color: #333; margin: 0;"></p>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; margin-top: 15px;">
+                  <button onclick="canviarFlashcard(-1)" style="background: #e9ecef; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-weight: 600;">Anterior</button>
+                  <span id="flashcard-counter" style="font-size: 14px; color: #6c757d; align-self: center;">1 / 5</span>
+                  <button onclick="canviarFlashcard(1)" style="background: #007aff; color: white; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-weight: 600;">Següent</button>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- PESTANYA MOSSOS -->
+          <div id="view-mossos" class="view-content" style="display: none;">
+            <div class="teoria-host" style="display: flex;">
+              <div class="teoria">
+                <div class="teoria-tabs">
+                  <div class="seg" title="Banc a1-v2-0">
+                    <button class="on" data-sortida="estudia" id="btn-tab-estudia">▶ Estudia</button>
+                    <button class="" data-help="examen" id="btn-tab-examen">📝 Examen</button>
+                    <button data-help="actualitat" title="Preguntes d'actualitat i costums">📰 Actualitat</button>
+                  </div>
+                </div>
+                
+                <!-- CONTENIDOR DINÀMIC (ESTUDIA VS EXAMEN) -->
+                <div id="mossos-main-container">
+                  <div class="hub" id="hub-estudiar">
+                    <div class="startbar" data-help="start">
+                      <div class="sb-lab">
+                        <span class="sb-k">Si prems START faràs</span>
+                        <span class="sb-lab-row"><span class="sb-t"><span class="mission-copy-wide">🧠 Missió intel·ligent</span></span></span>
+                      </div>
+                      <div class="sb-go">
+                        <button class="btn-start" title="Sempre 10 preguntes">🧠 START</button>
+                        <span class="sb-level-now">🎯 Per aprovar</span>
+                      </div>
+                    </div>
+                    <p class="hub-pick-hint">👇 <b>Tria un tema</b></p>
+                    
+                    <div class="hub-ambit2 amb-active">
+                      <button class="amb-bar" title="sobre 7/7 temes">
+                        <span class="amb-sq" style="background: rgb(0, 122, 255);"></span>
+                        <span class="amb-name">Àmbit A<small>Coneixements de l'entorn</small></span>
+                        <span class="amb-mqbar mq-bar"><i class="c-grn" style="width: 5%;"></i><i class="c-gold" style="width: 2%;"></i></span>
+                        <span class="amb-pct">5%</span>
+                        <span class="amb-chev">▸</span>
+                      </button>
+                    </div>
+
+                    <div class="hub-ambit2 amb-active">
+                      <button class="amb-bar" title="sobre 8/8 temes">
+                        <span class="amb-sq" style="background: rgb(225, 29, 72);"></span>
+                        <span class="amb-name">Àmbit B<small>Institucional</small></span>
+                        <span class="amb-mqbar mq-bar"><i class="c-grn" style="width: 0%;"></i><i class="c-gold" style="width: 0%;"></i></span>
+                        <span class="amb-pct">0%</span>
+                        <span class="amb-chev">▸</span>
+                      </button>
+                    </div>
+
+                    <div class="hub-ambit2 amb-active">
+                      <button class="amb-bar" title="sobre 5/5 temes">
+                        <span class="amb-sq" style="background: rgb(22, 163, 74);"></span>
+                        <span class="amb-name">Àmbit C<small>Seguretat i policia</small></span>
+                        <span class="amb-mqbar mq-bar"><i class="c-grn" style="width: 0%;"></i><i class="c-gold" style="width: 0%;"></i></span>
+                        <span class="amb-pct">0%</span>
+                        <span class="amb-chev">⟩</span>
+                      </button>
+                    </div>
+
+                    <div class="hub-bottom">
+                      <div class="hub-toggles">
+                        <label class="lvl-toggle mix-toggle">
+                          <span class="lvl-toggle-lab">🔢 Per ordre</span>
+                          <input type="checkbox">
+                          <span class="lvl-toggle-track"><span class="lvl-toggle-knob"></span></span>
+                        </label>
+                        <label class="lvl-toggle">
+                          <span class="lvl-toggle-lab ok">🎯 Per aprovar</span>
+                          <input type="checkbox">
+                          <span class="lvl-toggle-track"><span class="lvl-toggle-knob"></span></span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- INTERFÍCE SIMULACIÓ EXAMEN -->
+                  <div class="hub" id="hub-examen" style="display: none; text-align: center; padding: 40px 20px;">
+                    <div style="max-width: 600px; margin: 0 auto; background: #fff; border: 1px solid #e9ecef; padding: 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+                      <span style="font-size: 40px; display: block; margin-bottom: 10px;">📝</span>
+                      <h3 style="margin: 0 0 10px 0; font-size: 22px; color: #333;">Simulacre d'Examen Oficial</h3>
+                      <p style="color: #6c757d; font-size: 14px; margin-bottom: 25px;">
+                        30 preguntes aleatòries (inclou Àmbits A, B, C i 2 preguntes d'Actualitat).<br>
+                        Temps límit: <b>30 minuts</b>. Errors resten 1/4 part. Blancs no penalitzen. Puntuació del 0 al 10.
+                      </p>
+                      <button onclick="comencarExamenOficial()" style="background: #007aff; color: white; border: none; padding: 12px 30px; font-weight: 700; border-radius: 8px; font-size: 16px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,122,255,0.2);">
+                        Començar Examen Ara 🚀
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+
+          <!-- ALTRES PESTANYES -->
+          <div id="view-policia-local" class="view-content" style="display: none;">
+            <h2>Temari Policia Local</h2>
+            <p>Mòduls d'estudi i testos específics per a Policia Local.</p>
+          </div>
+
+          <div id="view-actualitat" class="view-content" style="display: none;">
+            <h2>Actualitat</h2>
+            <p>Notícies i preguntes d'actualitat.</p>
+          </div>
+
+          <div id="view-comunitat" class="view-content" style="display: none;">
+            <h2>Comunitat</h2>
+            <p>Fòrum i xat de la comunitat.</p>
+          </div>
+
+          <div id="view-editor" class="view-content" style="display: none;">
+            <h2>Gestor de preguntes</h2>
+            <p>Afegeix o edita preguntes.</p>
+          </div>
+        </div>
+
+        <nav class="bottom-nav">
+          <button data-tab="inici" class="bn-item active"><span class="bn-ico">🏠</span><span class="bn-lab">Inici</span></button>
+          <button data-tab="mossos" class="bn-item"><span class="bn-ico"><img src="Escut.png" alt="Escut" style="width: 20px; height: 20px; vertical-align: middle;"></span><span class="bn-lab">Mossos</span></button>
+          <button data-tab="policia-local" class="bn-item"><span class="bn-ico">🚔</span><span class="bn-lab">P. Local</span></button>
+          <button data-tab="actualitat" class="bn-item"><span class="bn-ico">📰</span><span class="bn-lab">Actualitat</span></button>
+          <button data-tab="editor" class="bn-item"><span class="bn-ico">✏️</span><span class="bn-lab">Preguntes</span></button>
+        </nav>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCRIPT PRINCIPAL EXAMEN I Neteja -->
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // Neteja xat
+      function netejarXat() {
+        const selectors = ['.chat-mini', '.chat-mini-open', '.rightrail', '[title="Obre el xat"]'];
+        selectors.forEach(sel => {
+          document.querySelectorAll(sel).forEach(el => el.remove());
+        });
+      }
+      netejarXat();
+      const observer = new MutationObserver(netejarXat);
+      observer.observe(document.body, { childList: true, subtree: true });
+
+      // Dies examen
+      const targetDate = new Date('2026-10-17T00:00:00');
+      const today = new Date();
+      const diffTime = targetDate - today;
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      const elDies = document.getElementById('dies-examen');
+      if (elDies) elDies.textContent = diffDays > 0 ? diffDays : 0;
+
+      // Navegació pestanyes principals
+      const navButtons = document.querySelectorAll('[data-tab]');
+      navButtons.forEach(button => {
+        button.addEventListener('click', (e) => {
+          e.preventDefault();
+          const targetTab = button.getAttribute('data-tab');
+
+          navButtons.forEach(btn => btn.classList.remove('active'));
+          document.querySelectorAll(`[data-tab="${targetTab}"]`).forEach(btn => btn.classList.add('active'));
+
+          document.body.className = `sec-${targetTab}`;
+
+          document.querySelectorAll('.view-content').forEach(view => {
+            view.style.display = (view.id === `view-${targetTab}`) ? 'block' : 'none';
+          });
+        });
+      });
+
+      // Intercanvi Estudia vs Examen a Mossos
+      const btnEstudia = document.getElementById('btn-tab-estudia');
+      const btnExamen = document.getElementById('btn-tab-examen');
+      const hubEstudiar = document.getElementById('hub-estudiar');
+      const hubExamen = document.getElementById('hub-examen');
+
+      if (btnEstudia && btnExamen) {
+        btnEstudia.addEventListener('click', () => {
+          btnEstudia.classList.add('on');
+          btnExamen.classList.remove('on');
+          hubEstudiar.style.display = 'block';
+          hubExamen.style.display = 'none';
+          tancarInterficieExamenActiu();
+        });
+
+        btnExamen.addEventListener('click', () => {
+          btnExamen.classList.add('on');
+          btnEstudia.classList.remove('on');
+          hubEstudiar.style.display = 'none';
+          hubExamen.style.display = 'block';
+        });
+      }
+    });
+
+    // --- LÒGICA DE SIMULACIÓ D'EXAMEN OFICIAL ---
+    let examenTimer = null;
+    let examenSegonsRestants = 30 * 60; // 30 minuts
+    let examenActualPreguntes = [];
+    let examenRespostesUsuari = {};
+
+    const bancPreguntesExamen = {
+      ambitA: [
+        { q: "Quina és la composició quantitativa bàsica del Govern de la Generalitat segons l'Estatut?", opts: ["President/a i consellers/es", "Només el President/a", "El Parlament i el Govern", "El President/a, vicepresidents/es i consellers/es"], ans: 3 },
+        { q: "Quin riu delimita principalment la conca hidrogràfica de Tarragona i el sud de Catalunya?", opts: ["El Segre", "L'Ebre", "El Llobregat", "El Ter"], ans: 1 },
+        { q: "Quin és el municipi més poblat de la comarca del Baix Penedès?", opts: ["El Vendrell", "Cunit", "Calafell", "Artesa de Segre"], ans: 0 },
+        { q: "A quina vegueria pertany actualment el municipi de Cunit?", opts: ["Vegueria de Barcelona", "Vegueria del Penedès", "Vegueria de Tarragona", "Vegueria de les Terres de l'Ebre"], ans: 1 }
+      ],
+      ambitB: [
+        { q: "A quina llei orgànica s'estableixen les competències i forces de seguretat de l'Estat?", opts: ["Llei Orgànica 1/1992", "Llei Orgànica 2/1986 (LOFCS)", "Llei Orgànica 10/1995", "Llei Orgànica 4/2015"], ans: 1 },
+        { q: "Segons l'Estatut d'Autonomia de Catalunya, a qui correspon la competència exclusiva en matèria de policia autònoma?", opts: ["A l'Estat", "A la Generalitat de Catalunya", "Als Ajuntaments", "Compartida amb les diputacions"], ans: 1 },
+        { q: "Quin article de la Constitució Espanyola regula els drets fonamentals i llibertats públiques principals?", opts: ["Articles 14 a 29", "Articles 1 al 9", "Articles 30 a 38", "Articles 53 a 55"], ans: 0 },
+        { q: "Com s'estructura bàsicament el Parlament de Catalunya?", opts: ["Bicameral", "Unicameral", "Tripartit", "Assembleari"], ans: 1 }
+      ],
+      ambitC: [
+        { q: "Quin organisme coordina les policies locals a Catalunya?", opts: ["La Junta de Seguretat de Catalunya", "La Comissió de Coordinació de Policies Locals", "El Departament d'Interior exclusivament", "La Direcció General de la Policia"], ans: 1 },
+        { q: "Quin termini màxim pot durar la detenció preventiva policial segons la Constitució?", opts: ["24 hores", "48 hores", "El temps necessari i màxim de 72 hores", "5 dies prorrogables"], ans: 2 },
+        { q: "Quina funció té principalment la Policia Administrativa Especial?", opts: ["Perseguir només delictes greus", "Vetllar pel compliment d'ordenances i normatives sectorials específiques", "Gestió de trànsit interurbà", "Seguretat privada"], ans: 1 }
+      ],
+      actualitat: [
+        { q: "Quin és el nom de la recent Convocatòria unificada per a l'escala bàsica dels Mossos d'Esquadra oberta recentment?", opts: ["Convocatòria 46-26", "Convocatòria 12-24", "Convocatòria 01-25", "Convocatòria 99-27"], ans: 0 },
+        { q: "Quina institució a Catalunya gestiona directament les borses de treball i oposicions per a agents locals a municipis com Mollerussa?", opts: ["El SOC (Servei d'Ocupació)", "Mitjançant plataformes de selecció online i ajuntaments", "Només el Departament de Justícia", "El Parlament directament"], ans: 1 }
+      ]
+    };
+
+    function comencarExamenOficial() {
+      // Generar 30 preguntes (barrejant Àmbits A, B, C i 2 fixes/aleatòries d'actualitat)
+      let poolA = [...bancPreguntesExamen.ambitA];
+      let poolB = [...bancPreguntesExamen.ambitB];
+      let poolC = [...bancPreguntesExamen.ambitC];
+      let poolAct = [...bancPreguntesExamen.actualitat];
+
+      // Assegurar 2 d'actualitat i repartir la resta entre A, B i C
+      let seleccionades = [];
+      
+      // Agafar 2 d'actualitat
+      while(seleccionades.length < 2 && poolAct.length > 0) {
+        let index = Math.floor(Math.random() * poolAct.length);
+        seleccionades.push(poolAct.splice(index, 1)[0]);
+      }
+
+      // Omplir fins a 30 amb A, B, C
+      let poolGeneral = [...poolA, ...poolB, ...poolC];
+      // Si el banc local és curt, fem loop o duplicació controlada per arribar a 30
+      while (seleccionades.length < 30) {
+        if (poolGeneral.length > 0) {
+          let index = Math.floor(Math.random() * poolGeneral.length);
+          seleccionades.push(poolGeneral.splice(index, 1)[0]);
+        } else {
+          // Repetir si cal
+          poolGeneral = [...bancPreguntesExamen.ambitA, ...bancPreguntesExamen.ambitB, ...bancPreguntesExamen.ambitC];
+        }
+      }
+
+      // Barrejar l'ordre final de les 30 preguntes
+      examenActualPreguntes = seleccionades.sort(() => Math.random() - 0.5);
+      examenRespostesUsuari = {};
+      examenSegonsRestants = 30 * 60;
+
+      // Renderitzar pantalla d'examen
+      const hubExamen = document.getElementById('hub-examen');
+      let htmlPreguntes = `
+        <div style="max-width: 800px; margin: 0 auto; text-align: left; background: #fff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08);">
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e9ecef; padding-bottom: 15px; margin-bottom: 20px; position: sticky; top: 0; background: white; z-index: 10;">
+            <h3 style="margin: 0; font-size: 18px; color: #007aff;">📝 Simulacre Oficial (30 Preguntes)</h3>
+            <div id="examen-temporitzador" style="background: #fff3cd; color: #856404; padding: 6px 12px; border-radius: 6px; font-weight: 700; font-size: 15px; border: 1px solid #ffeeba;">
+              ⏱️ 30:00
+            </div>
+          </div>
+
+          <div id="llistat-preguntes-examen" style="display: flex; flex-direction: column; gap: 25px;">
+      `;
+
+      examenActualPreguntes.forEach((p, idx) => {
+        htmlPreguntes += `
+          <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; border: 1px solid #e9ecef;">
+            <p style="font-weight: 700; margin-top: 0; margin-bottom: 12px; color: #333;">${idx + 1}. ${p.q}</p>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+        `;
+        p.opts.forEach((opt, oIdx) => {
+          htmlPreguntes += `
+            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 14px; background: white; padding: 10px 12px; border-radius: 6px; border: 1px solid #dee2e6; transition: all 0.2s;">
+              <input type="radio" name="preg_${idx}" value="${oIdx}" onchange="marcarRespostaExamen(${idx}, ${oIdx})" style="accent-color: #007aff;">
+              <span>${opt}</span>
+            </label>
+          `;
+        });
+        htmlPreguntes += `</div></div>`;
+      });
+
+      htmlPreguntes += `
+          </div>
+          <div style="margin-top: 30px; text-align: center;">
+            <button onclick="finalitzarExamenOficial(true)" style="background: #28a745; color: white; border: none; padding: 12px 30px; font-weight: 700; border-radius: 8px; font-size: 16px; cursor: pointer; box-shadow: 0 4px 6px rgba(40,167,69,0.2);">
+              Finalitzar i Lliurar Examen 🏁
+            </button>
+          </div>
+        </div>
+      `;
+
+      hubExamen.innerHTML = htmlPreguntes;
+
+      // Iniciar temporitzador
+      if (examenTimer) clearInterval(examenTimer);
+      examenTimer = setInterval(() => {
+        examenSegonsRestants--;
+        let m = Math.floor(examenSegonsRestants / 60);
+        let s = examenSegonsRestants % 60;
+        const elTimer = document.getElementById('examen-temporitzador');
+        if (elTimer) {
+          elTimer.textContent = `⏱️ ${m < 10 ? '0' + m : m}:${s < 10 ? '0' + s : s}`;
+        }
+
+        if (examenSegonsRestants <= 0) {
+          clearInterval(examenTimer);
+          alert("⏱️ S'ha esgotat el temps de l'examen!");
+          finalitzarExamenOficial(false);
+        }
+      }, 1000);
+    }
+
+    function marcarRespostaExamen(preguntaIdx, opcioIdx) {
+      examenRespostesUsuari[preguntaIdx] = opcioIdx;
+    }
+
+    function finalitzarExamenOficial(manual) {
+      if (examenTimer) clearInterval(examenTimer);
+
+      let encerts = 0;
+      let errors = 0;
+      let blancs = 0;
+
+      examenActualPreguntes.forEach((p, idx) => {
+        if (examenRespostesUsuari[idx] === undefined) {
+          blancs++;
+        } else if (parseInt(examenRespostesUsuari[idx], 10) === p.ans) {
+          encerts++;
+        } else {
+          errors++;
+        }
+      });
+
+      // Càlcul nota: 
+      // Totes sumen igual. Puntuació de 0 a 10.
+      // Fórmula: Nota = (Encerts - (Errors / 4)) * (10 / TotalPreguntes)
+      let totalPreguntes = examenActualPreguntes.length; // 30
+      let puntuacioNeta = encerts - (errors / 4);
+      if (puntuacioNeta < 0) puntuacioNeta = 0;
+      let notaFinal = (puntuacioNeta * 10) / totalPreguntes;
+      if (notaFinal > 10) notaFinal = 10;
+
+      // Actualitzar mitjana Mossos a la barra superior
+      const elNotaMossos = document.getElementById('nota-mossos');
+      if (elNotaMossos) {
+        elNotaMossos.textContent = `📊 ${notaFinal.toFixed(2)}`;
+        localStorage.setItem('mitjana_mossos_oficial', notaFinal.toFixed(2));
+      }
+
+      // Mostrar resultats detallats
+      const hubExamen = document.getElementById('hub-examen');
+      hubExamen.innerHTML = `
+        <div style="max-width: 650px; margin: 0 auto; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); text-align: center;">
+          <span style="font-size: 50px; display: block; margin-bottom: 10px;">🏆</span>
+          <h2 style="margin: 0 0 5px 0; color: #333;">Resultat del Simulacre d'Examen</h2>
+          <p style="color: #6c757d; font-size: 14px; margin-bottom: 25px;">Avaluació oficial completada segons barem de correcció.</p>
+          
+          <div style="font-size: 42px; font-weight: 900; color: ${notaFinal >= 5 ? '#28a745' : '#dc3545'}; margin-bottom: 20px;">
+            ${notaFinal.toFixed(2)} <span style="font-size: 18px; color: #6c757d;">/ 10</span>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 30px;">
+            <div style="background: #e2f0d9; padding: 15px; border-radius: 8px;">
+              <span style="font-size: 20px; font-weight: 700; color: #385723; display: block;">${encerts}</span>
+              <span style="font-size: 12px; color: #385723;">Encerts</span>
+            </div>
+            <div style="background: #fce8e6; padding: 15px; border-radius: 8px;">
+              <span style="font-size: 20px; font-weight: 700; color: #a8071a; display: block;">${errors}</span>
+              <span style="font-size: 12px; color: #a8071a;">Errors</span>
+            </div>
+            <div style="background: #e9ecef; padding: 15px; border-radius: 8px;">
+              <span style="font-size: 20px; font-weight: 700; color: #495057; display: block;">${blancs}</span>
+              <span style="font-size: 12px; color: #495057;">Blancs</span>
+            </div>
+          </div>
+
+          <button onclick="comencarExamenOficial()" style="background: #007aff; color: white; border: none; padding: 12px 25px; font-weight: 700; border-radius: 8px; font-size: 15px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,122,255,0.2);">
+            Tornar a Fer un Altre Examen 🔄
+          </button>
+        </div>
+      `;
+    }
+
+    function tancarInterficieExamenActiu() {
+      if (examenTimer) clearInterval(examenTimer);
+      const hubExamen = document.getElementById('hub-examen');
+      if (hubExamen) {
+        hubExamen.innerHTML = `
+          <div style="max-width: 600px; margin: 0 auto; background: #fff; border: 1px solid #e9ecef; padding: 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+            <span style="font-size: 40px; display: block; margin-bottom: 10px;">📝</span>
+            <h3 style="margin: 0 0 10px 0; font-size: 22px; color: #333;">Simulacre d'Examen Oficial</h3>
+            <p style="color: #6c757d; font-size: 14px; margin-bottom: 25px;">
+              30 preguntes aleatòries (inclou Àmbits A, B, C i 2 preguntes d'Actualitat).<br>
+              Temps límit: <b>30 minuts</b>. Errors resten 1/4 part. Blancs no penalitzen. Puntuació del 0 al 10.
+            </p>
+            <button onclick="comencarExamenOficial()" style="background: #007aff; color: white; border: none; padding: 12px 30px; font-weight: 700; border-radius: 8px; font-size: 16px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,122,255,0.2);">
+              Començar Examen Ara 🚀
+            </button>
+          </div>
+        `;
+      }
+    }
+
+
+</script>
+<script src="Mossos_Preguntas.js"></script>
+<script src="P_L_Preguntas.js"></script>
+<script src="Actualidad_preguntas.js"></script>
+<script src="app.js"></script>
+
+</body>
+</html>
