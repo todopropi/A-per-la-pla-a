@@ -212,6 +212,7 @@
               <span class="m"><span class="v gold" id="nota-mossos">📊 0.00</span><span class="l">Mitjana Mossos</span></span>
               <span class="m"><span class="v gold" id="nota-plocal">🚔 0.00</span><span class="l">Mitjana P.Local</span></span>
               <a href="https://mossos.gencat.cat/web/.content/home/01_els_mossos_desquadra/ingres-cos/Escala-bAsica/convocatoria-46-26/Previsio-calendari-46-26-16.07.2026.pdf" target="_blank" rel="noopener noreferrer" class="m m-btn" style="text-decoration: none; cursor: pointer;"><span class="v" id="dies-examen">--</span><span class="l">dies examen</span></a>
+              <button id="btn-firebase-login" onclick="alternarSessioFirebase()" style="background:#002B5E;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap;">🔑 Sincronitzar</button>
             </div>
           </div>
         </div>
@@ -712,6 +713,15 @@
 <script src="P_L_Preguntas.js"></script>
 <script src="Actualidad_preguntas.js"></script>
 <script src="app.js"></script>
+
+<!-- Sincronització entre dispositius: Firebase Authentication + Firestore.
+     Fem servir els SDK "compat" (variable global `firebase`) perquè no calen
+     eines de build (npm/webpack) i encaixen amb la resta de <script> plans
+     de la pàgina. -->
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
+<script src="firebase-sync.js"></script>
 
 </body>
 </html>

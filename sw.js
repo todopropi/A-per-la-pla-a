@@ -4,12 +4,13 @@
 // El progrés de l'usuari NO es guarda aquí (va a localStorage), aquest
 // fitxer només serveix per fer l'app instal·lable i disponible offline.
 
-const CACHE_NAME = 'agent-medina-cache-v4';
+const CACHE_NAME = 'agent-medina-cache-v5';
 
 const FITXERS_APP_SHELL = [
   './',
   './index.html',
   './app.js',
+  './firebase-sync.js',
   './Mossos_Preguntas.js',
   './P_L_Preguntas.js',
   './Actualidad_preguntas.js',
@@ -45,6 +46,20 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+
+  // Firebase (Auth/Firestore) necessita anar sempre a la xarxa: mai
+  // interceptem ni posem en cau aquestes peticions, perquè són dades
+  // en temps real (login, lectures/escriptures a Firestore), no fitxers
+  // estàtics de l'app shell.
+  const url = event.request.url;
+  if (
+    url.includes('googleapis.com') ||
+    url.includes('firebaseio.com') ||
+    url.includes('firebaseapp.com') ||
+    url.includes('accounts.google.com')
+  ) {
+    return;
+  }
 
   event.respondWith(
     caches.match(event.request).then((resposta) => {
