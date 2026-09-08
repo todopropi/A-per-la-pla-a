@@ -1373,6 +1373,9 @@ document.addEventListener('DOMContentLoaded', () => {
             <button onclick="window.obrirModalCrearPregunta('mossos')" class="btn-crear-pregunta-top" style="font-size: 13px; padding: 9px 16px;">
               <span>➕</span> <span>Nova Pregunta</span>
             </button>
+            <button onclick="window.obrirModalImportarLot('mossos')" style="padding: 9px 16px; border-radius: 10px; font-weight: 800; font-size: 13px; cursor: pointer; border: none; background: linear-gradient(135deg,#059669,#10b981); color: #ffffff; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);" title="Importar preguntes massives o generades per IA">
+              <span>⚡</span> <span>Importar lot / IA</span>
+            </button>
             <button id="btn-quick-mixed-test" style="padding: 9px 16px; border-radius: 10px; font-weight: 800; font-size: 13px; cursor: pointer; border: none; background: #007aff; color: #ffffff; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 8px rgba(0, 122, 255, 0.25);">
               <span>🔀</span> <span>Test Barrejat</span>
             </button>
@@ -1733,6 +1736,21 @@ document.addEventListener('DOMContentLoaded', () => {
   function mostrarTemarioPL() {
     const contenedor = document.getElementById('view-policia-local');
     if (!contenedor) return;
+
+    if (typeof window.renderitzadorTemariPL === 'function') {
+      window.renderitzadorTemariPL(contenedor, {
+        bancoPoliciaLocal,
+        mostrarSelectorPreguntas,
+        mostrarSelectorSeccions,
+        mostrarToast,
+        modalConfirmacio,
+        escapeHtml,
+        actualitzarBotonsRepasErrors,
+        actualitzarRatxaUI,
+        mostrarTemarioPL
+      });
+      return;
+    }
 
     const municipiActiu = obtenirMunicipiActiuPL();
     const municipisDisponibles = carregarMunicipisPL();
@@ -2234,56 +2252,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     actualitzarBotonsRepasErrors();
-  }
-
-  // --- MUNICIPIS DE POLICIA LOCAL (afegir/eliminar des de la interfície) ---
-  const MUNICIPIS_PL_KEY = 'agentmedina_municipis_pl_v1';
-  const MUNICIPIS_PL_DEFECTE = ['Constantí', 'Tàrrega', 'Cunit', 'Cubelles'];
-
-  function carregarMunicipisPL() {
-    try {
-      const raw = localStorage.getItem(MUNICIPIS_PL_KEY);
-      if (raw !== null) {
-        const llista = JSON.parse(raw);
-        if (Array.isArray(llista)) {
-          // Si té l'antic valor per defecte sense Constantí, afegim Constantí al principi
-          if (llista.length === 3 && llista.includes('Tàrrega') && llista.includes('Cunit') && llista.includes('Cubelles') && !llista.some(m => m.toLowerCase().includes('constantí') || m.toLowerCase().includes('constanti'))) {
-            llista.unshift('Constantí');
-            guardarMunicipisPL(llista);
-          }
-          return llista;
-        }
-      }
-      guardarMunicipisPL(MUNICIPIS_PL_DEFECTE);
-      return [...MUNICIPIS_PL_DEFECTE];
-    } catch (e) {
-      console.error('Error llegint municipis PL:', e);
-      return [...MUNICIPIS_PL_DEFECTE];
-    }
-  }
-  window.carregarMunicipisPL = carregarMunicipisPL;
-
-  function guardarMunicipisPL(llista) {
-    try {
-      localStorage.setItem(MUNICIPIS_PL_KEY, JSON.stringify(llista || []));
-    } catch (e) {
-      console.error('Error guardant municipis PL:', e);
-    }
-  }
-
-  function afegirMunicipiPL(nom) {
-    const llista = carregarMunicipisPL();
-    const net = String(nom || '').trim();
-    if (!net) return;
-    if (llista.some(m => m.trim().toLowerCase() === net.toLowerCase())) return;
-    llista.push(net);
-    guardarMunicipisPL(llista);
-  }
-
-  function eliminarMunicipiPL(nom) {
-    const target = String(nom || '').trim().toLowerCase();
-    const llista = carregarMunicipisPL().filter(m => String(m).trim().toLowerCase() !== target);
-    guardarMunicipisPL(llista);
   }
 
   // --- GESTOR DE PREGUNTES (afegir / editar, individual i massiu) ---
@@ -3887,18 +3855,45 @@ window.descarregarProgresDirecte = descarregarProgresDirecte;
 window.restaurarProgresDirecte = restaurarProgresDirecte;
 
 // --- 8.4 Creador de Preguntes Directe al Temari ---
-function obrirModalCrearPregunta(bancPref = 'pl', temaPref = null) {
+function obrirModalCrearPregunta(bancPref = 'pl', temaPref = null, municipiPref = null) {
   const modal = document.getElementById('modal-crear-pregunta');
   if (!modal) return;
 
+  if (typeof window.canviarModeCreacio === 'function') {
+    window.canviarModeCreacio('manual');
+  }
+
   // Seleccionar el banc
-  const radio = modal.querySelector(`input[name="banc-pregunta"][value="${bancPref}"]`);
+  const radio = modal.querySelector(`input[name="banc-pregunta"][value="${bancPref}"], input[name="cp-banc"][value="${bancPref}"]`);
   if (radio) radio.checked = true;
 
-  canviarBancCrearPregunta(bancPref, temaPref);
+  // Si hi ha municipi preferent o actiu
+  const munSelect = document.getElementById('cp-select-municipi');
+  const munActiu = (typeof window.obtenirMunicipiActiuPL === 'function') ? window.obtenirMunicipiActiuPL() : 'Constantí';
+  const targetMun = municipiPref || (munActiu !== 'Compartit' ? munActiu : 'Comú');
+  if (munSelect && targetMun) {
+    // Si no existeix com a opció, afegir-la
+    let exists = false;
+    for (let i = 0; i < munSelect.options.length; i++) {
+      if (munSelect.options[i].value.toLowerCase() === targetMun.toLowerCase()) {
+        munSelect.selectedIndex = i;
+        exists = true;
+        break;
+      }
+    }
+    if (!exists) {
+      const opt = document.createElement('option');
+      opt.value = targetMun;
+      opt.textContent = `🏛️ ${targetMun}`;
+      munSelect.appendChild(opt);
+      munSelect.value = targetMun;
+    }
+  }
+
+  canviarBancCrearPregunta(bancPref, temaPref, targetMun);
 
   // Netejar camps
-  const campPregunta = document.getElementById('cp-pregunta');
+  const campPregunta = document.getElementById('cp-pregunta') || document.getElementById('cp-text-pregunta');
   if (campPregunta) campPregunta.value = '';
   [0, 1, 2, 3].forEach(i => {
     const op = document.getElementById(`cp-op-${i}`);
@@ -3917,9 +3912,15 @@ function tancarModalCrearPregunta() {
   if (modal) modal.classList.remove('active');
 }
 
-function canviarBancCrearPregunta(banc, temaPref = null) {
+function canviarBancCrearPregunta(banc, temaPref = null, municipiPref = null) {
   const select = document.getElementById('cp-select-tema');
   if (!select) return;
+
+  // Mostrar o amagar selector de municipi
+  const blocMun = document.getElementById('cp-bloc-municipi');
+  if (blocMun) {
+    blocMun.style.display = (banc === 'pl') ? 'block' : 'none';
+  }
 
   // Obtenir totes les seccions existents d'aquest banc
   const dataset = (typeof window.obtenirBancActiu === 'function') ? window.obtenirBancActiu(banc) : [];
@@ -3929,9 +3930,32 @@ function canviarBancCrearPregunta(banc, temaPref = null) {
     if (s) seccionsMap.set(s, (seccionsMap.get(s) || 0) + 1);
   });
 
-  const seccions = Array.from(seccionsMap.entries());
+  // Si és Policia Local, afegim els temes oficials del municipi perquè estiguin disponibles fins i tot si tenen 0 preguntes
+  let temesOficials = [];
+  if (banc === 'pl') {
+    const mun = municipiPref || (typeof window.obtenirMunicipiActiuPL === 'function' ? window.obtenirMunicipiActiuPL() : 'Constantí');
+    if (typeof window.obtenirTemariPLPerMunicipi === 'function') {
+      temesOficials = window.obtenirTemariPLPerMunicipi(mun);
+    }
+  }
 
-  // Ordenar les seccions numèricament 0 a 40
+  // Reconstruir opcions del select
+  let html = `<option value="">-- Tria una secció o tema existent --</option>`;
+  html += `<option value="NOU_TEMA">➕ Escriure un tema o municipi nou...</option>`;
+
+  if (temesOficials.length > 0) {
+    const munNom = municipiPref || (typeof window.obtenirMunicipiActiuPL === 'function' ? window.obtenirMunicipiActiuPL() : 'Constantí');
+    html += `<optgroup label="Temari Oficial de ${escapeHtml(munNom)}">`;
+    temesOficials.forEach(t => {
+      const nomComplet = `${t.codi || 'T' + t.id}. ${t.nom}`;
+      const count = seccionsMap.get(nomComplet) || seccionsMap.get(t.nom) || 0;
+      const isSel = (temaPref && (temaPref === nomComplet || temaPref === t.nom || temaPref.includes(`Tema ${t.id}`))) ? 'selected' : '';
+      html += `<option value="${escapeHtml(nomComplet)}" ${isSel}>${escapeHtml(nomComplet)} (${count} preguntes)</option>`;
+    });
+    html += `</optgroup>`;
+  }
+
+  const seccions = Array.from(seccionsMap.entries());
   seccions.sort((a, b) => {
     const nomA = a[0] || '';
     const nomB = b[0] || '';
@@ -3950,27 +3974,26 @@ function canviarBancCrearPregunta(banc, temaPref = null) {
     return nomA.localeCompare(nomB, 'ca', { numeric: true, sensitivity: 'base' });
   });
 
-  // Reconstruir opcions del select
-  let html = `<option value="">-- Tria una secció o tema existent --</option>`;
-  html += `<option value="NOU_TEMA">➕ Escriure un tema o municipi nou...</option>`;
-
   if (seccions.length > 0) {
-    html += `<optgroup label="Temes existents (${banc.toUpperCase()} - Ordenats)">`;
+    html += `<optgroup label="Altres seccions existents (${banc.toUpperCase()})">`;
     seccions.forEach(([s, count]) => {
-      const sel = (temaPref && temaPref === s) ? 'selected' : '';
-      html += `<option value="${s.replace(/"/g, '&quot;')}" ${sel}>${s} (${count} preguntes)</option>`;
+      const isSel = (temaPref && temaPref === s) ? 'selected' : '';
+      html += `<option value="${escapeHtml(s)}" ${isSel}>${escapeHtml(s)} (${count} preguntes)</option>`;
     });
     html += `</optgroup>`;
   }
 
   select.innerHTML = html;
 
-  if (temaPref && seccionsMap.has(temaPref)) {
-    select.value = temaPref;
-    onCanviSelectTema(temaPref);
-  } else {
-    onCanviSelectTema(select.value);
+  if (temaPref) {
+    for (let i = 0; i < select.options.length; i++) {
+      if (select.options[i].value === temaPref || select.options[i].text.includes(temaPref)) {
+        select.selectedIndex = i;
+        break;
+      }
+    }
   }
+  onCanviSelectTema(select.value);
 }
 
 function onCanviSelectTema(val) {
@@ -4014,7 +4037,7 @@ function desarPreguntaDirecta(event) {
   const modal = document.getElementById('modal-crear-pregunta');
   if (!modal) return;
 
-  const bancRadio = modal.querySelector('input[name="banc-pregunta"]:checked');
+  const bancRadio = modal.querySelector('input[name="banc-pregunta"]:checked') || modal.querySelector('input[name="cp-banc"]:checked');
   const banc = bancRadio ? bancRadio.value : 'pl';
 
   const selectTema = document.getElementById('cp-select-tema');
@@ -4031,10 +4054,11 @@ function desarPreguntaDirecta(event) {
     return;
   }
 
-  const textPregunta = document.getElementById('cp-pregunta')?.value.trim();
+  const campPreguntaEl = document.getElementById('cp-pregunta') || document.getElementById('cp-text-pregunta');
+  const textPregunta = campPreguntaEl ? campPreguntaEl.value.trim() : '';
   if (!textPregunta) {
     mostrarToast('❌ Si us plau, escriu l\'enunciat de la pregunta.', 'error');
-    document.getElementById('cp-pregunta')?.focus();
+    if (campPreguntaEl) campPreguntaEl.focus();
     return;
   }
 
@@ -4050,7 +4074,8 @@ function desarPreguntaDirecta(event) {
     return;
   }
 
-  const respostaIndex = parseInt(document.getElementById('cp-resposta-index')?.value || '0', 10);
+  const radioCorrecta = modal.querySelector('input[name="cp-resposta-correcta"]:checked');
+  const respostaIndex = radioCorrecta ? parseInt(radioCorrecta.value, 10) : parseInt(document.getElementById('cp-resposta-index')?.value || '0', 10);
   const explicacio = document.getElementById('cp-explicacio')?.value.trim() || '';
 
   // Construir l'objecte pregunta compatible amb tots els temaris

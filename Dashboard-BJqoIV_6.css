@@ -99,6 +99,23 @@ body.theme-dark .sidebar button.active {
   color: #38bdf8 !important;
 }
 
+body.theme-dark .bottom-nav,
+[data-theme="dark"] .bottom-nav {
+  background: #0f172a !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 -4px 18px rgba(0, 0, 0, 0.4) !important;
+}
+
+body.theme-dark .bottom-nav .bn-item,
+[data-theme="dark"] .bottom-nav .bn-item {
+  color: #94a3b8 !important;
+}
+
+body.theme-dark .bottom-nav .bn-item.active,
+[data-theme="dark"] .bottom-nav .bn-item.active {
+  color: #38bdf8 !important;
+}
+
 /* Forcem contenidors clars a fosc */
 body.theme-dark div[style*="background:#fff"],
 body.theme-dark div[style*="background: #fff"],
@@ -855,11 +872,27 @@ body.theme-dark .action-card-badge {
 }
 
 /* Sidebar Styling Premium */
-.sidebar {
-  background: #0f172a !important;
-  border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
-  display: flex;
-  flex-direction: column;
+@media (min-width: 901px) {
+  .sidebar {
+    background: #0f172a !important;
+    border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+    display: flex !important;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 900px) {
+  .sidebar,
+  aside.sidebar {
+    display: none !important;
+    visibility: hidden !important;
+    width: 0 !important;
+    height: 0 !important;
+    overflow: hidden !important;
+    pointer-events: none !important;
+    position: absolute !important;
+    left: -9999px !important;
+  }
 }
 
 .sidebar .nav {

@@ -6,6 +6,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Agent Medina — Plataforma d'estudi</title>
+  <meta name="description" content="Plataforma d'estudi per a les oposicions de Mossos d'Esquadra i Policia Local amb preguntes de temari, tests, simulacres d'examen i actualitat.">
+  <meta property="og:title" content="Agent Medina — Plataforma d'estudi">
+  <meta property="og:description" content="Plataforma d'estudi per a les oposicions de Mossos d'Esquadra i Policia Local amb preguntes de temari, tests, simulacres d'examen i actualitat.">
+  <meta property="og:type" content="website">
 
   <!-- Favicon y fuentes -->
   <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
@@ -53,15 +57,78 @@
       left: -9999px !important;
     }
 
-    /* Ampliar el layout principal */
-    .layout, 
-    .layout.chat-collapsed {
-      grid-template-columns: 260px 1fr !important;
+    /* Layout d'escriptori */
+    @media (min-width: 901px) {
+      .layout, 
+      .layout.chat-collapsed {
+        display: flex !important;
+      }
+      .sidebar,
+      aside.sidebar {
+        width: 260px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        position: fixed !important;
+        height: 100vh !important;
+        top: 0 !important;
+        left: 0 !important;
+        z-index: 50 !important;
+      }
+      .main {
+        margin-left: 260px !important;
+        margin-right: 0 !important;
+        width: calc(100% - 260px) !important;
+        max-width: calc(100% - 260px) !important;
+        min-width: 0 !important;
+      }
+      .bottom-nav {
+        display: none !important;
+      }
     }
 
-    .main {
-      width: 100% !important;
-      max-width: 100% !important;
+    /* Layout per a versió mòbil: amagar totalment la barra lateral i desplegar la barra inferior */
+    @media (max-width: 900px) {
+      .layout, 
+      .layout.chat-collapsed {
+        display: block !important;
+        width: 100% !important;
+        max-width: 100vw !important;
+        overflow-x: hidden !important;
+      }
+      .sidebar,
+      aside.sidebar,
+      .sidebar-footer-card {
+        display: none !important;
+        visibility: hidden !important;
+        width: 0 !important;
+        max-width: 0 !important;
+        height: 0 !important;
+        overflow: hidden !important;
+        position: absolute !important;
+        left: -9999px !important;
+        pointer-events: none !important;
+      }
+      .main {
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        padding-bottom: 80px !important;
+      }
+      .bottom-nav {
+        display: flex !important;
+        position: fixed !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        z-index: 9999 !important;
+        background: var(--bg-card, #ffffff) !important;
+        border-top: 1.5px solid var(--border-card, #e2e8f0) !important;
+        box-shadow: 0 -4px 18px rgba(0, 43, 94, 0.12) !important;
+        padding: 4px 6px calc(6px + env(safe-area-inset-bottom, 0px)) !important;
+      }
     }
 
     /* Força tots els quadrats del logo a ser blaus i amaga el 5è */
@@ -200,8 +267,8 @@
     <div class="layout chat-collapsed">
       <aside class="sidebar">
         <div class="brand-header">
-          <div class="brand-crest-box">
-            <span style="font-size: 20px;">🛡️</span>
+          <div class="brand-crest-box" style="overflow:hidden;padding:0;display:flex;align-items:center;justify-content:center;background:#002B5E;border:1.5px solid rgba(234,179,8,0.4);border-radius:10px;width:38px;height:38px;flex-shrink:0;">
+            <img src="logo_agent_medina.jpg" alt="Agent Medina" style="width:100%;height:100%;object-fit:cover;" referrerpolicy="no-referrer">
           </div>
           <div class="brand-title-wrap">
             <span class="brand-name">AGENT MEDINA</span>
@@ -230,7 +297,10 @@
 
       <div class="main">
         <div class="topbar">
-          <span class="pagetitle" title="Agent Medina">Agent Medina</span>
+          <span class="pagetitle" title="Agent Medina" style="display:inline-flex;align-items:center;gap:10px;">
+            <img src="logo_agent_medina.jpg" alt="Logo Agent Medina" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:1.5px solid #d97706;box-shadow:0 0 10px rgba(217,119,6,0.3);flex-shrink:0;" referrerpolicy="no-referrer">
+            <span>Agent Medina</span>
+          </span>
           <div class="topright">
             <div class="trio" title="Ratxa · Notes mitjanes · Dies examen">
               <span class="m"><span class="v fire" id="ratxa-val">🔥 0</span><span class="l">ratxa</span></span>
@@ -374,6 +444,7 @@
           <button data-tab="policia-local" class="bn-item"><span class="bn-ico">🚔</span><span class="bn-lab">P. Local</span></button>
           <button data-tab="actualitat" class="bn-item"><span class="bn-ico">📰</span><span class="bn-lab">Actualitat</span></button>
           <button data-tab="editor" class="bn-item"><span class="bn-ico">✏️</span><span class="bn-lab">Preguntes</span></button>
+          <button data-tab="comunitat" class="bn-item"><span class="bn-ico">💬</span><span class="bn-lab">Comunitat</span></button>
         </nav>
       </div>
     </div>
@@ -671,7 +742,10 @@
 <script src="Mossos_Preguntas.js"></script>
 <script src="P_L_Preguntas.js"></script>
 <script src="Actualidad_preguntas.js"></script>
+<script src="temari_pl_config.js"></script>
+<script src="temari_pl_view.js"></script>
 <script src="app.js"></script>
+<script src="importador_preguntes_lot.js"></script>
 
 <!-- Sincronització entre dispositius: Firebase Authentication + Firestore.
      Fem servir els SDK "compat" (variable global `firebase`) perquè no calen
@@ -761,12 +835,23 @@
   <div class="modal-sheet-dialog">
     <div class="modal-dialog-header">
       <div>
-        <h3 class="modal-dialog-title">➕ Afegir Nova Pregunta</h3>
-        <p style="margin:4px 0 0;font-size:13px;color:var(--text-muted);">La pregunta s'afegirà immediatament a la secció seleccionada i serà utilitzable als tests.</p>
+        <h3 class="modal-dialog-title" id="modal-cp-titol">➕ Afegir Preguntes al Temari</h3>
+        <p style="margin:4px 0 0;font-size:13px;color:var(--text-muted);">Crea preguntes manuals o importa múltiples preguntes d'un cop des de ChatGPT o Gemini.</p>
       </div>
       <button class="modal-close-button" onclick="window.tancarModalCrearPregunta()" title="Tancar">✕</button>
     </div>
 
+    <!-- Selector de mode de creació: 1 a 1 o Massiu (IA) -->
+    <div style="display:flex;gap:8px;padding:4px;background:var(--bg-card-subtle);border-radius:12px;margin-bottom:18px;border:1px solid var(--border-card);">
+      <button type="button" id="btn-mode-crear-manual" onclick="window.canviarModeCreacio('manual')" style="flex:1;padding:10px 14px;border-radius:9px;font-weight:700;font-size:13.5px;border:none;cursor:pointer;background:linear-gradient(135deg,#002B5E,#007aff);color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;transition:all .2s;">
+        📝 Formulari individual
+      </button>
+      <button type="button" id="btn-mode-crear-lot" onclick="window.canviarModeCreacio('lot')" style="flex:1;padding:10px 14px;border-radius:9px;font-weight:700;font-size:13.5px;border:none;cursor:pointer;background:transparent;color:var(--text-main);display:flex;align-items:center;justify-content:center;gap:8px;transition:all .2s;">
+        ⚡ Importació massiva / IA
+      </button>
+    </div>
+
+    <!-- PANELL 1: FORMULARI MANUAL INDIVIDUAL (1 a 1) -->
     <form id="form-crear-pregunta-directa" onsubmit="window.desarPreguntaDirecta(event)">
       <!-- Selecció de Banc -->
       <div class="form-group-block">
@@ -791,14 +876,13 @@
       <div class="form-group-block" id="cp-bloc-municipi">
         <label class="form-label-title">Municipi d'aplicació (Policia Local):</label>
         <select id="cp-select-municipi" class="form-select-ctrl">
-          <option value="Comú">🌐 Comú / Compartit (Vàlid per a tots: Constantí, Cunit, etc.)</option>
+          <option value="Comú">🌐 Comú / Compartit (Vàlid per a qualsevol municipi)</option>
           <option value="Constantí">🏛️ Constantí</option>
-          <option value="Cunit">🏛️ Cunit</option>
-          <option value="Tàrrega">🏛️ Tàrrega</option>
           <option value="Cubelles">🏛️ Cubelles</option>
+          <option value="Cunit">🏛️ Cunit</option>
         </select>
         <p style="margin:4px 0 0;font-size:12px;color:var(--text-muted);">
-          ℹ️ Els temes generals (Constitució, Codi Penal, Trànsit, Llei 16/1991...) recomanem guardar-los com a <b>Comú</b> perquè estiguin disponibles a qualsevol municipi.
+          ℹ️ Els temes generals (Constitució, Codi Penal, Trànsit, Llei 16/1991...) recomanem marcar-los com a <b>Comú</b> perquè estiguin disponibles a qualsevol municipi.
         </p>
       </div>
 
@@ -868,6 +952,107 @@
         </button>
       </div>
     </form>
+
+    <!-- PANELL 2: IMPORTACIÓ MASSIVA / GENERACIÓ AMB IA (EN LOT) -->
+    <div id="panell-crear-preguntes-lot" style="display:none;">
+      <!-- Opcions de Destí per al Lot -->
+      <div class="form-group-block">
+        <label class="form-label-title">Destí del lot de preguntes:</label>
+        <div style="display:flex;gap:10px;margin-bottom:8px;">
+          <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--bg-card-subtle);border:1.5px solid var(--border-card);border-radius:10px;cursor:pointer;font-weight:700;font-size:13px;color:var(--text-main);">
+            <input type="radio" name="cp-lot-banc" value="pl" checked onchange="window.canviarBancLot('pl')">
+            <span>🚔 Policia Local</span>
+          </label>
+          <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--bg-card-subtle);border:1.5px solid var(--border-card);border-radius:10px;cursor:pointer;font-weight:700;font-size:13px;color:var(--text-main);">
+            <input type="radio" name="cp-lot-banc" value="mossos" onchange="window.canviarBancLot('mossos')">
+            <span>🔵 Mossos d'Esquadra</span>
+          </label>
+          <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--bg-card-subtle);border:1.5px solid var(--border-card);border-radius:10px;cursor:pointer;font-weight:700;font-size:13px;color:var(--text-main);">
+            <input type="radio" name="cp-lot-banc" value="act" onchange="window.canviarBancLot('act')">
+            <span>📰 Actualitat</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Municipi (només PL) -->
+      <div class="form-group-block" id="cp-lot-bloc-municipi">
+        <label class="form-label-title">Municipi d'aplicació:</label>
+        <select id="cp-lot-select-municipi" class="form-select-ctrl" onchange="window.recarregarTemesLot()">
+          <option value="Comú">🌐 Comú / Compartit (Vàlid per a qualsevol municipi)</option>
+          <option value="Constantí">🏛️ Constantí</option>
+          <option value="Cubelles">🏛️ Cubelles</option>
+          <option value="Cunit">🏛️ Cunit</option>
+        </select>
+      </div>
+
+      <!-- Tema / Secció per defecte -->
+      <div class="form-group-block">
+        <label class="form-label-title">Tema / Secció de destí (o detectat automàticament):</label>
+        <select id="cp-lot-select-tema" class="form-select-ctrl">
+          <!-- Generat dinàmicament -->
+        </select>
+      </div>
+
+      <!-- Banner Assistent d'IA -->
+      <div style="background:linear-gradient(135deg,rgba(0,43,94,0.06),rgba(0,122,255,0.1));border:1.5px solid rgba(0,122,255,0.3);border-radius:12px;padding:12px 14px;margin-bottom:14px;display:flex;flex-direction:column;gap:8px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:18px;">🤖</span>
+            <span style="font-weight:700;font-size:13px;color:var(--text-main);">Vols generar preguntes amb ChatGPT o Gemini?</span>
+          </div>
+          <button type="button" onclick="window.copiarPromptIA()" style="padding:6px 12px;background:#007aff;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;">
+            📋 Copiar Prompt per a la IA
+          </button>
+        </div>
+        <p style="margin:0;font-size:12px;color:var(--text-muted);line-height:1.4;">
+          Copia el prompt preparat, enganxa'l a la teva IA i demana-li 10, 20 o 50 preguntes. Després només has d'enganxar la resposta al requadre inferior.
+        </p>
+      </div>
+
+      <!-- Textarea d'importació -->
+      <div class="form-group-block">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <label class="form-label-title" style="margin-bottom:0;">Enganxa les preguntes (Text IA, JSON o Taula):</label>
+          <div style="display:flex;gap:6px;">
+            <button type="button" onclick="window.carregarExempleLot()" style="background:none;border:none;color:#007aff;font-size:11.5px;font-weight:700;cursor:pointer;">📄 Veure exemple</button>
+            <span style="color:var(--border-card);">|</span>
+            <button type="button" onclick="window.netejarTextareaLot()" style="background:none;border:none;color:#ef4444;font-size:11.5px;font-weight:700;cursor:pointer;">🗑️ Netejar</button>
+          </div>
+        </div>
+        <textarea id="cp-lot-textarea" class="form-textarea-ctrl" rows="7" placeholder="Exemple de format detectat automàticament:&#10;&#10;1. Quin és el termini màxim de la detenció preventiva segons la CE?&#10;a) 24 hores&#10;b) 48 hores&#10;c) 72 hores&#10;d) 5 dies&#10;Resposta: c&#10;Explicació: Art. 17.2 CE...&#10;&#10;(També admet format JSON [ { pregunta, opcions, resposta } ] o separat per punts i comes)"></textarea>
+      </div>
+
+      <!-- Barra de botons d'anàlisi -->
+      <div style="display:flex;gap:10px;margin-bottom:14px;">
+        <button type="button" id="btn-analitzar-lot" onclick="window.processarTextLot()" style="flex:2;padding:10px;background:var(--bg-card-subtle);color:var(--text-main);border:1.5px solid var(--border-card);border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
+          🔍 Analitzar i previsualitzar
+        </button>
+        <button type="button" onclick="window.enganxarPortapapersLot()" style="flex:1;padding:10px;background:var(--bg-card-subtle);color:var(--text-main);border:1.5px solid var(--border-card);border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
+          📋 Enganxar
+        </button>
+      </div>
+
+      <!-- Resum i llista de previsualització -->
+      <div id="cp-lot-resum-bloc" style="display:none;margin-bottom:14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);border-radius:10px;margin-bottom:10px;">
+          <span id="cp-lot-badge-recompte" style="font-size:13px;font-weight:700;color:#059669;"></span>
+          <span style="font-size:12px;color:var(--text-muted);">Comprova les respostes abans de desar</span>
+        </div>
+        <div id="cp-lot-preview-container" style="max-height:280px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding-right:4px;">
+          <!-- Targetes generades dinàmicament -->
+        </div>
+      </div>
+
+      <!-- Botons d'acció final -->
+      <div style="display:flex;gap:12px;margin-top:18px;">
+        <button type="button" id="btn-confirmar-lot" onclick="window.desarLotPreguntesDirecte()" disabled style="flex:2;padding:12px;background:linear-gradient(135deg,#002B5E,#007aff);color:#fff;border:none;border-radius:10px;font-weight:800;font-size:14.5px;cursor:pointer;opacity:0.5;">
+          💾 Confirmar i Desar (0 preguntes)
+        </button>
+        <button type="button" onclick="window.tancarModalCrearPregunta()" style="flex:1;padding:12px;background:var(--bg-card-subtle);color:var(--text-main);border:1px solid var(--border-card);border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;">
+          Cancel·lar
+        </button>
+      </div>
+    </div>
   </div>
 </div>
 

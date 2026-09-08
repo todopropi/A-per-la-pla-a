@@ -156,6 +156,67 @@ app.post('/api/modificar-pregunta-fitxer', (req, res) => {
   }
 });
 
+// Endpoint per MODIFICAR/AFEGIR en LOT directament al fitxer .js
+app.post('/api/modificar-preguntes-fitxer-lot', (req, res) => {
+  try {
+    const { banc, preguntes } = req.body;
+    if (!banc || !Array.isArray(preguntes) || preguntes.length === 0) {
+      return res.status(400).json({ success: false, error: 'Falten dades de banc o llista de preguntes' });
+    }
+    const bancKey = banc === 'pl' ? 'pl' : banc === 'act' ? 'act' : 'mossos';
+    const llista = readBankArrayFromFile(bancKey);
+
+    let afegides = 0;
+    const now = Date.now();
+
+    preguntes.forEach((p, i) => {
+      let id = p.id;
+      if (!id) {
+        id = (bancKey === 'pl' ? 'PL_' : bancKey === 'act' ? 'ACT_' : 'MOSSOS_') + now + '_' + i;
+        p.id = id;
+      }
+      const idx = llista.findIndex(q => q && String(q.id).trim() === String(id).trim());
+      if (idx !== -1) {
+        llista[idx] = { ...llista[idx], ...p };
+      } else {
+        llista.push(p);
+      }
+      afegides++;
+    });
+
+    if (bancKey === 'pl') {
+      function getTemaNum(q) {
+        const txt = `${q.seccio || ''} ${q.tema || ''} ${q.pregunta || ''}`;
+        const m = txt.match(/Tema\s*(\d+)/i);
+        return m ? parseInt(m[1], 10) : null;
+      }
+      const ambTema = llista.filter(q => getTemaNum(q) !== null);
+      const senseTema = llista.filter(q => getTemaNum(q) === null);
+      ambTema.sort((a, b) => {
+        const nA = getTemaNum(a);
+        const nB = getTemaNum(b);
+        if (nA !== nB) return nA - nB;
+        return (a.id || '').localeCompare(b.id || '', 'ca', { numeric: true });
+      });
+      writeBankArrayToFile(bancKey, [...ambTema, ...senseTema]);
+    } else {
+      writeBankArrayToFile(bancKey, llista);
+    }
+
+    console.log(`[API] Lot de ${afegides} preguntes desades directament al fitxer .js de ${bancKey}`);
+    return res.json({
+      success: true,
+      banc: bancKey,
+      afegides,
+      total: llista.length,
+      missatge: `${afegides} preguntes desades correctament al fitxer .js!`
+    });
+  } catch (error) {
+    console.error('Error desant lot al fitxer .js:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Endpoint per ELIMINAR directament del fitxer .js
 app.post('/api/eliminar-pregunta-fitxer', (req, res) => {
   try {
