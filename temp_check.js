@@ -1,4 +1,4 @@
-window.bancoPoliciaLocal = [
+const banco = [
   {
     "id": "GUB_001",
     "ambit": "Teoria",
@@ -12001,3 +12001,4 @@ window.bancoPoliciaLocal = [
     "resposta": 0
   }
 ];
+; module.exports = banco;

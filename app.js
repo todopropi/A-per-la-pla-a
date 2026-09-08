@@ -10,6 +10,70 @@ let showingAnswer = false;
 let activeTestContainerId = 'test-container';
 window.ultimTestPreguntes = window.ultimTestPreguntes || [];
 
+// Constants globals de claus de persistència i configuració (inicialitzades a l'inici per evitar errors de TDZ)
+const CUSTOM_PREGUNTES_KEY = 'agentmedina_preguntes_custom_v1';
+const OVERRIDES_PREGUNTES_KEY = 'agentmedina_overrides_preguntes_v1';
+const CONVOCATORIES_KEY = 'agentmedina_convocatories_v2';
+const CONVOCATORIES_OLD_KEYS = ['agentmedina_convocatories_v1'];
+const convocatoriesPerDefecte = [
+  { id: 'mossos-46-26', nom: 'Mossos (Convocatòria 46-26)', url: 'https://mossos.gencat.cat/ca/els_mossos_desquadra/acces_al_cos/Mosso_a/mosso-a-convocatoria-46-26/', color: '#007aff' },
+  { id: 'pl-mollerussa', nom: 'Policia Local (Mollerussa)', url: 'https://mollerussa.convoca.online/processDetail.html?id=190266bf-4c8b-49eb-4520-08de7dbdb6c7&type=0', color: '#28a745' }
+];
+
+// Funció global d'escapament HTML per evitar atacs XSS i ReferenceError
+function escapeHtml(valor) {
+  return String(valor ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+}
+window.escapeHtml = escapeHtml;
+
+function establirClasseSeccio(tabName) {
+  const isDark = (localStorage.getItem('agentmedina_theme') === 'dark');
+  document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+  document.documentElement.classList.toggle('theme-dark', isDark);
+  if (document.body) {
+    document.body.className = `sec-${tabName}${isDark ? ' theme-dark' : ''}`;
+  }
+}
+window.establirClasseSeccio = establirClasseSeccio;
+
+// Modal de confirmació elegant i 100% compatible amb iFrame (sense window.confirm nadiu)
+function modalConfirmacio({ titol, missatge, textBoto = 'Confirmar', textCancel = 'Cancel·lar', esPerillos = true, onAcceptar }) {
+  const antic = document.getElementById('modal-confirmacio-generic');
+  if (antic) antic.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'modal-confirmacio-generic';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.65);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:99999;padding:20px;';
+  modal.innerHTML = `
+    <div style="background:var(--bg-card,#ffffff);border:1.5px solid var(--border-card,#e2e8f0);border-radius:18px;max-width:440px;width:100%;padding:24px 26px;box-shadow:0 16px 40px rgba(0,0,0,.3);color:var(--text-main,#0f172a);animation:modalEntrada .15s ease-out;">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+        <div style="width:40px;height:40px;border-radius:10px;background:${esPerillos ? 'rgba(239,68,68,0.12)' : 'rgba(37,99,235,0.12)'};color:${esPerillos ? '#ef4444' : '#2563eb'};display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">
+          ${esPerillos ? '⚠️' : 'ℹ️'}
+        </div>
+        <h3 style="margin:0;font-size:17.5px;font-weight:900;color:var(--text-main,#0f172a);">${escapeHtml(titol || 'Confirmació')}</h3>
+      </div>
+      <p style="margin:0 0 22px;font-size:13.5px;color:var(--text-muted,#64748b);line-height:1.55;">${escapeHtml(missatge)}</p>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button type="button" id="modal-conf-cancel" style="padding:10px 16px;border-radius:10px;border:1.5px solid var(--border-card,#cbd5e1);background:var(--bg-card-subtle,#f8fafc);font-weight:700;font-size:13.5px;cursor:pointer;color:var(--text-main,#334155);">${escapeHtml(textCancel)}</button>
+        <button type="button" id="modal-conf-ok" style="padding:10px 20px;border-radius:10px;border:none;background:${esPerillos ? '#dc2626' : '#2563eb'};color:#ffffff;font-weight:800;font-size:13.5px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.15);">${escapeHtml(textBoto)}</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  const tancar = () => modal.remove();
+  const btnCancel = modal.querySelector('#modal-conf-cancel');
+  const btnOk = modal.querySelector('#modal-conf-ok');
+  if (btnCancel) btnCancel.onclick = tancar;
+  modal.addEventListener('click', e => { if (e.target === modal) tancar(); });
+  if (btnOk) {
+    btnOk.onclick = () => {
+      tancar();
+      if (typeof onAcceptar === 'function') onAcceptar();
+    };
+  }
+}
+window.modalConfirmacio = modalConfirmacio;
+
 // Torna sempre a la vista Inici, també des de funcions fora del controlador principal.
 function tornarAInici(e) {
   if (e) e.preventDefault();
@@ -19,7 +83,7 @@ function tornarAInici(e) {
   });
   document.querySelectorAll('[data-tab]').forEach(btn => btn.classList.remove('active'));
   document.querySelectorAll('[data-tab="inici"]').forEach(btn => btn.classList.add('active'));
-  document.body.className = 'sec-inici';
+  establirClasseSeccio('inici');
   if (typeof window.mostrarInici === 'function') {
     window.mostrarInici();
   }
@@ -804,7 +868,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const activeButtons = document.querySelectorAll(`[data-tab="${targetTab}"]`);
       activeButtons.forEach(btn => btn.classList.add('active'));
 
-      document.body.className = `sec-${targetTab}`;
+      establirClasseSeccio(targetTab);
 
       const views = document.querySelectorAll('.view-content');
       views.forEach(view => {
@@ -870,12 +934,7 @@ document.addEventListener('DOMContentLoaded', () => {
   try { actualizarEstadisticasTop(); } catch (e) { console.error('Error a actualizarEstadisticasTop:', e); }
 
   // --- CONVOCATÒRIES GESTIONABLES DES DE LA INTERFÍCIE ---
-  const CONVOCATORIES_KEY = 'agentmedina_convocatories_v2';
-  const CONVOCATORIES_OLD_KEYS = ['agentmedina_convocatories_v1'];
-  const convocatoriesPerDefecte = [
-    { id: 'mossos-46-26', nom: 'Mossos (Convocatòria 46-26)', url: 'https://mossos.gencat.cat/ca/els_mossos_desquadra/acces_al_cos/Mosso_a/mosso-a-convocatoria-46-26/', color: '#007aff' },
-    { id: 'pl-mollerussa', nom: 'Policia Local (Mollerussa)', url: 'https://mollerussa.convoca.online/processDetail.html?id=190266bf-4c8b-49eb-4520-08de7dbdb6c7&type=0', color: '#28a745' }
-  ];
+  // (Les constants CONVOCATORIES_KEY i convocatoriesPerDefecte estan definides a l'inici del fitxer)
 
   function normalitzarConvocatories(dades) {
     if (!Array.isArray(dades)) return [...convocatoriesPerDefecte];
@@ -1042,56 +1101,130 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
         </div>
 
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;">
-          <div style="background:#f8f9fa;border:1px solid #e9ecef;padding:15px;border-radius:10px;text-align:center;">
-            <span style="font-size:24px;display:block;margin-bottom:5px;">🔥</span>
-            <span style="font-size:18px;font-weight:700;" id="inici-ratxa">${ratxaActual}</span>
-            <span style="font-size:12px;color:#6c757d;display:block;">Ratxa activa</span>
+        <!-- 1. Dials Radials i Mètriques (Inspirat en Sample 1 Radial & Sample 2 Modern de 1234.jpeg) -->
+        <div class="dash-metrics-grid">
+          <!-- Radial 1: Ratxa -->
+          <div class="dash-radial-card">
+            <div class="radial-dial-wrap">
+              <svg class="radial-dial-svg" viewBox="0 0 100 100">
+                <circle class="radial-dial-bg" cx="50" cy="50" r="40"></circle>
+                <circle class="radial-dial-progress" cx="50" cy="50" r="40" stroke="#f59e0b" stroke-dasharray="251.2" stroke-dashoffset="${251.2 - Math.min(ratxaActual * 25, 251.2)}"></circle>
+              </svg>
+              <div class="radial-center-content">
+                <span class="radial-icon">🔥</span>
+                <span class="radial-value" id="inici-ratxa">${ratxaActual}</span>
+              </div>
+            </div>
+            <span class="radial-label">Ratxa activa</span>
+            <span class="radial-subtext">Dies consecutius</span>
           </div>
-          <div style="background:#f8f9fa;border:1px solid #e9ecef;padding:15px;border-radius:10px;text-align:center;">
-            <span style="font-size:24px;display:block;margin-bottom:5px;">🎯</span>
-            <span style="font-size:18px;font-weight:700;" id="inici-preguntes">${totalContestadas}</span>
-            <span style="font-size:12px;color:#6c757d;display:block;">Preguntes contestades</span>
+
+          <!-- Radial 2: Preguntes Contestades -->
+          <div class="dash-radial-card">
+            <div class="radial-dial-wrap">
+              <svg class="radial-dial-svg" viewBox="0 0 100 100">
+                <circle class="radial-dial-bg" cx="50" cy="50" r="40"></circle>
+                <circle class="radial-dial-progress" cx="50" cy="50" r="40" stroke="#8b5cf6" stroke-dasharray="251.2" stroke-dashoffset="${251.2 - Math.min((totalContestadas / 200) * 251.2, 251.2)}"></circle>
+              </svg>
+              <div class="radial-center-content">
+                <span class="radial-icon">🎯</span>
+                <span class="radial-value" id="inici-preguntes">${totalContestadas}</span>
+              </div>
+            </div>
+            <span class="radial-label">Preguntes</span>
+            <span class="radial-subtext">Total contestades</span>
           </div>
-          <div style="background:#f8f9fa;border:1px solid #e9ecef;padding:15px;border-radius:10px;text-align:center;">
-            <span style="font-size:24px;display:block;margin-bottom:5px;">📊</span>
-            <span style="font-size:18px;font-weight:700;">${porcentajeAciertos}%</span>
-            <span style="font-size:12px;color:#6c757d;display:block;">Encerts globals</span>
+
+          <!-- Radial 3: Encerts Globals % -->
+          <div class="dash-radial-card">
+            <div class="radial-dial-wrap">
+              <svg class="radial-dial-svg" viewBox="0 0 100 100">
+                <circle class="radial-dial-bg" cx="50" cy="50" r="40"></circle>
+                <circle class="radial-dial-progress" cx="50" cy="50" r="40" stroke="#10b981" stroke-dasharray="251.2" stroke-dashoffset="${251.2 - (parseFloat(porcentajeAciertos) / 100) * 251.2}"></circle>
+              </svg>
+              <div class="radial-center-content">
+                <span class="radial-icon">📝</span>
+                <span class="radial-value">${porcentajeAciertos}%</span>
+              </div>
+            </div>
+            <span class="radial-label">Encerts</span>
+            <span class="radial-subtext">Puntuació global</span>
           </div>
-          <div style="background:#fff5f5;border:1px solid #fecaca;padding:15px;border-radius:10px;text-align:center;">
-            <span style="font-size:24px;display:block;margin-bottom:5px;">🔥</span>
-            <span style="font-size:18px;font-weight:700;" id="total-errors-dashboard">0 preguntes pendents</span>
-            <span style="font-size:12px;color:#991b1b;display:block;">Errors acumulats</span>
+
+          <!-- Radial 4: Errors Pendents -->
+          <div class="dash-radial-card">
+            <div class="radial-dial-wrap">
+              <svg class="radial-dial-svg" viewBox="0 0 100 100">
+                <circle class="radial-dial-bg" cx="50" cy="50" r="40"></circle>
+                <circle class="radial-dial-progress" cx="50" cy="50" r="40" stroke="#ef4444" stroke-dasharray="251.2" stroke-dashoffset="0"></circle>
+              </svg>
+              <div class="radial-center-content">
+                <span class="radial-icon">⚠️</span>
+                <span class="radial-value" id="total-errors-dashboard">0</span>
+              </div>
+            </div>
+            <span class="radial-label">Errors</span>
+            <span class="radial-subtext">Pendents de repàs</span>
           </div>
         </div>
 
         <div style="display:flex;justify-content:center;">
-          <button id="btn-repas-errors-inici" style="width:100%;max-width:520px;border:none;padding:13px 18px;border-radius:10px;font-weight:800;cursor:pointer;font-size:15px;">🔁 Repàs d'errors acumulats (0)</button>
+          <button id="btn-repas-errors-inici" style="width:100%;max-width:520px;border:none;padding:13px 18px;border-radius:12px;font-weight:800;cursor:pointer;font-size:15px;background:linear-gradient(135deg,#b91c1c,#ef4444);color:#fff;box-shadow:0 4px 14px rgba(239,68,68,0.25);">🔁 Repàs d'errors acumulats (0)</button>
         </div>
 
-        <div style="background:#ffffff;border:1px solid #e2e8f0;padding:18px;border-radius:12px;">
-          <div style="margin-bottom:12px;"><h2 style="margin:0;color:#0f172a;font-size:20px;">🎯 Centre d'entrenament</h2><p style="margin:4px 0 0;color:#64748b;font-size:13px;">Accés ràpid a les quatre formes principals d'entrenar.</p></div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;">
-            <button id="centre-continuar" type="button" style="padding:14px;border:1px solid #bfdbfe;background:#eff6ff;border-radius:10px;text-align:left;cursor:pointer;"><b>📖 Continuar estudi</b><small style="display:block;color:#64748b;margin-top:4px;">Torna a Mossos i continua amb els àmbits.</small></button>
-            <button id="centre-errors" type="button" style="padding:14px;border:1px solid #fecaca;background:#fff5f5;border-radius:10px;text-align:left;cursor:pointer;"><b>🔁 Repàs d'errors</b><small style="display:block;color:#64748b;margin-top:4px;">Treballa les preguntes que més fallen.</small></button>
-            <button id="centre-simulacre" type="button" style="padding:14px;border:1px solid #bbf7d0;background:#f0fdf4;border-radius:10px;text-align:left;cursor:pointer;"><b>📝 Simulacre oficial</b><small style="display:block;color:#64748b;margin-top:4px;">30 preguntes · 30 minuts.</small></button>
-            <button id="centre-dificils" type="button" style="padding:14px;border:1px solid #fde68a;background:#fffbeb;border-radius:10px;text-align:left;cursor:pointer;"><b>🔥 Preguntes difícils</b><small style="display:block;color:#64748b;margin-top:4px;">Repàs prioritari de les més fallades.</small></button>
+        <!-- 2. Centre d'entrenament millorat -->
+        <div style="background:var(--bg-card,#ffffff);border:1px solid var(--border-card,#e2e8f0);padding:20px;border-radius:16px;box-shadow:var(--shadow-card);">
+          <div class="dash-section-header">
+            <div>
+              <h2 class="dash-section-title">🎯 Centre d'entrenament</h2>
+              <p class="dash-section-subtitle">Tria com vols estudiar avui o crea preguntes directament per als teus temaris.</p>
+            </div>
+            <button onclick="window.obrirModalCrearPregunta()" class="btn-crear-pregunta-top" style="font-size:13px;padding:8px 14px;">
+              <span>➕</span> <span>Nova Pregunta</span>
+            </button>
           </div>
-        </div>
 
-        <div style="background:#ffffff;border:1.5px solid #e2e8f0;padding:18px;border-radius:12px;">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-            <span style="font-size:18px;">💾</span>
-            <h4 style="margin:0;font-size:15px;color:#002B5E;">Còpia de seguretat del progrés (PC ⇄ Android)</h4>
-          </div>
-          <p style="margin:0 0 12px;font-size:12.5px;color:#64748b;line-height:1.5;">
-            Descarrega el teu progrés (errors, ratxa, estadístiques, convocatòries) des de l'ordinador i importa'l al mòbil Android —o a l'inrevés— per tenir-ho tot sincronitzat sense servidors externs.
-          </p>
-          <div style="display:flex;gap:10px;flex-wrap:wrap;">
-            <button id="btn-exportar-progres" type="button" style="flex:1;min-width:170px;background:#002B5E;color:#E8C000;border:none;border-radius:8px;padding:12px 16px;font-weight:800;font-size:13.5px;cursor:pointer;">⬇️ Exportar progrés (JSON)</button>
-            <label for="input-importar-progres" style="flex:1;min-width:170px;text-align:center;background:#fff;color:#002B5E;border:1.5px solid #002B5E;border-radius:8px;padding:12px 16px;font-weight:800;font-size:13.5px;cursor:pointer;">⬆️ Importar progrés (JSON)</label>
-            <input id="input-importar-progres" type="file" accept="application/json,.json" style="display:none;">
-            <button id="btn-instalar-app" type="button" style="display:none;flex:1;min-width:170px;background:#16a34a;color:#fff;border:none;border-radius:8px;padding:12px 16px;font-weight:800;font-size:13.5px;cursor:pointer;">📲 Instal·lar l'app al dispositiu</button>
+          <div class="training-center-grid">
+            <div id="centre-continuar" class="action-card card-blue">
+              <div class="action-card-icon-wrap" style="color:#007aff;">📖</div>
+              <div>
+                <h4 class="action-card-title">Continuar estudi</h4>
+                <p class="action-card-desc">Torna directament al temari de Mossos d'Esquadra o Policia Local.</p>
+              </div>
+            </div>
+
+            <div id="centre-errors" class="action-card card-red">
+              <div class="action-card-icon-wrap" style="color:#ef4444;">🎯</div>
+              <div>
+                <h4 class="action-card-title">Repàs d'errors</h4>
+                <p class="action-card-desc">Posa el focus en les preguntes que més has fallat fins a dominar-les.</p>
+              </div>
+            </div>
+
+            <div id="centre-simulacre" class="action-card card-green">
+              <div class="action-card-icon-wrap" style="color:#10b981;">⏱️</div>
+              <div>
+                <h4 class="action-card-title">Simulacre oficial</h4>
+                <p class="action-card-desc">30 preguntes reals en 30 minuts amb cronòmetre d'oposició.</p>
+              </div>
+            </div>
+
+            <div id="centre-crear" class="action-card card-purple" onclick="window.obrirModalCrearPregunta()">
+              <div class="action-card-icon-wrap" style="color:#8b5cf6;">➕</div>
+              <div>
+                <span class="action-card-badge">Directe al temari</span>
+                <h4 class="action-card-title" style="margin-top:4px;">Crear pregunta</h4>
+                <p class="action-card-desc">Afegeix preguntes a qualsevol tema de P. Local o Mossos sense tocar codi.</p>
+              </div>
+            </div>
+
+            <div id="centre-dificils" class="action-card card-gold">
+              <div class="action-card-icon-wrap" style="color:#f59e0b;">🔥</div>
+              <div>
+                <h4 class="action-card-title">Preguntes difícils</h4>
+                <p class="action-card-desc">Repàs prioritari d'aquelles preguntes amb més taxa d'error.</p>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1202,83 +1335,236 @@ document.addEventListener('DOMContentLoaded', () => {
 
   window.mostrarInici = mostrarInici;
 
-  // --- VISTA MOSSOS ---
+  // --- VISTA MOSSOS (Disseny Oficial Agent Medina) ---
   function mostrarTemarioMossos() {
     const contenedor = document.getElementById('view-mossos');
     if (!contenedor) return;
 
+    const dades = window.bancoPreguntes && window.bancoPreguntes.length > 0 ? window.bancoPreguntes : (typeof bancoPreguntes !== 'undefined' ? bancoPreguntes : []);
+    
+    const preguntesA = dades.filter(q => q.ambit && q.ambit.toUpperCase().includes("ÀMBIT A"));
+    const preguntesB = dades.filter(q => q.ambit && q.ambit.toUpperCase().includes("ÀMBIT B"));
+    const preguntesC = dades.filter(q => q.ambit && q.ambit.toUpperCase().includes("ÀMBIT C"));
+    
+    const estA = obtenirEstadistiquesBanc(preguntesA);
+    const estB = obtenirEstadistiquesBanc(preguntesB);
+    const estC = obtenirEstadistiquesBanc(preguntesC);
+
     contenedor.innerHTML = `
-      <div class="teoria-host" style="display: flex; flex-direction: column; gap: 20px;">
-        <div class="teoria-tabs" style="display: flex; background: #f1f5f9; padding: 6px; border-radius: 12px; width: fit-content; gap: 6px;">
-          <button class="tab-interna on" data-subtab="estudia" style="padding: 8px 16px; border: none; background: white; border-radius: 8px; font-weight: 700; cursor: pointer;">▶ Estudia</button>
-          <button class="tab-interna" data-subtab="examen" style="padding: 8px 16px; border: none; background: transparent; border-radius: 8px; font-weight: 600; cursor: pointer; color: #64748b;">📝 Examen Oficial (30p)</button>
+      <div class="academy-curriculum-container" style="max-width: 980px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px;">
+        
+        <!-- Capçalera Oficial Mossos -->
+        <div class="curriculum-hero-card" style="background: var(--bg-card, #ffffff); border: 1.5px solid var(--border-card, #e2e8f0); border-radius: 18px; padding: 22px 26px; box-shadow: var(--shadow-card); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+          <div style="display: flex; align-items: center; gap: 16px;">
+            <div style="width: 54px; height: 54px; border-radius: 14px; background: linear-gradient(135deg, #1e3a8a, #3b82f6); display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(30, 58, 138, 0.25); flex-shrink: 0;">
+              <img src="Escut.png" alt="Escut Mossos" style="width: 36px; height: 36px; object-fit: contain;">
+            </div>
+            <div>
+              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <h2 style="margin: 0; font-size: 21px; font-weight: 900; color: var(--text-main, #0f172a);">Temari Oficial Mossos d'Esquadra</h2>
+                <span style="background: #1e3a8a; color: #93c5fd; font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 6px;">DOGC 46/2026</span>
+              </div>
+              <p style="margin: 4px 0 0; font-size: 13.5px; color: var(--text-muted, #64748b);">
+                Subprova de coneixements — 20 temes oficials estructurats en 3 àmbits acadèmics
+              </p>
+            </div>
+          </div>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button onclick="window.obrirModalCrearPregunta('mossos')" class="btn-crear-pregunta-top" style="font-size: 13px; padding: 9px 16px;">
+              <span>➕</span> <span>Nova Pregunta</span>
+            </button>
+            <button id="btn-quick-mixed-test" style="padding: 9px 16px; border-radius: 10px; font-weight: 800; font-size: 13px; cursor: pointer; border: none; background: #007aff; color: #ffffff; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 8px rgba(0, 122, 255, 0.25);">
+              <span>🔀</span> <span>Test Barrejat</span>
+            </button>
+          </div>
         </div>
 
+        <!-- Selector de Modes -->
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <button class="tab-interna on" data-subtab="estudia" style="padding: 10px 18px; border-radius: 10px; font-weight: 800; font-size: 13.5px; cursor: pointer; border: 1.5px solid #007aff; background: #007aff; color: #ffffff; display: flex; align-items: center; gap: 8px;">
+            <span>📚</span> <span>Pla d'Estudi per Àmbits</span>
+          </button>
+          <button class="tab-interna" data-subtab="examen" style="padding: 10px 18px; border-radius: 10px; font-weight: 800; font-size: 13.5px; cursor: pointer; border: 1.5px solid var(--border-card, #cbd5e1); background: var(--bg-card, #ffffff); color: var(--text-main, #334155); display: flex; align-items: center; gap: 8px;">
+            <span>⏱️</span> <span>Simulacre Oficial (30 preguntes)</span>
+          </button>
+        </div>
+
+        <!-- VISTA PLA D'ESTUDI -->
         <div id="subview-estudia" class="subview-content" style="display: block;">
-          <div class="hub">
-            <div class="startbar">
-              <div class="sb-lab">
-                <span class="sb-k">Si prems Barrejat faràs</span>
-                <span class="sb-lab-row"><span class="sb-t"><span class="mission-copy-wide">🧠 Test de tots els àmbits barrejats</span></span></span>
-              </div>
-              <div class="sb-go">
-                <button class="btn-start btn-start-mossos">🔀 Barrejat</button>
-              </div>
-            </div>
-            <p class="hub-pick-hint">👇 <b>Tria un tema</b></p>
+          <div style="display: flex; flex-direction: column; gap: 14px;">
             
-            <div class="hub-ambit2 amb-active">
-              <button class="amb-bar amb-bar-mossos" data-ambit="Àmbit A">
-                <span class="amb-sq" style="background: rgb(0, 122, 255);"></span>
-                <span class="amb-name">Àmbit A<small>Coneixements de l'entorn</small></span>
-                <span class="amb-pct">0%</span>
-                <span class="amb-chev">▸</span>
-              </button>
+            <!-- Targeta Àmbit A -->
+            <div class="academy-module-card" style="background: var(--bg-card, #ffffff); border: 1.5px solid var(--border-card, #e2e8f0); border-radius: 16px; padding: 22px; box-shadow: var(--shadow-card);">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; flex-wrap: wrap;">
+                <div style="display: flex; gap: 14px; align-items: center;">
+                  <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(37, 99, 235, 0.12); color: #2563eb; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;">
+                    🗺️
+                  </div>
+                  <div>
+                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                      <h3 style="margin: 0; font-size: 17px; font-weight: 800; color: var(--text-main, #0f172a);">Àmbit A · Coneixements de l'Entorn</h3>
+                      <span style="background: rgba(37, 99, 235, 0.1); color: #2563eb; font-weight: 700; font-size: 11px; padding: 2px 8px; border-radius: 6px;">Temes 1 al 7</span>
+                    </div>
+                    <p style="margin: 4px 0 0; font-size: 13px; color: var(--text-muted, #64748b);">
+                      Història social i política de Catalunya, geografia física i econòmica, i estructura de la societat.
+                    </p>
+                  </div>
+                </div>
+                <div style="text-align: right; min-width: 100px;">
+                  <div style="font-size: 20px; font-weight: 900; color: #2563eb;">${estA.progrés}%</div>
+                  <div style="font-size: 11px; color: var(--text-dim, #94a3b8);">${estA.contestades} / ${preguntesA.length} completades</div>
+                </div>
+              </div>
+
+              <div style="margin: 14px 0; height: 8px; background: var(--bg-card-subtle, #e2e8f0); border-radius: 999px; overflow: hidden;">
+                <div style="width: ${estA.progrés}%; height: 100%; background: linear-gradient(90deg, #2563eb, #60a5fa); border-radius: 999px;"></div>
+              </div>
+
+              <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding-top: 4px;">
+                <span style="font-size: 12.5px; color: var(--text-muted, #64748b);">
+                  📊 <b>${preguntesA.length}</b> preguntes al banc
+                </span>
+                <div style="display: flex; gap: 8px;">
+                  <button class="btn-ambit-test" data-ambit="Àmbit A" style="background: #2563eb; color: #fff; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 800; font-size: 13px; cursor: pointer;">
+                    ▶ Fer Test
+                  </button>
+                  <button class="btn-ambit-seccions" data-ambit="Àmbit A" style="background: var(--bg-card-subtle, #f8fafc); color: var(--text-main, #334155); border: 1px solid var(--border-card, #cbd5e1); padding: 8px 14px; border-radius: 8px; font-weight: 700; font-size: 13px; cursor: pointer;">
+                    📋 Triar Temes
+                  </button>
+                </div>
+              </div>
             </div>
-            <div class="hub-ambit2 amb-active">
-              <button class="amb-bar amb-bar-mossos" data-ambit="Àmbit B">
-                <span class="amb-sq" style="background: rgb(225, 29, 72);"></span>
-                <span class="amb-name">Àmbit B<small>Institucional i Marc Legal</small></span>
-                <span class="amb-pct">0%</span>
-                <span class="amb-chev">▸</span>
-              </button>
+
+            <!-- Targeta Àmbit B -->
+            <div class="academy-module-card" style="background: var(--bg-card, #ffffff); border: 1.5px solid var(--border-card, #e2e8f0); border-radius: 16px; padding: 22px; box-shadow: var(--shadow-card);">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; flex-wrap: wrap;">
+                <div style="display: flex; gap: 14px; align-items: center;">
+                  <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(225, 29, 72, 0.12); color: #e11d48; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;">
+                    🏛️
+                  </div>
+                  <div>
+                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                      <h3 style="margin: 0; font-size: 17px; font-weight: 800; color: var(--text-main, #0f172a);">Àmbit B · Institucional i Marc Legal</h3>
+                      <span style="background: rgba(225, 29, 72, 0.1); color: #e11d48; font-weight: 700; font-size: 11px; padding: 2px 8px; border-radius: 6px;">Temes 8 al 15</span>
+                    </div>
+                    <p style="margin: 4px 0 0; font-size: 13px; color: var(--text-muted, #64748b);">
+                      Constitució Espanyola de 1978, Estatut d'Autonomia, Govern de la Generalitat i Procediment Administratiu.
+                    </p>
+                  </div>
+                </div>
+                <div style="text-align: right; min-width: 100px;">
+                  <div style="font-size: 20px; font-weight: 900; color: #e11d48;">${estB.progrés}%</div>
+                  <div style="font-size: 11px; color: var(--text-dim, #94a3b8);">${estB.contestades} / ${preguntesB.length} completades</div>
+                </div>
+              </div>
+
+              <div style="margin: 14px 0; height: 8px; background: var(--bg-card-subtle, #e2e8f0); border-radius: 999px; overflow: hidden;">
+                <div style="width: ${estB.progrés}%; height: 100%; background: linear-gradient(90deg, #e11d48, #f43f5e); border-radius: 999px;"></div>
+              </div>
+
+              <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding-top: 4px;">
+                <span style="font-size: 12.5px; color: var(--text-muted, #64748b);">
+                  📊 <b>${preguntesB.length}</b> preguntes al banc
+                </span>
+                <div style="display: flex; gap: 8px;">
+                  <button class="btn-ambit-test" data-ambit="Àmbit B" style="background: #e11d48; color: #fff; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 800; font-size: 13px; cursor: pointer;">
+                    ▶ Fer Test
+                  </button>
+                  <button class="btn-ambit-seccions" data-ambit="Àmbit B" style="background: var(--bg-card-subtle, #f8fafc); color: var(--text-main, #334155); border: 1px solid var(--border-card, #cbd5e1); padding: 8px 14px; border-radius: 8px; font-weight: 700; font-size: 13px; cursor: pointer;">
+                    📋 Triar Temes
+                  </button>
+                </div>
+              </div>
             </div>
-            <div class="hub-ambit2 amb-active">
-              <button class="amb-bar amb-bar-mossos" data-ambit="Àmbit C">
-                <span class="amb-sq" style="background: rgb(22, 163, 74);"></span>
-                <span class="amb-name">Àmbit C<small>Seguretat i Policia</small></span>
-                <span class="amb-pct">0%</span>
-                <span class="amb-chev">▸</span>
-              </button>
+
+            <!-- Targeta Àmbit C -->
+            <div class="academy-module-card" style="background: var(--bg-card, #ffffff); border: 1.5px solid var(--border-card, #e2e8f0); border-radius: 16px; padding: 22px; box-shadow: var(--shadow-card);">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; flex-wrap: wrap;">
+                <div style="display: flex; gap: 14px; align-items: center;">
+                  <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(16, 185, 129, 0.12); color: #10b981; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;">
+                    🛡️
+                  </div>
+                  <div>
+                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                      <h3 style="margin: 0; font-size: 17px; font-weight: 800; color: var(--text-main, #0f172a);">Àmbit C · Seguretat Pública i Policial</h3>
+                      <span style="background: rgba(16, 185, 129, 0.1); color: #10b981; font-weight: 700; font-size: 11px; padding: 2px 8px; border-radius: 6px;">Temes 16 al 20</span>
+                    </div>
+                    <p style="margin: 4px 0 0; font-size: 13px; color: var(--text-muted, #64748b);">
+                      Forces i Cossos de Seguretat (LO 2/1986), Policia de la Generalitat (Llei 10/1994), Codi Penal, Detenció i Ètica.
+                    </p>
+                  </div>
+                </div>
+                <div style="text-align: right; min-width: 100px;">
+                  <div style="font-size: 20px; font-weight: 900; color: #10b981;">${estC.progrés}%</div>
+                  <div style="font-size: 11px; color: var(--text-dim, #94a3b8);">${estC.contestades} / ${preguntesC.length} completades</div>
+                </div>
+              </div>
+
+              <div style="margin: 14px 0; height: 8px; background: var(--bg-card-subtle, #e2e8f0); border-radius: 999px; overflow: hidden;">
+                <div style="width: ${estC.progrés}%; height: 100%; background: linear-gradient(90deg, #10b981, #34d399); border-radius: 999px;"></div>
+              </div>
+
+              <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding-top: 4px;">
+                <span style="font-size: 12.5px; color: var(--text-muted, #64748b);">
+                  📊 <b>${preguntesC.length}</b> preguntes al banc
+                </span>
+                <div style="display: flex; gap: 8px;">
+                  <button class="btn-ambit-test" data-ambit="Àmbit C" style="background: #10b981; color: #fff; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 800; font-size: 13px; cursor: pointer;">
+                    ▶ Fer Test
+                  </button>
+                  <button class="btn-ambit-seccions" data-ambit="Àmbit C" style="background: var(--bg-card-subtle, #f8fafc); color: var(--text-main, #334155); border: 1px solid var(--border-card, #cbd5e1); padding: 8px 14px; border-radius: 8px; font-weight: 700; font-size: 13px; cursor: pointer;">
+                    📋 Triar Temes
+                  </button>
+                </div>
+              </div>
             </div>
-            <div class="hub-bottom">
+
+          </div>
+        </div>
+
+        <!-- VISTA SIMULACRE D'EXAMEN -->
+        <div id="subview-examen" class="subview-content" style="display: none;">
+          <div style="background: var(--bg-card, #ffffff); border: 1.5px solid var(--border-card, #e2e8f0); padding: 36px 24px; border-radius: 18px; text-align: center; max-width: 680px; margin: 20px auto; box-shadow: var(--shadow-card);">
+            <div style="font-size: 40px; margin-bottom: 12px;">⏱️</div>
+            <h3 style="margin: 0 0 10px; font-size: 22px; font-weight: 900; color: var(--text-main, #0f172a);">Simulacre Oficial Mossos d'Esquadra</h3>
+            <p style="color: var(--text-muted, #64748b); font-size: 14px; line-height: 1.6; margin: 0 0 24px;">
+              30 preguntes reals extretes aleatòriament dels Àmbits A, B i C.<br>
+              Temps límit: <b>30 minuts</b>. Barem oficial: 4 errors resten 1 encert complet.
+            </p>
+            <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+              <button id="btn-examen-estudi-30" style="background: #10b981; color: white; border: none; padding: 13px 22px; border-radius: 10px; font-weight: 800; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                <span>📚</span> <span>Mode Estudi (Correcció a l'instant)</span>
+              </button>
+              <button id="btn-examen-real-30" style="background: #2563eb; color: white; border: none; padding: 13px 22px; border-radius: 10px; font-weight: 800; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                <span>🎯</span> <span>Mode Examen Real (Resultats al final)</span>
+              </button>
             </div>
           </div>
         </div>
 
-        <div id="subview-examen" class="subview-content" style="display: none;">
-          <div style="background: white; border: 1px solid #e2e8f0; padding: 30px; border-radius: 16px; text-align: center; max-width: 700px; margin: 40px auto;">
-            <h3 style="margin-top:0;">📝 Examen Oficial — 30 preguntes</h3>
-            <p style="color:#64748b;line-height:1.5;">30 preguntes barrejades dels Àmbits A, B i C. Temps màxim: <b>30 minuts</b>.</p>
-            <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:20px;">
-              <button id="btn-examen-estudi-30" style="background:#16a34a;color:white;border:none;padding:14px 22px;border-radius:12px;font-weight:700;cursor:pointer;">📚 Mode Estudi</button>
-              <button id="btn-examen-real-30" style="background:#007aff;color:white;border:none;padding:14px 22px;border-radius:12px;font-weight:700;cursor:pointer;">🎯 Mode Examen</button>
-            </div>
-            <p style="font-size:12px;color:#94a3b8;margin:15px 0 0;">Estudi: correcció immediata · Examen: resultats només al final</p>
-          </div>
-        </div>
       </div>
       <div id="test-container"></div>
     `;
 
+    // Intercanvi de pestanyes internes
     const subtabs = contenedor.querySelectorAll('.tab-interna');
     subtabs.forEach(tab => {
       tab.addEventListener('click', () => {
-        subtabs.forEach(t => t.classList.remove('on'));
+        subtabs.forEach(t => {
+          t.classList.remove('on');
+          t.style.background = 'var(--bg-card, #ffffff)';
+          t.style.color = 'var(--text-main, #334155)';
+          t.style.borderColor = 'var(--border-card, #cbd5e1)';
+        });
         tab.classList.add('on');
+        tab.style.background = '#007aff';
+        tab.style.color = '#ffffff';
+        tab.style.borderColor = '#007aff';
         const target = tab.getAttribute('data-subtab');
-        document.getElementById('subview-estudia').style.display = target === 'estudia' ? 'block' : 'none';
-        document.getElementById('subview-examen').style.display = target === 'examen' ? 'block' : 'none';
+        const viewEstudia = document.getElementById('subview-estudia');
+        const viewExamen = document.getElementById('subview-examen');
+        if (viewEstudia) viewEstudia.style.display = target === 'estudia' ? 'block' : 'none';
+        if (viewExamen) viewExamen.style.display = target === 'examen' ? 'block' : 'none';
       });
     });
 
@@ -1287,54 +1573,160 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnExamenEstudi) btnExamenEstudi.addEventListener('click', () => iniciarExamenOficial('estudi'));
     if (btnExamenReal) btnExamenReal.addEventListener('click', () => iniciarExamenOficial('examen'));
 
-    const btnStartMossos = contenedor.querySelector('.btn-start-mossos');
-    if (btnStartMossos) {
-      btnStartMossos.addEventListener('click', () => {
-        const dades = window.bancoPreguntes && window.bancoPreguntes.length > 0 ? window.bancoPreguntes : bancoPreguntes;
+    const btnQuickMixed = contenedor.querySelector('#btn-quick-mixed-test');
+    if (btnQuickMixed) {
+      btnQuickMixed.addEventListener('click', () => {
         mostrarSelectorPreguntas("Tots els Àmbits (Barrejat - Mossos)", dades, true);
       });
     }
 
-    const ambitsMossos = contenedor.querySelectorAll('.amb-bar-mossos');
-    ambitsMossos.forEach(ambit => {
-      ambit.addEventListener('click', () => {
-        const nomAmbit = ambit.querySelector('.amb-name')?.innerText.trim() || "";
-        const dades = window.bancoPreguntes && window.bancoPreguntes.length > 0 ? window.bancoPreguntes : bancoPreguntes;
-        
-        let preguntesFiltrades = dades;
-        
-        if (nomAmbit.includes("Àmbit A")) {
-          preguntesFiltrades = dades.filter(q => q.ambit && q.ambit.toUpperCase().includes("ÀMBIT A"));
-        } else if (nomAmbit.includes("Àmbit B")) {
-          preguntesFiltrades = dades.filter(q => q.ambit && q.ambit.toUpperCase().includes("ÀMBIT B"));
-        } else if (nomAmbit.includes("Àmbit C")) {
-          preguntesFiltrades = dades.filter(q => q.ambit && q.ambit.toUpperCase().includes("ÀMBIT C"));
-        }
+    // Botons Fer Test per àmbit sencer
+    contenedor.querySelectorAll('.btn-ambit-test').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const nomAmbit = btn.getAttribute('data-ambit') || '';
+        let preguntes = [];
+        if (nomAmbit.includes("Àmbit A")) preguntes = preguntesA;
+        else if (nomAmbit.includes("Àmbit B")) preguntes = preguntesB;
+        else if (nomAmbit.includes("Àmbit C")) preguntes = preguntesC;
 
-        if (preguntesFiltrades.length === 0) {
-          alert(`Encara no hi ha preguntes carregades per a "${nomAmbit}". Aquest àmbit estarà disponible properament.`);
+        if (preguntes.length === 0) {
+          mostrarToast(`No hi ha preguntes disponibles per a ${nomAmbit}`, 'info');
           return;
         }
-
-        mostrarSelectorSeccions(nomAmbit, preguntesFiltrades, mostrarTemarioMossos);
+        mostrarSelectorPreguntas(nomAmbit, preguntes, true);
       });
     });
 
-    // Omplir el percentatge real de progrés de cada Àmbit (A/B/C), calculat a partir
-    // de les preguntes úniques ja contestades de cada àmbit. Abans es quedava fix a "0%".
-    ambitsMossos.forEach(ambit => {
-      const nomAmbit = ambit.querySelector('.amb-name')?.innerText.trim() || "";
-      const pctEl = ambit.querySelector('.amb-pct');
-      if (!pctEl) return;
-      let subset = [];
-      if (nomAmbit.includes("Àmbit A")) subset = bancoPreguntes.filter(q => q.ambit === 'Àmbit A');
-      else if (nomAmbit.includes("Àmbit B")) subset = bancoPreguntes.filter(q => q.ambit === 'Àmbit B');
-      else if (nomAmbit.includes("Àmbit C")) subset = bancoPreguntes.filter(q => q.ambit === 'Àmbit C');
-      const est = obtenirEstadistiquesBanc(subset);
-      pctEl.textContent = `${est.progrés}%`;
+    // Botons Triar Temes per a seleccionar seccions individuals de l'àmbit
+    contenedor.querySelectorAll('.btn-ambit-seccions').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const nomAmbit = btn.getAttribute('data-ambit') || '';
+        let preguntes = [];
+        if (nomAmbit.includes("Àmbit A")) preguntes = preguntesA;
+        else if (nomAmbit.includes("Àmbit B")) preguntes = preguntesB;
+        else if (nomAmbit.includes("Àmbit C")) preguntes = preguntesC;
+
+        if (preguntes.length === 0) {
+          mostrarToast(`No hi ha preguntes disponibles per a ${nomAmbit}`, 'info');
+          return;
+        }
+        mostrarSelectorSeccions(nomAmbit, preguntes, mostrarTemarioMossos);
+      });
     });
 
     actualitzarBotonsRepasErrors();
+  }
+
+  // Temari Oficial de Policia Local Constantí (Temes 1 al 40) - BOPT 31-8-2026
+  const TEMARI_PL_OFICIAL = [
+    { num: 1, nom: "La Constitució espanyol de 1978: estructura i contingut. Principis generals. La reforma de la constitució. El Tribunal Constitucional." },
+    { num: 2, nom: "Drets i deures fonamentals dels espanyols. Garanties i suspensió dels drets i llibertats fonamentals. El Defensor del poble." },
+    { num: 3, nom: "Organització territorial de l’Estat (I): Les Comunitats Autònomes. L’Estatut d’Autonomia de Catalunya: estructura, continguts essencials i principis fonamentals. La Generalitat: competències exclusives, de desenvolupament legislatiu i executives." },
+    { num: 4, nom: "Organització territorial de l’Estat (II): El municipi i la seva regulació jurídica. Organització i competències." },
+    { num: 5, nom: "L’Administració pública: principis d’actuació a l’Administració Pública: eficàcia, jerarquia, descentralització, desconcentració i coordinació." },
+    { num: 6, nom: "Submissió de l’Administració A la Llei i al Dret: Fonts del Dret Públic. La llei: classes de llei. El Reglament: concepte i classes." },
+    { num: 7, nom: "Les ordenances i els bans. Concepte. Règim d’aprovació. Destinataris. Control del seu compliment." },
+    { num: 8, nom: "L’acte administratiu: concepte, classes i elements. La motivació i la forma." },
+    { num: 9, nom: "Els ciutadans davant l’Administració: drets i col·laboració." },
+    { num: 10, nom: "El procediment administratiu: principis generals. Les fases del procediment administratiu." },
+    { num: 11, nom: "Els recursos administratius: Objectes i classes." },
+    { num: 12, nom: "El pressupost municipal: Concepte, estructura i regulació." },
+    { num: 13, nom: "El règim d’incompatibilitats del personal al servei de les administracions públiques." },
+    { num: 14, nom: "Règim disciplinari dels funcionaris públics pertanyents a un cos de Policia Local." },
+    { num: 15, nom: "Línies bàsiques sobre transparència i informació pública." },
+    { num: 16, nom: "El dret a la protecció de dades com a dret fonamental." },
+    { num: 17, nom: "Llei 16/1991, de 10 de juliol, de les Policies Locals de Catalunya (I): Títol 1, De les policies locals i llurs funcions." },
+    { num: 18, nom: "Llei orgànica 4/2015, de 30 de març, de Protecció de la Seguretat Ciutadana (I): Capítol I: Disposicions generals. Capítol II. Documentació i identificació personal." },
+    { num: 19, nom: "Llei orgànica 4/2015, de 30 de març, de Protecció de la Seguretat Ciutadana (II): Capítol III, Actuacions per al manteniment i restabliment de la seguretat ciutadana." },
+    { num: 20, nom: "Llei Orgànica 2/1986 de 13 de març de Forces i Cossos de Seguretat. Definició de forces o cossos de seguretat pública. Les policies locals." },
+    { num: 21, nom: "Codi Penal (I): Delictes contra les persones: homicidi i les seves formes; les lesions; delictes contra la llibertat; delictes contra la llibertat sexual; delictes contra la intimitat, el dret a la pròpia imatge i la inviolabilitat del domicili; delictes contra l’honor; delictes contra les relacions familiars." },
+    { num: 22, nom: "Codi Penal (II): Delictes contra el patrimoni: el furt i robatori; l’extorsió; el robatori i el furt d’ús de vehicles; la usurpació; l’estafa i l’apropiació indeguda; els danys." },
+    { num: 23, nom: "Codi Penal (III): Delictes contra la seguretat del trànsit." },
+    { num: 24, nom: "Codi Penal (IV): Delictes contra l’ordre públic: atemptat, resistència i desobediència. Els desordres públics." },
+    { num: 25, nom: "Codi penal (V): Delictes comesos pel funcionariat públic contra les garanties constitucionals i contra l’administració pública." },
+    { num: 26, nom: "Llei 39/2015, d’1 d’octubre, del Procediment Administratiu Comú de les Administracions Públiques (II): Títol II, De l’activitat de les Administracions Públiques (articles 13 i 18). Títol III, dels actes administratius (articles 34 i 35)." },
+    { num: 27, nom: "Llei 4/2003 (I) de 7 d'abril, d’ Ordenació del Sistema de Seguretat Pública de Catalunya: Capítol I, Disposicions generals. Capítol II, Estructura del sistema de seguretat. Capítol V, Relacions amb els ciutadans." },
+    { num: 28, nom: "Llei 4/2003, de 7 d’abril, d’ordenació del sistema de seguretat pública de Catalunya (II): Les juntes locals de seguretat. Funcions. Les Meses de Coordinació operatives." },
+    { num: 29, nom: "Llei 7/1985, de 2 d’abril, Reguladora de les bases del règim local. Títol I. Disposicions generals. Títol II. El municipi." },
+    { num: 30, nom: "El Decret 179/2015, de 4 d'agost, pel qual s'aprova el Reglament del procediment del règim disciplinari aplicable als cossos de Policia local de Catalunya." },
+    { num: 31, nom: "El Codi d’ètica de la Policia de Catalunya: Actuació de la Policia. Àmbits d’aplicació: resolució de conflictes i ús de la força, investigació, detenció i privació de llibertat, atenció a les víctimes i testimonis." },
+    { num: 32, nom: "El Reglament General de Circulació (I): Títol Preliminar. Títol I, Normes generals de comportament en la circulació." },
+    { num: 33, nom: "El Reglament General de Conductors: Títol I, De les autoritzacions administratives, Capítol 1, Del permís i de la llicència de conducció." },
+    { num: 34, nom: "Resolució INT/2344/2019, de 5 de setembre, per la qual s'aprova i es dona publicitat al Protocol per a l'abordatge de les infraccions d'odi i discriminació per a les policies locals de Catalunya." },
+    { num: 35, nom: "Ordenança Municipal de Convivència Ciutadana a la Via Pública (Constantí)." },
+    { num: 36, nom: "Les detencions. Qui pot i qui ha d’efectuar detencions i quines són les circumstàncies que permeten o obliguen a efectuar-les. Forma i durada de les detencions." },
+    { num: 37, nom: "L’accident de trànsit. Atestats per accidents de trànsit. Alcoholèmies: normativa reguladora i procediment." },
+    { num: 38, nom: "Coneixement del municipi de Constantí." },
+    { num: 39, nom: "La jurisdicció penal. Òrgans i competències." },
+    { num: 40, nom: "L’atestat policial. Estructura. Valor dels atestats policials." }
+  ];
+
+  const PL_MUNICIPI_ACTIU_KEY = 'agentmedina_pl_municipi_actiu_v1';
+
+  function obtenirMunicipiActiuPL() {
+    return localStorage.getItem(PL_MUNICIPI_ACTIU_KEY) || 'Constantí';
+  }
+
+  function establirMunicipiActiuPL(nom) {
+    localStorage.setItem(PL_MUNICIPI_ACTIU_KEY, nom || 'Constantí');
+  }
+
+  function obtenirTemariPLPerMunicipi(municipi) {
+    const mun = (municipi || 'Constantí').trim();
+    return TEMARI_PL_OFICIAL.map(t => {
+      if (t.num === 35) {
+        if (mun.toLowerCase() === 'constantí' || mun.toLowerCase() === 'constanti') {
+          return { ...t };
+        }
+        if (mun.toLowerCase().startsWith('comú') || mun.toLowerCase() === 'tots') {
+          return { num: 35, nom: "Ordenances municipals de convivència ciutadana i ús de la via pública (Marc Comú / General)." };
+        }
+        return { num: 35, nom: `Ordenances municipals de convivència ciutadana i espai públic (${mun}).` };
+      }
+      if (t.num === 38) {
+        if (mun.toLowerCase() === 'constantí' || mun.toLowerCase() === 'constanti') {
+          return { ...t };
+        }
+        if (mun.toLowerCase().startsWith('comú') || mun.toLowerCase() === 'tots') {
+          return { num: 38, nom: "Coneixement del terme municipal, geografia local, carrerer i serveis d'urgències (General)." };
+        }
+        return { num: 38, nom: `Coneixement del municipi de ${mun} (història, geografia, carrerer i equipaments).` };
+      }
+      return { ...t };
+    });
+  }
+
+  function extreureNumeroTemaPL(q) {
+    if (!q) return null;
+    const txt = `${q.seccio || ''} ${q.tema || ''} ${q.pregunta || ''}`;
+    const m = txt.match(/Tema\s*(\d+)/i);
+    return m ? parseInt(m[1], 10) : null;
+  }
+
+  function preguntaEsAptaPerMunicipi(q, municipiActiu, numTema) {
+    if (!q) return false;
+    const act = (municipiActiu || 'Constantí').trim().toLowerCase();
+    if (act === 'comú (tots)' || act === 'comú' || act === 'comu' || act === 'tots') {
+      return true;
+    }
+
+    const qMun = (q.municipi || '').trim().toLowerCase();
+    if (qMun === 'comú' || qMun === 'comu' || qMun === 'tots') return true;
+    if (qMun && qMun === act) return true;
+
+    // Si la pregunta és dels temes específics locals 35 o 38
+    if (numTema === 35 || numTema === 38) {
+      if (qMun && qMun !== act) return false;
+      const txt = `${q.seccio || ''} ${q.tema || ''} ${q.pregunta || ''}`.toLowerCase();
+      if (act === 'constantí' || act === 'constanti') {
+        return txt.includes('constantí') || txt.includes('constanti') || (!txt.includes('cunit') && !txt.includes('tàrrega') && !txt.includes('cubelles'));
+      }
+      return txt.includes(act);
+    }
+
+    // Per a tots els temes de legislació comuna (1 a 34, 36, 37, 39, 40: Constitució, Penal, Trànsit, Llei 16/1991...)
+    // La normativa és idèntica a tota Catalunya, de manera que s'aprofita per a qualsevol municipi
+    return true;
   }
 
   // --- VISTA POLICIA LOCAL ---
@@ -1342,115 +1734,373 @@ document.addEventListener('DOMContentLoaded', () => {
     const contenedor = document.getElementById('view-policia-local');
     if (!contenedor) return;
 
+    const municipiActiu = obtenirMunicipiActiuPL();
+    const municipisDisponibles = carregarMunicipisPL();
+    const temariActual = obtenirTemariPLPerMunicipi(municipiActiu);
+
+    // Agrupem preguntes de teoria per número de tema (1 al 40)
+    const mapaPreguntesPerTema = new Map();
+    (bancoPoliciaLocal || []).forEach(q => {
+      const num = extreureNumeroTemaPL(q);
+      if (num !== null && preguntaEsAptaPerMunicipi(q, municipiActiu, num)) {
+        if (!mapaPreguntesPerTema.has(num)) mapaPreguntesPerTema.set(num, []);
+        mapaPreguntesPerTema.get(num).push(q);
+      }
+    });
+
+    const totalTeoria = (bancoPoliciaLocal || []).filter(q => {
+      const num = extreureNumeroTemaPL(q);
+      return num !== null && preguntaEsAptaPerMunicipi(q, municipiActiu, num);
+    }).length;
+    const totalCultura = (bancoPoliciaLocal || []).filter(q => (q.ambit || '').toLowerCase().includes('cultura')).length;
+
+    // Llista unificada de municipis per a les pestanyes superiors
+    const pestanyesMunicipi = ['Constantí', 'Cunit', 'Comú (Tots)'];
+    municipisDisponibles.forEach(m => {
+      if (!pestanyesMunicipi.some(p => p.toLowerCase() === m.toLowerCase())) {
+        pestanyesMunicipi.push(m);
+      }
+    });
+
     contenedor.innerHTML = `
-      <div class="teoria-host" style="display:flex;flex-direction:column;gap:20px;">
-        <div class="hub">
-          <div class="startbar">
-            <div class="sb-lab">
-              <span class="sb-k">Si prems Barrejat faràs</span>
-              <span class="sb-lab-row"><span class="sb-t"><span class="mission-copy-wide">🧠 Test de tots els àmbits barrejats</span></span></span>
-            </div>
-            <div class="sb-go"><button class="btn-start btn-start-pl">🔀 Barrejat</button></div>
+      <div class="teoria-host" style="display:flex;flex-direction:column;gap:18px;">
+        <!-- Banner d'accions ràpides Policia Local -->
+        <div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg-card,#fff);border:1px solid var(--border-card,#e2e8f0);padding:16px 20px;border-radius:14px;box-shadow:var(--shadow-card);flex-wrap:wrap;gap:12px;">
+          <div>
+            <h3 style="margin:0;font-size:18px;color:var(--text-main,#0f172a);font-weight:900;display:flex;align-items:center;gap:8px;">
+              <span>🚔</span> <span>Temari Policia Local</span>
+            </h3>
+            <p style="margin:4px 0 0;font-size:13px;color:var(--text-muted,#64748b);">
+              Temes ordenats estrictament de l'<b>1 al 40</b>, municipis i cultura general.
+            </p>
           </div>
-          <p class="hub-pick-hint">👇 <b>Tria un tema</b></p>
-
-          <div class="hub-ambit2 amb-active">
-            <button class="amb-bar amb-bar-pl" data-pl-section="teoria">
-              <span class="amb-sq" style="background:#007aff;"></span>
-              <span class="amb-name">Teoria</span>
-              <span class="amb-chev">▸</span>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button id="btn-selector-multiple-pl" style="background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd;padding:9px 15px;border-radius:10px;font-weight:800;font-size:13px;cursor:pointer;">
+              ☑️ Selector múltiple de temes
+            </button>
+            <button onclick="window.obrirModalCrearPregunta('pl')" class="btn-crear-pregunta-top" style="font-size:13px;padding:9px 15px;">
+              <span>➕</span> <span>Afegir pregunta a P. Local</span>
             </button>
           </div>
+        </div>
 
-          <div class="hub-ambit2 amb-active">
-            <button class="amb-bar amb-bar-pl" data-pl-section="municipis">
-              <span class="amb-sq" style="background:#e11d48;"></span>
-              <span class="amb-name">Municipis</span>
-              <span class="amb-chev">▸</span>
-            </button>
-            <div class="pl-municipis-list" style="display:none;padding:8px 12px 4px 42px;">
-              ${carregarMunicipisPL().map(m => `
-                <div style="display:flex;align-items:center;gap:6px;margin:5px 0;">
-                  <button class="pl-municipi" data-municipi="${escapeHtml(m)}" style="flex:1;">${escapeHtml(m)}</button>
-                  <button class="pl-municipi-eliminar" data-municipi="${escapeHtml(m)}" title="Eliminar municipi" style="flex:none;border:none;background:#fee2e2;color:#b91c1c;border-radius:8px;width:32px;height:32px;font-weight:800;cursor:pointer;">🗑</button>
+        <!-- Selector d'Oposició i Municipi Actiu -->
+        <div style="background:var(--bg-card,#fff);border:1.5px solid var(--border-card,#e2e8f0);border-radius:16px;padding:16px 20px;box-shadow:var(--shadow-card);">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:24px;">🏛️</span>
+              <div>
+                <div style="font-size:16px;font-weight:900;color:var(--text-main,#0f172a);display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                  <span>Oposició activa:</span>
+                  <span style="color:#2563eb;background:rgba(37,99,235,0.08);padding:3px 10px;border-radius:8px;border:1.5px solid rgba(37,99,235,0.25);font-size:15px;">
+                    ${escapeHtml(municipiActiu)}
+                  </span>
+                  ${municipiActiu === 'Constantí' ? '<span style="background:#dcfce7;color:#15803d;font-weight:800;font-size:11.5px;padding:2px 8px;border-radius:6px;">BOPT 2026</span>' : ''}
                 </div>
-              `).join('')}
-              <div style="display:flex;gap:6px;margin:8px 0 4px;">
-                <input id="pl-nou-municipi" type="text" placeholder="Nom del municipi..." style="flex:1;min-width:0;font-size:16px;padding:8px 10px;border:1.5px solid #E2E8F0;border-radius:8px;">
-                <button id="pl-afegir-municipi" style="flex:none;background:var(--gold2,#E8C000);color:var(--blue,#002B5E);border:none;border-radius:8px;padding:0 14px;font-weight:800;cursor:pointer;">➕</button>
+                <div style="font-size:12.5px;color:var(--text-muted,#64748b);margin-top:3px;">
+                  ${municipiActiu === 'Constantí' 
+                    ? 'Temari oficial de la convocatòria de Constantí (38 temes de dret comú + 2 temes locals específics).'
+                    : municipiActiu === 'Cunit'
+                    ? 'Preparació Cunit: es comparteixen automàticament els 38 temes de legislació comuna i es mostren les preguntes de Cunit.'
+                    : 'Temari general compartit vàlid per a qualsevol oposició de policia local a Catalunya.'}
+                </div>
               </div>
             </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+              <span style="font-size:12px;font-weight:800;color:var(--text-muted,#64748b);margin-right:2px;">Tria municipi:</span>
+              ${pestanyesMunicipi.map(m => {
+                const actiu = (m.toLowerCase() === municipiActiu.toLowerCase());
+                return `
+                  <button type="button" class="btn-pl-canvi-municipi" data-municipi="${escapeHtml(m)}" style="padding:6px 12px;border-radius:9px;font-weight:800;font-size:12.5px;cursor:pointer;border:1.5px solid ${actiu ? '#2563eb' : 'var(--border-card,#cbd5e1)'};background:${actiu ? '#2563eb' : 'var(--bg-card-subtle,#f8fafc)'};color:${actiu ? '#fff' : 'var(--text-main,#334155)'};transition:all .15s ease;">
+                    ${m === 'Constantí' ? '🏛️ Constantí' : m === 'Cunit' ? '🏛️ Cunit' : m.startsWith('Comú') ? '🌐 Comú' : '📍 ' + escapeHtml(m)}
+                  </button>
+                `;
+              }).join('')}
+            </div>
           </div>
+        </div>
 
-          <div class="hub-ambit2 amb-active">
-            <button class="amb-bar amb-bar-pl" data-pl-section="cultura general">
-              <span class="amb-sq" style="background:#16a34a;"></span>
-              <span class="amb-name">Cultura general</span>
-              <span class="amb-chev">▸</span>
-            </button>
+        <!-- Barra d'inici ràpid barrejat -->
+        <div class="startbar" style="border-radius:14px;">
+          <div class="sb-lab">
+            <span class="sb-k">Test ràpid</span>
+            <span class="sb-lab-row"><span class="sb-t"><span class="mission-copy-wide">🧠 Tots els temes de ${escapeHtml(municipiActiu)} barrejats</span></span></span>
           </div>
+          <div class="sb-go"><button class="btn-start btn-start-pl">🔀 Barrejat</button></div>
+        </div>
+
+        <!-- LLISTA DELS 40 TEMES ORDENATS 1-40 - MINIMITZABLE -->
+        <div style="background:var(--bg-card,#fff);border:1.5px solid var(--border-card,#e2e8f0);border-radius:16px;padding:18px 20px;box-shadow:var(--shadow-card);">
+          <button id="pl-toggle-teoria" type="button" style="width:100%;display:flex;justify-content:space-between;align-items:center;background:none;border:none;cursor:pointer;padding:0;text-align:left;gap:12px;flex-wrap:wrap;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:22px;">📘</span>
+              <div>
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                  <span style="font-size:16.5px;font-weight:900;color:var(--text-main,#0f172a);">Temari Teòric: ${escapeHtml(municipiActiu)} (Temes 1 al 40)</span>
+                  <span style="background:rgba(37,99,235,0.1);color:#2563eb;font-weight:800;font-size:11px;padding:2px 8px;border-radius:6px;">
+                    ${municipiActiu === 'Constantí' ? 'BOPT 2026' : municipiActiu === 'Cunit' ? 'Temari Cunit' : 'General'}
+                  </span>
+                </div>
+                <div style="font-size:12.5px;color:var(--text-muted,#64748b);margin-top:2px;">
+                  ${municipiActiu === 'Constantí' 
+                    ? 'Subprova teòrica específica oficial del municipi de Constantí'
+                    : municipiActiu === 'Cunit'
+                    ? 'Temes de dret comú compartits + temari local de Cunit'
+                    : 'Temari general compartit de Policia Local'}
+                </div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:12.5px;font-weight:700;color:var(--text-muted,#64748b);background:var(--bg-card-subtle,#f1f5f9);padding:4px 10px;border-radius:999px;">
+                ${totalTeoria} preguntes disponibles
+              </span>
+              <span id="pl-teoria-status-btn" style="font-size:12.5px;font-weight:800;color:#2563eb;background:rgba(37,99,235,0.08);padding:5px 12px;border-radius:8px;border:1px solid rgba(37,99,235,0.2);">Minimitzar</span>
+              <span id="chev-teoria" style="font-size:15px;color:var(--text-muted,#64748b);font-weight:900;">▼</span>
+            </div>
+          </button>
+
+          <div id="pl-teoria-panel" style="margin-top:16px;display:block;">
+            <!-- 🔍 FILTRE DE TEMES EN DIRECTE -->
+            <div style="margin-bottom:12px;">
+              <input type="text" id="pl-filtre-input" placeholder="🔍 Cercar tema (ex: Tema 12, Trànsit, Constitució, Detencions, Llei 16/1991)..." style="width:100%;box-sizing:border-box;padding:10px 14px;background:var(--bg-card-subtle,#f8fafc);border:1.5px solid var(--border-card,#cbd5e1);border-radius:10px;font-size:14.5px;color:var(--text-main,#0f172a);outline:none;">
+            </div>
+
+            <div id="pl-temes-grid" style="display:flex;flex-direction:column;gap:8px;max-height:560px;overflow-y:auto;padding-right:4px;">
+              ${temariActual.map(t => {
+                const preguntes = mapaPreguntesPerTema.get(t.num) || [];
+                const count = preguntes.length;
+                return `
+                  <div class="pl-tema-item" data-num="${t.num}" data-text="tema ${t.num} ${t.nom.toLowerCase()}" style="background:var(--bg-card-subtle,#f8fafc);border:1px solid var(--border-card,#e2e8f0);border-radius:10px;padding:11px 14px;display:flex;justify-content:space-between;align-items:center;gap:12px;transition:all .15s ease;">
+                    <div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;">
+                      <span style="background:var(--blue,#002B5E);color:var(--gold2,#E8C000);font-weight:900;font-size:12px;padding:4px 9px;border-radius:7px;flex:none;">
+                        T${t.num}
+                      </span>
+                      <div style="min-width:0;">
+                        <div style="font-weight:800;color:var(--text-main,#0f172a);font-size:14px;line-height:1.35;">
+                          Tema ${t.num}: ${escapeHtml(t.nom)}
+                        </div>
+                        <div style="font-size:12px;color:var(--text-muted,#64748b);margin-top:2px;">
+                          ${count > 0 ? `<b style="color:#16a34a;">${count} preguntes</b> disponibles` : `<span style="color:#94a3b8;">Encara sense preguntes</span>`}
+                        </div>
+                      </div>
+                    </div>
+                    <div style="display:flex;gap:6px;flex:none;align-items:center;">
+                      ${count > 0 ? `
+                        <button class="btn-test-tema-pl" data-num="${t.num}" style="background:#007aff;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-weight:800;font-size:12.5px;cursor:pointer;white-space:nowrap;">
+                          ▶ Fer Test (${count})
+                        </button>
+                      ` : ''}
+                      <button class="btn-afegir-pregunta-tema" data-num="${t.num}" data-nom="${escapeHtml('Tema ' + t.num + ' - ' + t.nom)}" title="Afegir pregunta a aquest tema" style="background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;border-radius:8px;padding:8px 11px;font-weight:800;font-size:12px;cursor:pointer;">
+                        ➕
+                      </button>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        </div>
+
+        <!-- 🏛️ APARTAT DE MUNICIPIS -->
+        <div style="background:var(--bg-card,#fff);border:1.5px solid var(--border-card,#e2e8f0);border-radius:16px;padding:18px 20px;box-shadow:var(--shadow-card);">
+          <button id="pl-toggle-municipis" style="width:100%;display:flex;justify-content:space-between;align-items:center;background:none;border:none;cursor:pointer;padding:0;text-align:left;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:20px;">🏛️</span>
+              <div>
+                <span style="font-size:16.5px;font-weight:900;color:var(--text-main,#0f172a);">Municipis específics</span>
+                <div style="font-size:12.5px;color:var(--text-muted,#64748b);margin-top:2px;">
+                  Pots afegir o eliminar qualsevol municipi segons les teves oposicions
+                </div>
+              </div>
+            </div>
+            <span id="chev-municipis" style="font-size:14px;color:#64748b;font-weight:900;">▼</span>
+          </button>
+          <div id="pl-municipis-panel" style="margin-top:16px;display:block;">
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              ${carregarMunicipisPL().length === 0 ? `
+                <div style="font-size:13px;color:var(--text-muted,#64748b);padding:8px 0;">No hi ha cap municipi a la llista. Afegeix-ne un amb el formulari inferior.</div>
+              ` : carregarMunicipisPL().map(m => {
+                const esActiu = (m.toLowerCase() === municipiActiu.toLowerCase());
+                return `
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <button class="pl-municipi" data-municipi="${escapeHtml(m)}" style="flex:1;text-align:left;padding:10px 14px;background:${esActiu ? '#eff6ff' : 'var(--bg-card-subtle,#f8fafc)'};border:1.5px solid ${esActiu ? '#3b82f6' : 'var(--border-card,#e2e8f0)'};border-radius:10px;cursor:pointer;font-weight:700;color:var(--text-main,#334155);display:flex;justify-content:space-between;align-items:center;">
+                      <span>📍 ${escapeHtml(m)} ${esActiu ? '<b style="color:#2563eb;font-size:12px;margin-left:6px;">(Actiu)</b>' : ''}</span>
+                      <span style="font-size:12px;color:var(--text-muted,#64748b);font-weight:600;">Obrir / Activar ▸</span>
+                    </button>
+                    <button class="pl-municipi-eliminar" data-municipi="${escapeHtml(m)}" title="Eliminar municipi ${escapeHtml(m)}" style="flex:none;border:none;background:#fee2e2;color:#b91c1c;border-radius:10px;width:38px;height:38px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px;transition:all .15s ease;">🗑</button>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+            <div style="display:flex;gap:8px;margin-top:12px;">
+              <input id="pl-nou-municipi" type="text" placeholder="Nom del nou municipi (ex: Constantí, Reus, Tarragona...)" style="flex:1;min-width:0;font-size:14px;padding:10px 12px;border:1.5px solid var(--border-card,#cbd5e1);border-radius:10px;background:var(--bg-card-subtle,#fff);color:var(--text-main,#0f172a);">
+              <button id="pl-afegir-municipi" style="flex:none;background:var(--blue,#002B5E);color:var(--gold2,#E8C000);border:none;border-radius:10px;padding:0 18px;font-weight:800;font-size:13.5px;cursor:pointer;">➕ Afegir</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 🌍 APARTAT DE CULTURA GENERAL -->
+        <div style="background:var(--bg-card,#fff);border:1px solid var(--border-card,#e2e8f0);border-radius:14px;padding:16px 20px;">
+          <button id="pl-btn-cultura" style="width:100%;display:flex;justify-content:space-between;align-items:center;background:none;border:none;cursor:pointer;padding:0;text-align:left;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="background:#16a34a;width:12px;height:12px;border-radius:4px;display:inline-block;"></span>
+              <span style="font-size:16px;font-weight:900;color:var(--text-main,#0f172a);">🌍 Cultura general</span>
+            </div>
+            <span style="font-size:13px;font-weight:800;color:#16a34a;background:#dcfce7;padding:4px 10px;border-radius:999px;">
+              ${totalCultura} preguntes disponibles ▸
+            </span>
+          </button>
         </div>
       </div>
       <div id="test-container"></div>
     `;
 
-    const btnStartPL = contenedor.querySelector('.btn-start-pl');
-    if (btnStartPL) btnStartPL.addEventListener('click', () => mostrarSelectorPreguntas('Tots els àmbits (Barrejat - Policia Local)', bancoPoliciaLocal, true));
-
-    contenedor.querySelectorAll('[data-pl-section]').forEach(btn => {
+    // Pestanyes de canvi ràpid de municipi
+    contenedor.querySelectorAll('.btn-pl-canvi-municipi').forEach(btn => {
       btn.addEventListener('click', () => {
-        const section = btn.dataset.plSection;
-        if (section === 'municipis') {
-          const list = btn.parentElement.querySelector('.pl-municipis-list');
-          if (list) list.style.display = list.style.display === 'none' ? 'block' : 'none';
-          return;
-        }
-        const nom = section === 'teoria' ? 'Teoria' : 'Cultura general';
-        const filtrades = bancoPoliciaLocal.filter(q => {
-          const txt = `${q.seccio || ''} ${q.ambit || ''} ${q.tema || ''}`.toLowerCase();
-          return txt.includes(section);
-        });
-        if (!filtrades.length) {
-          alert(`Encara no hi ha preguntes carregades per a «${nom}». Aquest apartat està preparat per afegir contingut.`);
-          return;
-        }
-        // Igual que a Mossos: mostrem el selector de seccions perquè es puguin
-        // triar una, vàries o totes les seccions abans de començar el test.
-        mostrarSelectorSeccions(nom, filtrades, mostrarTemarioPL);
+        const nouMun = btn.dataset.municipi;
+        if (!nouMun) return;
+        establirMunicipiActiuPL(nouMun);
+        mostrarToast(`Oposició canviada a «${nouMun}»`, 'info');
+        mostrarTemarioPL();
       });
     });
 
+    // Toggle panell Temari Teòric (Minimitzar / Expandir)
+    const toggleTeoria = document.getElementById('pl-toggle-teoria');
+    const panelTeoria = document.getElementById('pl-teoria-panel');
+    const chevTeoria = document.getElementById('chev-teoria');
+    const statusTeoria = document.getElementById('pl-teoria-status-btn');
+
+    const estaMinimitzat = localStorage.getItem('agentmedina_pl_teoria_collapsed') === 'true';
+    if (estaMinimitzat && panelTeoria) {
+      panelTeoria.style.display = 'none';
+      if (chevTeoria) chevTeoria.textContent = '▶';
+      if (statusTeoria) statusTeoria.textContent = 'Expandir';
+    }
+
+    if (toggleTeoria && panelTeoria) {
+      toggleTeoria.addEventListener('click', () => {
+        const isHidden = panelTeoria.style.display === 'none';
+        panelTeoria.style.display = isHidden ? 'block' : 'none';
+        if (chevTeoria) chevTeoria.textContent = isHidden ? '▼' : '▶';
+        if (statusTeoria) statusTeoria.textContent = isHidden ? 'Minimitzar' : 'Expandir';
+        localStorage.setItem('agentmedina_pl_teoria_collapsed', isHidden ? 'false' : 'true');
+      });
+    }
+
+    // Filtre ràpid dels 40 temes
+    const inputFiltre = document.getElementById('pl-filtre-input');
+    if (inputFiltre) {
+      inputFiltre.addEventListener('input', () => {
+        const q = inputFiltre.value.toLowerCase().trim();
+        contenedor.querySelectorAll('.pl-tema-item').forEach(el => {
+          const txt = el.getAttribute('data-text') || '';
+          el.style.display = (!q || txt.includes(q)) ? 'flex' : 'none';
+        });
+      });
+    }
+
+    // Botó Test Barrejat PL
+    const btnStartPL = contenedor.querySelector('.btn-start-pl');
+    if (btnStartPL) {
+      btnStartPL.addEventListener('click', () => {
+        const preguntesAptes = (bancoPoliciaLocal || []).filter(q => {
+          const num = extreureNumeroTemaPL(q);
+          return preguntaEsAptaPerMunicipi(q, municipiActiu, num);
+        });
+        mostrarSelectorPreguntas(`Tots els temes (${municipiActiu} - Barrejat)`, preguntesAptes.length ? preguntesAptes : bancoPoliciaLocal, true);
+      });
+    }
+
+    // Botó Test directe per Tema 1..40
+    contenedor.querySelectorAll('.btn-test-tema-pl').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const num = parseInt(btn.dataset.num, 10);
+        const preguntesTema = (mapaPreguntesPerTema.get(num) || []);
+        const nomTema = `Tema ${num} (${municipiActiu})`;
+        mostrarSelectorPreguntas(nomTema, preguntesTema, false);
+      });
+    });
+
+    // Botó Afegir pregunta a un Tema específic
+    contenedor.querySelectorAll('.btn-afegir-pregunta-tema').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const nomTema = btn.dataset.nom || `Tema ${btn.dataset.num}`;
+        if (typeof window.obrirModalCrearPregunta === 'function') {
+          window.obrirModalCrearPregunta('pl', nomTema);
+        }
+      });
+    });
+
+    // Selector múltiple de seccions (per combinar temes a voluntat)
+    const btnSelectorMultiple = document.getElementById('btn-selector-multiple-pl');
+    if (btnSelectorMultiple) {
+      btnSelectorMultiple.addEventListener('click', () => {
+        const teoria = (bancoPoliciaLocal || []).filter(q => {
+          const num = extreureNumeroTemaPL(q);
+          return num !== null && preguntaEsAptaPerMunicipi(q, municipiActiu, num);
+        });
+        mostrarSelectorSeccions(`Temari Teòric: ${municipiActiu} (Temes 1 al 40)`, teoria, mostrarTemarioPL);
+      });
+    }
+
+    // Toggle panell municipis
+    const toggleMunicipis = document.getElementById('pl-toggle-municipis');
+    const panelMunicipis = document.getElementById('pl-municipis-panel');
+    const chevMunicipis = document.getElementById('chev-municipis');
+    if (toggleMunicipis && panelMunicipis) {
+      toggleMunicipis.addEventListener('click', () => {
+        const isHidden = panelMunicipis.style.display === 'none';
+        panelMunicipis.style.display = isHidden ? 'block' : 'none';
+        if (chevMunicipis) chevMunicipis.textContent = isHidden ? '▼' : '▶';
+      });
+    }
+
+    // Click Municipi
     contenedor.querySelectorAll('.pl-municipi').forEach(btn => {
-      btn.style.cssText = 'display:block;width:100%;margin:0;padding:9px 12px;text-align:left;border:1px solid #e2e8f0;background:#fff;border-radius:8px;cursor:pointer;font-weight:700;color:#334155;';
       btn.addEventListener('click', () => {
         const municipi = btn.dataset.municipi;
+        establirMunicipiActiuPL(municipi);
         const filtrades = bancoPoliciaLocal.filter(q => {
           const txt = `${q.seccio || ''} ${q.ambit || ''} ${q.tema || ''} ${q.municipi || ''}`.toLowerCase();
           return txt.includes(municipi.toLowerCase());
         });
         if (!filtrades.length) {
-          alert(`Encara no hi ha preguntes carregades per a ${municipi}. Aquest apartat està preparat per afegir contingut.`);
+          mostrarToast(`Oposició canviada a «${municipi}». Encara no hi ha preguntes específiques d'aquest terme.`, 'info');
+          mostrarTemarioPL();
           return;
         }
-        // Igual que a Teoria/Cultura general: agrupem per "seccio" dins del
-        // municipi (p. ex. Municipi > Cunit > Ordenança de convivència),
-        // en lloc d'anar directes al test amb totes les preguntes barrejades.
+        mostrarToast(`Oposició canviada a «${municipi}»`, 'success');
         mostrarSelectorSeccions(municipi, filtrades, mostrarTemarioPL);
       });
     });
 
+    // Eliminar Municipi (amb modal 100% compatible amb iFrame)
     contenedor.querySelectorAll('.pl-municipi-eliminar').forEach(btn => {
       btn.addEventListener('click', (e) => {
+        e.preventDefault();
         e.stopPropagation();
         const municipi = btn.dataset.municipi;
-        if (!confirm(`Eliminar «${municipi}» de la llista de municipis?\n\n(Les preguntes que ja tinguis guardades amb aquest municipi no s'esborren, només deixa de sortir a la llista.)`)) return;
-        eliminarMunicipiPL(municipi);
-        mostrarTemarioPL();
-        const list = document.querySelector('.pl-municipis-list');
-        if (list) list.style.display = 'block';
+        if (!municipi) return;
+        modalConfirmacio({
+          titol: 'Eliminar municipi',
+          missatge: `Vols eliminar «${municipi}» de la llista de municipis?\n\n(Les preguntes que ja tinguis creades es mantindran al teu banc de preguntes).`,
+          textBoto: 'Eliminar municipi',
+          esPerillos: true,
+          onAcceptar: () => {
+            eliminarMunicipiPL(municipi);
+            if (obtenirMunicipiActiuPL().toLowerCase() === municipi.toLowerCase()) {
+              establirMunicipiActiuPL('Constantí');
+            }
+            mostrarToast(`Municipi «${municipi}» eliminat correctament`, 'success');
+            mostrarTemarioPL();
+          }
+        });
       });
     });
 
+    // Afegir Municipi nou
     const btnAfegirMunicipi = document.getElementById('pl-afegir-municipi');
     const inputNouMunicipi = document.getElementById('pl-nou-municipi');
     if (btnAfegirMunicipi && inputNouMunicipi) {
@@ -1458,12 +2108,27 @@ document.addEventListener('DOMContentLoaded', () => {
         const nom = inputNouMunicipi.value.trim();
         if (!nom) return;
         afegirMunicipiPL(nom);
+        mostrarToast(`Municipi «${nom}» afegit correctament`, 'success');
         mostrarTemarioPL();
-        const list = document.querySelector('.pl-municipis-list');
-        if (list) list.style.display = 'block';
       };
       btnAfegirMunicipi.addEventListener('click', afegir);
       inputNouMunicipi.addEventListener('keydown', (e) => { if (e.key === 'Enter') afegir(); });
+    }
+
+    // Cultura general
+    const btnCultura = document.getElementById('pl-btn-cultura');
+    if (btnCultura) {
+      btnCultura.addEventListener('click', () => {
+        const filtrades = bancoPoliciaLocal.filter(q => {
+          const txt = `${q.seccio || ''} ${q.ambit || ''} ${q.tema || ''}`.toLowerCase();
+          return txt.includes('cultura');
+        });
+        if (!filtrades.length) {
+          alert("Encara no hi ha preguntes de Cultura General.");
+          return;
+        }
+        mostrarSelectorSeccions('Cultura general (Policia Local)', filtrades, mostrarTemarioPL);
+      });
     }
 
     actualitzarBotonsRepasErrors();
@@ -1573,13 +2238,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- MUNICIPIS DE POLICIA LOCAL (afegir/eliminar des de la interfície) ---
   const MUNICIPIS_PL_KEY = 'agentmedina_municipis_pl_v1';
-  const MUNICIPIS_PL_DEFECTE = ['Tàrrega', 'Cunit', 'Cubelles'];
+  const MUNICIPIS_PL_DEFECTE = ['Constantí', 'Tàrrega', 'Cunit', 'Cubelles'];
 
   function carregarMunicipisPL() {
     try {
       const raw = localStorage.getItem(MUNICIPIS_PL_KEY);
-      const llista = raw ? JSON.parse(raw) : null;
-      return Array.isArray(llista) ? llista : [...MUNICIPIS_PL_DEFECTE];
+      if (raw !== null) {
+        const llista = JSON.parse(raw);
+        if (Array.isArray(llista)) {
+          // Si té l'antic valor per defecte sense Constantí, afegim Constantí al principi
+          if (llista.length === 3 && llista.includes('Tàrrega') && llista.includes('Cunit') && llista.includes('Cubelles') && !llista.some(m => m.toLowerCase().includes('constantí') || m.toLowerCase().includes('constanti'))) {
+            llista.unshift('Constantí');
+            guardarMunicipisPL(llista);
+          }
+          return llista;
+        }
+      }
+      guardarMunicipisPL(MUNICIPIS_PL_DEFECTE);
+      return [...MUNICIPIS_PL_DEFECTE];
     } catch (e) {
       console.error('Error llegint municipis PL:', e);
       return [...MUNICIPIS_PL_DEFECTE];
@@ -1588,20 +2264,25 @@ document.addEventListener('DOMContentLoaded', () => {
   window.carregarMunicipisPL = carregarMunicipisPL;
 
   function guardarMunicipisPL(llista) {
-    localStorage.setItem(MUNICIPIS_PL_KEY, JSON.stringify(llista));
+    try {
+      localStorage.setItem(MUNICIPIS_PL_KEY, JSON.stringify(llista || []));
+    } catch (e) {
+      console.error('Error guardant municipis PL:', e);
+    }
   }
 
   function afegirMunicipiPL(nom) {
     const llista = carregarMunicipisPL();
     const net = String(nom || '').trim();
     if (!net) return;
-    if (llista.some(m => m.toLowerCase() === net.toLowerCase())) return;
+    if (llista.some(m => m.trim().toLowerCase() === net.toLowerCase())) return;
     llista.push(net);
     guardarMunicipisPL(llista);
   }
 
   function eliminarMunicipiPL(nom) {
-    const llista = carregarMunicipisPL().filter(m => m !== nom);
+    const target = String(nom || '').trim().toLowerCase();
+    const llista = carregarMunicipisPL().filter(m => String(m).trim().toLowerCase() !== target);
     guardarMunicipisPL(llista);
   }
 
@@ -1612,7 +2293,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // a "CARGA DE BANCOS DE DATOS"). Per fer-les permanents de debò cal
   // exportar-les (botó "Exportar JSON") i enganxar-les al fitxer .js
   // corresponent (Mossos_Preguntas.js / P.L.Preguntas.js / Actualidad_preguntas.js).
-  const CUSTOM_PREGUNTES_KEY = 'agentmedina_preguntes_custom_v1';
+  // (CUSTOM_PREGUNTES_KEY està definida a l'inici del fitxer)
 
   // --- CORRECCIONS (OVERRIDES) A PREGUNTES DEL BANC ORIGINAL ---
   // Quan s'edita, des del Gestor, una pregunta que NO és personalitzada
@@ -1620,7 +2301,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // modificar directament (és de només lectura al navegador). En comptes
   // d'això guardem només els canvis fets, indexats per ID, i els apliquem
   // per sobre de la pregunta original cada cop que es carrega l'app.
-  const OVERRIDES_PREGUNTES_KEY = 'agentmedina_overrides_preguntes_v1';
+  // (OVERRIDES_PREGUNTES_KEY està definida a l'inici del fitxer)
 
   function carregarOverridesPreguntes() {
     try {
@@ -1725,6 +2406,53 @@ document.addEventListener('DOMContentLoaded', () => {
     return base;
   }
 
+  // Funcions per sincronitzar canvis directament amb el fitxer .js del servidor
+  function enviarPreguntaAlFitxerServidor(banc, pregunta, esNova = false) {
+    return fetch('/api/modificar-pregunta-fitxer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ banc, pregunta, esNova })
+    })
+    .then(r => r.json())
+    .then(res => {
+      if (res.success) {
+        console.log(`[AgentMedina] Pregunta ${pregunta.id} desada al fitxer .js correctament.`);
+        if (typeof mostrarToast === 'function') {
+          mostrarToast('💾 Canvis guardats directament al fitxer .js!', 'success');
+        }
+      }
+      return res;
+    })
+    .catch(err => {
+      console.warn('[AgentMedina] Nota: No s\'ha pogut contactar amb el servidor per desar al .js:', err);
+      return { success: false, error: err };
+    });
+  }
+  window.enviarPreguntaAlFitxerServidor = enviarPreguntaAlFitxerServidor;
+
+  function eliminarPreguntaDelFitxerServidor(banc, id) {
+    return fetch('/api/eliminar-pregunta-fitxer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ banc, id })
+    })
+    .then(r => r.json())
+    .then(res => {
+      if (res.success) {
+        console.log(`[AgentMedina] Pregunta ${id} eliminada del fitxer .js correctament.`);
+        if (typeof mostrarToast === 'function') {
+          mostrarToast('🗑️ Pregunta eliminada del fitxer .js!', 'info');
+        }
+      }
+      return res;
+    })
+    .catch(err => {
+      console.warn('[AgentMedina] Error eliminant del fitxer .js:', err);
+      return { success: false, error: err };
+    });
+  }
+  window.eliminarPreguntaDelFitxerServidor = eliminarPreguntaDelFitxerServidor;
+
   function afegirPreguntesCustom(banc, preguntes) {
     const dades = carregarPreguntesCustom();
     const normalitzades = preguntes.map(q => normalitzarPreguntaEditor(q, banc));
@@ -1735,24 +2463,44 @@ document.addEventListener('DOMContentLoaded', () => {
     // sense haver de recarregar la pàgina.
     const arrayViu = obtenirBancActiu(banc);
     if (Array.isArray(arrayViu)) arrayViu.push(...normalitzades);
+
+    // Sincronitzar amb el fitxer .js
+    normalitzades.forEach(q => {
+      enviarPreguntaAlFitxerServidor(banc, q, true);
+    });
+
     return normalitzades.length;
   }
+  window.afegirPreguntesCustom = afegirPreguntesCustom;
+  window.obtenirBancActiu = obtenirBancActiu;
+  window.carregarPreguntesCustom = carregarPreguntesCustom;
 
   function eliminarPreguntaCustom(banc, id) {
     const dades = carregarPreguntesCustom();
     dades[banc] = dades[banc].filter(q => q.id !== id);
     guardarPreguntesCustom(dades);
+
+    // Eliminar de l'array viu en memòria
+    const arrayViu = obtenirBancActiu(banc);
+    if (Array.isArray(arrayViu)) {
+      const idx = arrayViu.findIndex(q => q && String(q.id).trim() === String(id).trim());
+      if (idx !== -1) arrayViu.splice(idx, 1);
+    }
+
+    // Sincronitzar eliminació amb el fitxer .js
+    eliminarPreguntaDelFitxerServidor(banc, id);
   }
   window.eliminarPreguntaCustom = function (banc, id) {
-    if (!confirm('Eliminar aquesta pregunta?')) return;
+    if (!confirm('Eliminar aquesta pregunta? Es borrarà permanentment del fitxer .js.')) return;
     eliminarPreguntaCustom(banc, id);
-    mostrarGestorPreguntes();
+    mostrarGestorPreguntes(banc);
   };
 
   // Desa els canvis fets a una pregunta EXISTENT (identificada per ID).
   // Si l'ID pertany a una pregunta personalitzada, actualitza aquell
   // registre; si pertany al banc original, es desa com a "override".
-  // També actualitza la còpia en memòria perquè el canvi es vegi a l'instant.
+  // També actualitza la còpia en memòria perquè el canvi es vegi a l'instant
+  // i sincronitza DIRECTAMENT amb el fitxer .js al servidor.
   function desarPreguntaEditada(banc, id, dadesFormulari) {
     const normalitzada = normalitzarPreguntaEditor({ ...dadesFormulari, id }, banc);
     const custom = carregarPreguntesCustom();
@@ -1766,6 +2514,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const arrayViu = obtenirBancActiu(banc);
     const idxViu = arrayViu.findIndex(q => q && q.id === id);
     if (idxViu !== -1) arrayViu[idxViu] = { ...arrayViu[idxViu], ...normalitzada };
+
+    // Sincronitzem directament amb el fitxer .js!
+    enviarPreguntaAlFitxerServidor(banc, normalitzada, false);
+
     return normalitzada;
   }
 
@@ -1776,14 +2528,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnGuardar = document.getElementById('ed-guardar-una');
     if (btnGuardar) {
       btnGuardar.dataset.editId = q.id;
-      btnGuardar.textContent = '💾 Guardar canvis';
+      btnGuardar.textContent = '💾 Guardar canvis directament al fitxer .js';
     }
     const btnCancelar = document.getElementById('ed-cancelar-edicio');
     if (btnCancelar) btnCancelar.style.display = 'inline-block';
     const avis = document.getElementById('ed-avis-edicio');
     if (avis) {
       avis.style.display = 'inline-block';
-      avis.textContent = `✏️ Editant: ${q.id}`;
+      avis.textContent = `✏️ Editant pregunta ${q.id} (es guardarà al fitxer .js)`;
     }
 
     const camp = (elId) => document.getElementById(elId);
@@ -1904,52 +2656,59 @@ document.addEventListener('DOMContentLoaded', () => {
     const banc = bancInicial || contenedor.dataset.bancActiu || 'mossos';
     contenedor.dataset.bancActiu = banc;
 
+    const nomBanc = banc === 'pl' ? 'Policia Local (P_L_Preguntas.js)' : (banc === 'act' ? 'Actualitat (Actualidad_preguntas.js)' : 'Mossos d\'Esquadra (Mossos_Preguntas.js)');
+
     contenedor.innerHTML = `
       <style>
         .ed-lbl{display:flex;flex-direction:column;gap:4px;font-weight:700;color:#334155;font-size:.85rem;}
-        .ed-lbl input,.ed-lbl select,.ed-lbl textarea{font:inherit;font-size:16px;padding:9px 11px;border:1.5px solid #E2E8F0;border-radius:9px;}
-        .ed-tabs button{border:none;background:#f1f5f9;color:#475569;padding:9px 16px;border-radius:9px;font-weight:800;cursor:pointer;font-size:.88rem;}
+        .ed-lbl input,.ed-lbl select,.ed-lbl textarea{font:inherit;font-size:15px;padding:9px 11px;border:1.5px solid #E2E8F0;border-radius:9px;}
+        .ed-tabs button{border:none;background:#f1f5f9;color:#475569;padding:9px 16px;border-radius:9px;font-weight:800;cursor:pointer;font-size:.88rem;transition:all .2s;}
         .ed-tabs button.on{background:var(--blue,#002B5E);color:#fff;}
       </style>
-      <div style="max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:18px;">
-        <div>
-          <h2 style="margin:0 0 4px;color:#0f172a;">✏️ Gestor de preguntes</h2>
-          <p style="margin:0;color:#64748b;font-size:.9rem;line-height:1.5;">
-            Afegeix preguntes noves (una a una o en bloc) a qualsevol banc, per tema i subtema. Les preguntes es guarden al dispositiu i ja apareixen als tests immediatament. Per fer-les permanents al fitxer de dades, exporta-les i enganxa-les al .js corresponent.
+      <div style="max-width:920px;margin:0 auto;display:flex;flex-direction:column;gap:18px;">
+        <div style="background:var(--bg-card,#fff);border:1px solid var(--border-card,#e2e8f0);border-radius:12px;padding:16px 20px;">
+          <h2 style="margin:0 0 6px;color:var(--text-main,#0f172a);font-size:1.3rem;">✏️ Gestor de preguntes</h2>
+          <p style="margin:0;color:var(--text-muted,#64748b);font-size:.88rem;line-height:1.5;">
+            Cerca qualsevol pregunta per text o ID, modifica el seu enunciat, opcions o explicació, i <b>els canvis es desaran directament al fitxer .js</b> corresponent al servidor (<span style="color:#0284c7;font-weight:700;">${nomBanc}</span>).
           </p>
         </div>
 
         <div class="ed-tabs" style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button data-banc="mossos" class="${banc === 'mossos' ? 'on' : ''}">🔵 Mossos</button>
+          <button data-banc="mossos" class="${banc === 'mossos' ? 'on' : ''}">🔵 Mossos d'Esquadra</button>
           <button data-banc="pl" class="${banc === 'pl' ? 'on' : ''}">🚔 Policia Local</button>
           <button data-banc="act" class="${banc === 'act' ? 'on' : ''}">📰 Actualitat</button>
         </div>
 
-        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px;">
-          <h3 style="margin:0 0 6px;font-size:1rem;color:var(--blue,#002B5E);">🔎 Cercar pregunta per ID (per corregir-la)</h3>
-          <p style="margin:0 0 10px;color:#64748b;font-size:.82rem;line-height:1.5;">
-            Si has trobat un error en una pregunta (p. ex. <code>MOSSOS_505</code>), busca-la aquí pel seu ID i corregeix-la al formulari de sota.
+        <!-- 🔎 CERCADOR PER TEXT I ID DIRECTE -->
+        <div style="background:var(--bg-card,#fff);border:1px solid var(--border-card,#e2e8f0);border-radius:12px;padding:18px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+            <h3 style="margin:0;font-size:1.02rem;color:var(--blue,#002B5E);font-weight:800;">🔎 Cercar preguntes per modificar</h3>
+            <span style="font-size:12px;color:#64748b;">Escriu per filtrar a l'instant</span>
+          </div>
+          <p style="margin:0 0 10px;color:var(--text-muted,#64748b);font-size:.83rem;line-height:1.5;">
+            Pots escriure qualsevol paraula del text de la pregunta o el seu ID (p. ex. <code>GUB_001</code>, <code>MOSSOS_505</code>, <code>Constitució</code>, <code>trànsit</code>):
           </p>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <input id="ed-cerca-id" type="text" placeholder="p. ex. MOSSOS_505" style="flex:1;min-width:180px;font-size:16px;padding:9px 11px;border:1.5px solid #E2E8F0;border-radius:9px;">
-            <button id="ed-cercar-btn" style="background:var(--blue,#002B5E);color:#fff;border:none;border-radius:9px;padding:10px 18px;font-weight:800;cursor:pointer;">🔎 Cercar</button>
+            <input id="ed-cerca-text" type="text" placeholder="🔍 Escriu una paraula clau o ID..." style="flex:1;min-width:220px;font-size:15px;padding:10px 12px;border:1.5px solid #CBD5E1;border-radius:9px;">
+            <button id="ed-cercar-btn" style="background:var(--blue,#002B5E);color:#fff;border:none;border-radius:9px;padding:10px 20px;font-weight:800;cursor:pointer;">🔎 Cercar</button>
           </div>
-          <div id="ed-cerca-resultat" style="margin-top:10px;"></div>
+          <div id="ed-cerca-resultat" style="margin-top:14px;"></div>
         </div>
 
-        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px;">
+        <!-- ➕ / ✏️ FORMULARI D'EDICIÓ DIRECTA -->
+        <div id="ed-formulari-anchor" style="background:var(--bg-card,#fff);border:1px solid var(--border-card,#e2e8f0);border-radius:12px;padding:18px;">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
-            <h3 style="margin:0;font-size:1rem;color:var(--blue,#002B5E);">➕ Afegir / editar pregunta</h3>
-            <span id="ed-avis-edicio" style="display:none;background:#fef9c3;color:#854d0e;font-weight:800;font-size:.78rem;padding:5px 10px;border-radius:999px;"></span>
+            <h3 id="ed-titol-formulari" style="margin:0;font-size:1.02rem;color:var(--blue,#002B5E);font-weight:800;">➕ Afegir / modificar pregunta al .js</h3>
+            <span id="ed-avis-edicio" style="display:none;background:#fef9c3;color:#854d0e;font-weight:800;font-size:.82rem;padding:6px 12px;border-radius:999px;border:1px solid #fde047;"></span>
           </div>
-          <div style="display:flex;flex-direction:column;gap:10px;">
+          <div style="display:flex;flex-direction:column;gap:12px;">
             ${campsExtraEditor(banc)}
-            <label class="ed-lbl">Pregunta <textarea id="ed-pregunta" rows="2" placeholder="Text de la pregunta..."></textarea></label>
+            <label class="ed-lbl">Enunciat de la pregunta <textarea id="ed-pregunta" rows="2" placeholder="Text complet de la pregunta..."></textarea></label>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;">
-              <label class="ed-lbl">Opció A <input id="ed-op0" type="text"></label>
-              <label class="ed-lbl">Opció B <input id="ed-op1" type="text"></label>
-              <label class="ed-lbl">Opció C <input id="ed-op2" type="text"></label>
-              <label class="ed-lbl">Opció D (opcional) <input id="ed-op3" type="text"></label>
+              <label class="ed-lbl">Opció A <input id="ed-op0" type="text" placeholder="Opció A..."></label>
+              <label class="ed-lbl">Opció B <input id="ed-op1" type="text" placeholder="Opció B..."></label>
+              <label class="ed-lbl">Opció C <input id="ed-op2" type="text" placeholder="Opció C..."></label>
+              <label class="ed-lbl">Opció D (opcional) <input id="ed-op3" type="text" placeholder="Opció D..."></label>
             </div>
             <label class="ed-lbl">Resposta correcta
               <select id="ed-resposta">
@@ -1959,32 +2718,36 @@ document.addEventListener('DOMContentLoaded', () => {
                 <option value="3">Opció D</option>
               </select>
             </label>
-            <label class="ed-lbl">Explicació (opcional) <textarea id="ed-explicacio" rows="2" placeholder="Per què és correcta..."></textarea></label>
-            <div>
-              <button id="ed-guardar-una" style="background:var(--gold2,#E8C000);color:var(--blue,#002B5E);border:none;border-radius:9px;padding:11px 20px;font-weight:800;cursor:pointer;">💾 Guardar pregunta</button>
-              <button id="ed-cancelar-edicio" type="button" style="display:none;background:#f1f5f9;color:#334155;border:none;border-radius:9px;padding:11px 16px;font-weight:800;cursor:pointer;margin-left:8px;">✖ Cancel·lar edició</button>
-              <span id="ed-missatge" style="margin-left:10px;font-weight:700;font-size:.85rem;"></span>
+            <label class="ed-lbl">Explicació o referència oficial (opcional) <textarea id="ed-explicacio" rows="2" placeholder="Articles, normativa o justificació de la resposta..."></textarea></label>
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px;">
+              <button id="ed-guardar-una" style="background:#0284c7;color:#fff;border:none;border-radius:9px;padding:11px 22px;font-weight:800;font-size:.9rem;cursor:pointer;display:flex;align-items:center;gap:6px;">
+                <span>💾</span> <span>Guardar directament al fitxer .js</span>
+              </button>
+              <button id="ed-cancelar-edicio" type="button" style="display:none;background:#f1f5f9;color:#334155;border:none;border-radius:9px;padding:11px 16px;font-weight:800;cursor:pointer;">✖ Cancel·lar edició</button>
+              <span id="ed-missatge" style="font-weight:700;font-size:.85rem;"></span>
             </div>
           </div>
         </div>
 
-        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px;">
+        <!-- 📥 IMPORTACIÓ EN MASSA -->
+        <div style="background:var(--bg-card,#fff);border:1px solid var(--border-card,#e2e8f0);border-radius:12px;padding:18px;">
           <h3 style="margin:0 0 6px;font-size:1rem;color:var(--blue,#002B5E);">📥 Afegir en massa (JSON)</h3>
           <p style="margin:0 0 10px;color:#64748b;font-size:.82rem;line-height:1.5;">
-            Enganxa un array JSON de preguntes amb el mateix format que el banc (camps <code>pregunta</code>, <code>opcions</code>, <code>resposta</code> —índex de l'opció correcta—, <code>explicacio</code>${banc === 'mossos' ? ', <code>ambit</code>, <code>seccio</code>' : banc === 'pl' ? ', <code>tema</code>, <code>seccio</code>' : ', <code>categoria</code>, <code>seccio</code>'}).
+            Enganxa un array JSON de preguntes amb els camps <code>pregunta</code>, <code>opcions</code>, <code>resposta</code>, <code>explicacio</code>${banc === 'mossos' ? ', <code>ambit</code>, <code>seccio</code>' : banc === 'pl' ? ', <code>tema</code>, <code>seccio</code>' : ', <code>categoria</code>, <code>seccio</code>'}.
           </p>
-          <textarea id="ed-bulk" rows="8" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:.82rem;padding:10px;border:1.5px solid #E2E8F0;border-radius:9px;" placeholder='[
+          <textarea id="ed-bulk" rows="6" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:.82rem;padding:10px;border:1.5px solid #E2E8F0;border-radius:9px;" placeholder='[
   { "pregunta": "...", "opcions": ["...","...","...","..."], "resposta": 0, "explicacio": "..." }
 ]'></textarea>
           <div style="margin-top:10px;">
-            <button id="ed-guardar-bulk" style="background:#eef6ff;color:#0057a8;border:1px solid #bfdbfe;border-radius:9px;padding:10px 18px;font-weight:800;cursor:pointer;">📥 Importar totes</button>
+            <button id="ed-guardar-bulk" style="background:#eef6ff;color:#0057a8;border:1px solid #bfdbfe;border-radius:9px;padding:10px 18px;font-weight:800;cursor:pointer;">📥 Importar totes al .js</button>
             <span id="ed-missatge-bulk" style="margin-left:10px;font-weight:700;font-size:.85rem;"></span>
           </div>
         </div>
 
-        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px;">
+        <!-- 📋 LLISTA DE PREGUNTES PERSONALITZADES -->
+        <div style="background:var(--bg-card,#fff);border:1px solid var(--border-card,#e2e8f0);border-radius:12px;padding:18px;">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
-            <h3 style="margin:0;font-size:1rem;color:var(--blue,#002B5E);">📋 Preguntes noves d'aquest banc</h3>
+            <h3 style="margin:0;font-size:1rem;color:var(--blue,#002B5E);">📋 Preguntes personalitzades d'aquest banc</h3>
             <button id="ed-exportar" style="background:#f1f5f9;color:#334155;border:none;border-radius:8px;padding:8px 14px;font-weight:800;font-size:.82rem;cursor:pointer;">⬇️ Exportar JSON</button>
           </div>
           ${llistaPreguntesCustomHtml(banc)}
@@ -2001,9 +2764,13 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         const extra = llegirCampsExtraEditor(banc);
         const opcions = [0, 1, 2, 3].map(i => document.getElementById(`ed-op${i}`)?.value || '').filter(o => o.trim());
+        const textPregunta = (document.getElementById('ed-pregunta')?.value || '').trim();
+        if (!textPregunta) throw new Error('Cal escriure l\'enunciat de la pregunta.');
+        if (opcions.length < 2) throw new Error('Cal omplir almenys dues opcions.');
+
         const q = {
           ...extra,
-          pregunta: document.getElementById('ed-pregunta')?.value || '',
+          pregunta: textPregunta,
           opcions,
           resposta: parseInt(document.getElementById('ed-resposta')?.value || '0', 10),
           explicacio: document.getElementById('ed-explicacio')?.value || ''
@@ -2012,13 +2779,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (editId) {
           desarPreguntaEditada(banc, editId, q);
           msg.style.color = '#15803d';
-          msg.textContent = '✅ Canvis guardats.';
+          msg.textContent = '✅ Pregunta actualitzada i guardada al fitxer .js!';
         } else {
           afegirPreguntesCustom(banc, [q]);
           msg.style.color = '#15803d';
-          msg.textContent = '✅ Pregunta guardada.';
+          msg.textContent = '✅ Pregunta nova guardada al fitxer .js!';
         }
-        mostrarGestorPreguntes(banc);
+        setTimeout(() => mostrarGestorPreguntes(banc), 900);
       } catch (e) {
         msg.style.color = '#b91c1c';
         msg.textContent = `❌ ${e.message}`;
@@ -2027,42 +2794,95 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('ed-cancelar-edicio')?.addEventListener('click', () => mostrarGestorPreguntes(banc));
 
-    // --- Cercar pregunta per ID ---
+    // --- CERCADOR MILLORAT (Per text o ID) ---
+    const cercaInput = document.getElementById('ed-cerca-text');
     const cercaResultat = document.getElementById('ed-cerca-resultat');
-    function executarCercaPerId() {
-      const idBuscat = (document.getElementById('ed-cerca-id')?.value || '').trim();
+
+    function cercarPreguntes() {
       if (!cercaResultat) return;
-      if (!idBuscat) { cercaResultat.innerHTML = ''; return; }
-      const dataset = obtenirBancActiu(banc);
-      const trobada = dataset.find(q => q && String(q.id).toLowerCase() === idBuscat.toLowerCase());
-      if (!trobada) {
-        cercaResultat.innerHTML = `<p style="color:#b91c1c;font-weight:700;font-size:.85rem;margin:6px 0 0;">❌ No s'ha trobat cap pregunta amb aquest ID en aquest banc.</p>`;
+      const query = (cercaInput?.value || '').trim().toLowerCase();
+      if (!query) {
+        cercaResultat.innerHTML = '';
         return;
       }
-      const custom = carregarPreguntesCustom();
-      const esCustom = (custom[banc] || []).some(q => q.id === trobada.id);
-      const overridesBanc = carregarOverridesPreguntes()[banc] || {};
-      const teOverride = !!overridesBanc[trobada.id];
-      const etiquetaOrigen = esCustom ? '🆕 pregunta personalitzada' : (teOverride ? '✏️ pregunta original (ja editada)' : '📚 pregunta del banc original');
+
+      const dataset = obtenirBancActiu(banc) || [];
+      const trobades = dataset.filter(q => {
+        if (!q) return false;
+        const qId = String(q.id || '').toLowerCase();
+        const qPregunta = String(q.pregunta || '').toLowerCase();
+        const qSeccio = String(q.seccio || '').toLowerCase();
+        return qId.includes(query) || qPregunta.includes(query) || qSeccio.includes(query);
+      }).slice(0, 15); // Màxim 15 resultats per no saturar
+
+      if (!trobades.length) {
+        cercaResultat.innerHTML = `<p style="color:#b91c1c;font-weight:700;font-size:.85rem;margin:6px 0 0;">❌ No s'ha trobat cap pregunta que coincideixi amb «${escapeHtml(query)}» en aquest banc.</p>`;
+        return;
+      }
+
       cercaResultat.innerHTML = `
-        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;">
-          <div style="font-weight:700;color:#0f172a;font-size:.88rem;">${escapeHtml(trobada.pregunta)}</div>
-          <div style="color:#64748b;font-size:.76rem;margin-top:4px;">${escapeHtml(trobada.id)} · ${etiquetaOrigen}</div>
-          <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
-            <button id="ed-editar-trobada" style="background:var(--gold2,#E8C000);color:var(--blue,#002B5E);border:none;border-radius:8px;padding:8px 14px;font-weight:800;font-size:.82rem;cursor:pointer;">✏️ Editar aquesta pregunta</button>
-            ${(!esCustom && teOverride) ? `<button id="ed-restaurar-trobada" style="background:#fff;color:#b91c1c;border:1px solid #fecaca;border-radius:8px;padding:8px 14px;font-weight:800;font-size:.82rem;cursor:pointer;">↩️ Restaurar original</button>` : ''}
-          </div>
-        </div>`;
-      document.getElementById('ed-editar-trobada')?.addEventListener('click', () => carregarPreguntaAFormulari(banc, trobada));
-      document.getElementById('ed-restaurar-trobada')?.addEventListener('click', () => {
-        if (!confirm("Restaurar el text original d'aquesta pregunta? Es descartaran els canvis fets.")) return;
-        eliminarOverridePregunta(banc, trobada.id);
-        mostrarGestorPreguntes(banc);
+        <div style="font-weight:800;color:#334155;font-size:.82rem;margin-bottom:8px;">
+          S'han trobat ${trobades.length} preguntes coincidents:
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;max-height:420px;overflow-y:auto;padding-right:4px;">
+          ${trobades.map((q, idx) => `
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;">
+                <span style="background:#e0f2fe;color:#0369a1;font-weight:800;font-size:.76rem;padding:3px 8px;border-radius:6px;">${escapeHtml(q.id)}</span>
+                <span style="color:#64748b;font-size:.76rem;">${escapeHtml(q.seccio || q.tema || q.categoria || 'Sense tema')}</span>
+              </div>
+              <div style="font-weight:700;color:#0f172a;font-size:.88rem;line-height:1.4;">${escapeHtml(q.pregunta)}</div>
+              <div style="display:flex;flex-direction:column;gap:3px;font-size:.8rem;color:#475569;">
+                ${(q.opcions || []).map((op, opIdx) => `
+                  <div style="${opIdx === q.resposta ? 'font-weight:700;color:#16a34a;' : ''}">
+                    ${opIdx === q.resposta ? '✓' : '•'} <b>${String.fromCharCode(65 + opIdx)}:</b> ${escapeHtml(op)}
+                  </div>
+                `).join('')}
+              </div>
+              ${q.explicacio ? `<div style="font-size:.76rem;color:#64748b;background:#fff;padding:6px 10px;border-radius:6px;border:1px solid #e2e8f0;">💡 <i>${escapeHtml(q.explicacio)}</i></div>` : ''}
+              <div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap;">
+                <button class="btn-editar-trobada" data-idx="${idx}" style="background:#0284c7;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-weight:800;font-size:.8rem;cursor:pointer;">
+                  ✏️ Modificar al formulari
+                </button>
+                <button class="btn-eliminar-trobada" data-id="${escapeHtml(q.id)}" style="background:#fff;color:#b91c1c;border:1px solid #fecaca;border-radius:8px;padding:7px 12px;font-weight:800;font-size:.8rem;cursor:pointer;">
+                  🗑️ Eliminar del .js
+                </button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+
+      cercaResultat.querySelectorAll('.btn-editar-trobada').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const idx = parseInt(btn.dataset.idx, 10);
+          const q = trobades[idx];
+          if (q) {
+            carregarPreguntaAFormulari(banc, q);
+            const anchor = document.getElementById('ed-formulari-anchor');
+            if (anchor) anchor.scrollIntoView({ behavior: 'smooth' });
+          }
+        });
+      });
+
+      cercaResultat.querySelectorAll('.btn-eliminar-trobada').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.dataset.id;
+          if (!id) return;
+          if (!confirm(`Segur que vols eliminar permanentment la pregunta ${id} del fitxer .js?`)) return;
+          eliminarPreguntaCustom(banc, id);
+          cercarPreguntes();
+        });
       });
     }
-    document.getElementById('ed-cercar-btn')?.addEventListener('click', executarCercaPerId);
-    document.getElementById('ed-cerca-id')?.addEventListener('keydown', (ev) => {
-      if (ev.key === 'Enter') { ev.preventDefault(); executarCercaPerId(); }
+
+    document.getElementById('ed-cercar-btn')?.addEventListener('click', cercarPreguntes);
+    cercaInput?.addEventListener('input', () => {
+      clearTimeout(cercaInput._deb);
+      cercaInput._deb = setTimeout(cercarPreguntes, 250);
+    });
+    cercaInput?.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') { ev.preventDefault(); cercarPreguntes(); }
     });
 
     const msgBulk = document.getElementById('ed-missatge-bulk');
@@ -2073,8 +2893,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!Array.isArray(arr)) throw new Error('Cal enganxar un array JSON ([ {...}, {...} ]).');
         const n = afegirPreguntesCustom(banc, arr);
         msgBulk.style.color = '#15803d';
-        msgBulk.textContent = `✅ ${n} preguntes importades.`;
-        mostrarGestorPreguntes(banc);
+        msgBulk.textContent = `✅ ${n} preguntes importades directament al fitxer .js.`;
+        setTimeout(() => mostrarGestorPreguntes(banc), 900);
       } catch (e) {
         msgBulk.style.color = '#b91c1c';
         msgBulk.textContent = `❌ ${e.message}`;
@@ -2083,6 +2903,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('ed-exportar')?.addEventListener('click', () => exportarPreguntesCustom(banc));
   }
+  window.mostrarGestorPreguntes = mostrarGestorPreguntes;
   window.mostrarGestorPreguntes = mostrarGestorPreguntes;
 
   // --- SELECTOR DE PREGUNTAS ---
@@ -2154,13 +2975,33 @@ document.addEventListener('DOMContentLoaded', () => {
     // Amaguem el "Tria un tema" i els botons d'àmbit mentre es tria la secció/test.
     document.querySelectorAll('.hub').forEach(h => { h.style.display = 'none'; });
 
-    // Agrupem les preguntes per secció, mantenint l'ordre d'aparició al banc
+    // Agrupem les preguntes per secció
     const seccionsMap = new Map();
     dataset.forEach(q => {
       const sec = q.seccio || 'Sense secció';
       seccionsMap.set(sec, (seccionsMap.get(sec) || 0) + 1);
     });
     const seccions = Array.from(seccionsMap.entries()); // [ [nom, count], ... ]
+
+    // Ordenem de manera natural numèrica (especialment per als temes 0 al 40 de Policia Local)
+    seccions.sort((a, b) => {
+      const nomA = a[0] || '';
+      const nomB = b[0] || '';
+      const regexTema = /Tema\s*(\d+)/i;
+      const mA = nomA.match(regexTema);
+      const mB = nomB.match(regexTema);
+
+      if (mA && mB) {
+        const numA = parseInt(mA[1], 10);
+        const numB = parseInt(mB[1], 10);
+        if (numA !== numB) return numA - numB;
+      } else if (mA && !mB) {
+        return -1;
+      } else if (!mA && mB) {
+        return 1;
+      }
+      return nomA.localeCompare(nomB, 'ca', { numeric: true, sensitivity: 'base' });
+    });
 
     // Si només hi ha una secció (o cap dada de secció), anem directes al pas de quantitat
     if (seccions.length <= 1) {
@@ -2169,24 +3010,38 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     activeView.innerHTML = `
-      <div style="background: #ffffff; padding: 24px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); margin-top: 20px; text-align: left;">
-        ${onTornar ? `<button id="btn-tornar-seccions" style="background:none;border:none;color:#007aff;font-weight:700;cursor:pointer;padding:0 0 14px;font-size:14px;">← Tornar</button>` : ''}
-        <h2 style="font-size: 20px; color: #0f172a; margin: 0 0 6px; font-weight: 700;">${nomAmbit}</h2>
-        <p style="font-size: 14px; color: #64748b; margin-bottom: 18px;">Tria una, vàries o totes les seccions (${dataset.length} preguntes disponibles en total):</p>
+      <div style="background: var(--bg-card, #ffffff); padding: 24px; border-radius: 16px; border: 1px solid var(--border-card, #e2e8f0); box-shadow: var(--shadow-card, 0 4px 20px rgba(0,0,0,0.08)); margin-top: 20px; text-align: left;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+          ${onTornar ? `<button id="btn-tornar-seccions" style="background:none;border:none;color:#007aff;font-weight:700;cursor:pointer;padding:0;font-size:14px;">← Tornar</button>` : '<span></span>'}
+          <button onclick="window.obrirModalCrearPregunta('${nomAmbit.toLowerCase().includes('mossos') ? 'mossos' : nomAmbit.toLowerCase().includes('actualitat') ? 'act' : 'pl'}')" class="btn-crear-pregunta-top" style="font-size:12px;padding:6px 12px;">
+            ➕ Afegir pregunta a aquesta secció
+          </button>
+        </div>
+        <h2 style="font-size: 20px; color: var(--text-main, #0f172a); margin: 0 0 6px; font-weight: 800;">${nomAmbit}</h2>
+        <p style="font-size: 14px; color: var(--text-muted, #64748b); margin-bottom: 18px;">Tria una, vàries o totes les seccions ordenades del 0 al 40 (${dataset.length} preguntes disponibles):</p>
+
+        <!-- Cercador ràpid de temes -->
+        <div style="margin-bottom: 14px;">
+          <input type="text" id="filtre-cerca-seccions" placeholder="🔍 Cercar tema o paraula clau (ex: Tema 12, Trànsit, Constitució)..." style="width:100%; box-sizing:border-box; padding:10px 14px; background:var(--bg-card-subtle, #f8fafc); border:1.5px solid var(--border-card, #e2e8f0); border-radius:10px; font-size:14px; color:var(--text-main, #1e293b); outline:none;">
+        </div>
 
         <div style="display:flex; gap:10px; margin-bottom: 14px;">
           <button id="btn-sec-totes" style="flex:1; padding:10px; background:#eef6ff; color:#007aff; border:1.5px solid #b8daff; border-radius:10px; font-weight:700; cursor:pointer; font-size:13px;">☑️ Seleccionar totes</button>
-          <button id="btn-sec-cap" style="flex:1; padding:10px; background:#f8fafc; color:#64748b; border:1.5px solid #e2e8f0; border-radius:10px; font-weight:700; cursor:pointer; font-size:13px;">◻️ Desmarcar totes</button>
+          <button id="btn-sec-cap" style="flex:1; padding:10px; background:var(--bg-card-subtle, #f8fafc); color:var(--text-muted, #64748b); border:1.5px solid var(--border-card, #e2e8f0); border-radius:10px; font-weight:700; cursor:pointer; font-size:13px;">◻️ Desmarcar totes</button>
         </div>
 
-        <div id="llista-seccions" style="display:flex; flex-direction:column; gap:8px; margin-bottom: 20px;">
-          ${seccions.map(([nom, count]) => `
-            <label style="display:flex; align-items:center; gap:10px; padding:12px 14px; background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:10px; cursor:pointer; font-size:14px; color:#1e293b; font-weight:600;">
+        <div id="llista-seccions" style="display:flex; flex-direction:column; gap:8px; margin-bottom: 20px; max-height: 480px; overflow-y: auto; padding-right: 4px;">
+          ${seccions.map(([nom, count]) => {
+            const m = nom.match(/Tema\s*(\d+)/i);
+            const temaNum = m ? m[1] : null;
+            return `
+            <label class="item-seccio-label" data-text="${nom.toLowerCase().replace(/"/g, '&quot;')}" style="display:flex; align-items:center; gap:10px; padding:12px 14px; background:var(--bg-card-subtle, #f8fafc); border:1.5px solid var(--border-card, #e2e8f0); border-radius:10px; cursor:pointer; font-size:14px; color:var(--text-main, #1e293b); font-weight:600; transition:all 0.15s ease;">
               <input type="checkbox" class="chk-seccio" data-seccio="${nom.replace(/"/g, '&quot;')}" style="width:18px;height:18px;accent-color:#007aff;flex:none;">
+              ${temaNum !== null ? `<span style="background:#002B5E;color:#E8C000;font-weight:900;font-size:11px;padding:3px 7px;border-radius:6px;flex:none;">T${temaNum}</span>` : ''}
               <span style="flex:1;">${nom}</span>
-              <span style="color:#94a3b8; font-weight:700; font-size:12px;">${count}p</span>
+              <span style="color:var(--text-muted, #94a3b8); font-weight:700; font-size:12px; background:var(--bg-card, #fff); padding:2px 8px; border-radius:6px; border:1px solid var(--border-card, #e2e8f0);">${count} p</span>
             </label>
-          `).join('')}
+          `}).join('')}
         </div>
 
         <button id="btn-continuar-seccions" disabled style="width:100%; padding:14px; background:#cbd5e1; color:#fff; border:none; border-radius:12px; font-weight:800; font-size:15px; cursor:not-allowed;">
@@ -2194,6 +3049,19 @@ document.addEventListener('DOMContentLoaded', () => {
         </button>
       </div>
     `;
+
+    // Filtre dinàmic de cerca de seccions
+    const inputFiltre = document.getElementById('filtre-cerca-seccions');
+    if (inputFiltre) {
+      inputFiltre.addEventListener('input', () => {
+        const query = inputFiltre.value.toLowerCase().trim();
+        const items = activeView.querySelectorAll('.item-seccio-label');
+        items.forEach(item => {
+          const txt = item.getAttribute('data-text') || '';
+          item.style.display = (!query || txt.includes(query)) ? 'flex' : 'none';
+        });
+      });
+    }
 
     const checkboxes = activeView.querySelectorAll('.chk-seccio');
     const btnContinuar = document.getElementById('btn-continuar-seccions');
@@ -2859,7 +3727,9 @@ window.gestionarSeleccioFitxerImport = gestionarSeleccioFitxerImport;
 // ==========================================
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch(() => { /* PWA opcional: si falla, l'app segueix funcionant normal */ });
+    navigator.serviceWorker.register('sw.js').then((reg) => {
+      reg.update().catch(() => {});
+    }).catch(() => { /* PWA opcional */ });
   });
 }
 
@@ -2886,3 +3756,386 @@ function instalarAppPWA() {
   });
 }
 window.instalarAppPWA = instalarAppPWA;
+
+// ============================================================================
+// 8. REDISSENY AGENT MEDINA: CONTROLADOR DE MODALS, CREACIÓ DE PREGUNTES I TEMA
+// ============================================================================
+
+// --- 8.1 Notificacions Toast ---
+function mostrarToast(missatge, tipus = 'info') {
+  const container = document.getElementById('app-toast-container');
+  if (!container) return;
+  const toast = document.createElement('div');
+  toast.className = `app-toast toast-${tipus}`;
+  const icon = tipus === 'success' ? '✅' : tipus === 'error' ? '❌' : 'ℹ️';
+  toast.innerHTML = `<span style="font-size:16px;">${icon}</span> <span style="line-height:1.4;">${missatge}</span>`;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(-10px)';
+    toast.style.transition = 'all 0.3s ease';
+    setTimeout(() => toast.remove(), 300);
+  }, 3500);
+}
+window.mostrarToast = mostrarToast;
+
+// --- 8.2 Canvi de Tema (Fosc / Clar) ---
+function inicialitzarTema() {
+  const guardat = localStorage.getItem('agentmedina_theme') || 'light';
+  aplicarTema(guardat);
+}
+
+function aplicarTema(tema) {
+  const isDark = (tema === 'dark');
+  localStorage.setItem('agentmedina_theme', isDark ? 'dark' : 'light');
+  
+  document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+  document.documentElement.classList.toggle('theme-dark', isDark);
+  
+  if (document.body) {
+    document.body.classList.toggle('theme-dark', isDark);
+  }
+
+  const icon = document.getElementById('theme-toggle-icon');
+  const txt = document.getElementById('theme-toggle-text');
+  if (icon) icon.textContent = isDark ? '☀️' : '🌙';
+  if (txt) txt.textContent = isDark ? 'Clar' : 'Fosc';
+}
+
+function toggleTheme() {
+  const actual = localStorage.getItem('agentmedina_theme') || (document.documentElement.classList.contains('theme-dark') ? 'dark' : 'light');
+  const nou = actual === 'dark' ? 'light' : 'dark';
+  aplicarTema(nou);
+  mostrarToast(nou === 'dark' ? 'Mode fosc activat' : 'Mode clar activat', 'info');
+}
+window.toggleTheme = toggleTheme;
+window.inicialitzarTema = inicialitzarTema;
+
+// --- 8.3 Modal de Perfil d'Usuari ---
+function obrirModalPerfil() {
+  const modal = document.getElementById('modal-perfil-usuari');
+  if (!modal) return;
+
+  // Actualitzem les estadístiques dins el modal
+  if (typeof obtenerHistorial === 'function') {
+    const stats = obtenerHistorial();
+    const ids = Object.keys(stats.respondidas || {});
+    const totalContestades = ids.length;
+    const totalEncerts = ids.filter(id => {
+      const r = stats.respondidas[id];
+      return r && (r.correcta === true || r === true);
+    }).length;
+    const pct = totalContestades > 0 ? ((totalEncerts / totalContestades) * 100).toFixed(1) : '0.0';
+
+    const elRatxa = document.getElementById('perfil-stat-ratxa');
+    const elPreg = document.getElementById('perfil-stat-preguntes');
+    const elEnc = document.getElementById('perfil-stat-encerts');
+
+    if (elRatxa && typeof calcularRatxaDies === 'function') elRatxa.textContent = `${calcularRatxaDies()} dies`;
+    if (elPreg) elPreg.textContent = totalContestades;
+    if (elEnc) elEnc.textContent = `${pct}%`;
+  }
+
+  // Refrescar dades d'usuari
+  if (window.actualitzarBotoLogin) window.actualitzarBotoLogin();
+
+  modal.classList.add('active');
+}
+
+function tancarModalPerfil() {
+  const modal = document.getElementById('modal-perfil-usuari');
+  if (modal) modal.classList.remove('active');
+}
+
+function gestionarLoginGoogleModal() {
+  if (typeof window.alternarSessioFirebase === 'function') {
+    window.alternarSessioFirebase();
+  } else {
+    mostrarToast('El servei de sincronització Firebase s\'està inicialitzant...', 'info');
+  }
+}
+
+function forcarSincronitzacioManual() {
+  if (typeof window.pujarDadesANucol === 'function') {
+    window.pujarDadesANucol();
+    mostrarToast('✅ Progrés sincronitzat amb el núvol!', 'success');
+  } else {
+    mostrarToast('Progrés guardat localment al teu navegador.', 'info');
+  }
+}
+
+function descarregarProgresDirecte() {
+  if (typeof exportarProgresJSON === 'function') {
+    exportarProgresJSON();
+    mostrarToast('S\'està descarregant la còpia de seguretat (JSON)...', 'info');
+  }
+}
+
+function restaurarProgresDirecte(event) {
+  const file = event.target?.files?.[0];
+  if (file && typeof importarProgresJSON === 'function') {
+    importarProgresJSON(file);
+    mostrarToast('✅ Progrés restaurat correctament!', 'success');
+  }
+}
+
+window.obrirModalPerfil = obrirModalPerfil;
+window.tancarModalPerfil = tancarModalPerfil;
+window.gestionarLoginGoogleModal = gestionarLoginGoogleModal;
+window.forcarSincronitzacioManual = forcarSincronitzacioManual;
+window.descarregarProgresDirecte = descarregarProgresDirecte;
+window.restaurarProgresDirecte = restaurarProgresDirecte;
+
+// --- 8.4 Creador de Preguntes Directe al Temari ---
+function obrirModalCrearPregunta(bancPref = 'pl', temaPref = null) {
+  const modal = document.getElementById('modal-crear-pregunta');
+  if (!modal) return;
+
+  // Seleccionar el banc
+  const radio = modal.querySelector(`input[name="banc-pregunta"][value="${bancPref}"]`);
+  if (radio) radio.checked = true;
+
+  canviarBancCrearPregunta(bancPref, temaPref);
+
+  // Netejar camps
+  const campPregunta = document.getElementById('cp-pregunta');
+  if (campPregunta) campPregunta.value = '';
+  [0, 1, 2, 3].forEach(i => {
+    const op = document.getElementById(`cp-op-${i}`);
+    if (op) op.value = '';
+  });
+  const campExp = document.getElementById('cp-explicacio');
+  if (campExp) campExp.value = '';
+
+  marcarOpcioCorrecta(0);
+
+  modal.classList.add('active');
+}
+
+function tancarModalCrearPregunta() {
+  const modal = document.getElementById('modal-crear-pregunta');
+  if (modal) modal.classList.remove('active');
+}
+
+function canviarBancCrearPregunta(banc, temaPref = null) {
+  const select = document.getElementById('cp-select-tema');
+  if (!select) return;
+
+  // Obtenir totes les seccions existents d'aquest banc
+  const dataset = (typeof window.obtenirBancActiu === 'function') ? window.obtenirBancActiu(banc) : [];
+  const seccionsMap = new Map();
+  (dataset || []).forEach(q => {
+    const s = q.seccio || q.tema || q.categoria || q.ambit;
+    if (s) seccionsMap.set(s, (seccionsMap.get(s) || 0) + 1);
+  });
+
+  const seccions = Array.from(seccionsMap.entries());
+
+  // Ordenar les seccions numèricament 0 a 40
+  seccions.sort((a, b) => {
+    const nomA = a[0] || '';
+    const nomB = b[0] || '';
+    const regexTema = /Tema\s*(\d+)/i;
+    const mA = nomA.match(regexTema);
+    const mB = nomB.match(regexTema);
+    if (mA && mB) {
+      const numA = parseInt(mA[1], 10);
+      const numB = parseInt(mB[1], 10);
+      if (numA !== numB) return numA - numB;
+    } else if (mA && !mB) {
+      return -1;
+    } else if (!mA && mB) {
+      return 1;
+    }
+    return nomA.localeCompare(nomB, 'ca', { numeric: true, sensitivity: 'base' });
+  });
+
+  // Reconstruir opcions del select
+  let html = `<option value="">-- Tria una secció o tema existent --</option>`;
+  html += `<option value="NOU_TEMA">➕ Escriure un tema o municipi nou...</option>`;
+
+  if (seccions.length > 0) {
+    html += `<optgroup label="Temes existents (${banc.toUpperCase()} - Ordenats)">`;
+    seccions.forEach(([s, count]) => {
+      const sel = (temaPref && temaPref === s) ? 'selected' : '';
+      html += `<option value="${s.replace(/"/g, '&quot;')}" ${sel}>${s} (${count} preguntes)</option>`;
+    });
+    html += `</optgroup>`;
+  }
+
+  select.innerHTML = html;
+
+  if (temaPref && seccionsMap.has(temaPref)) {
+    select.value = temaPref;
+    onCanviSelectTema(temaPref);
+  } else {
+    onCanviSelectTema(select.value);
+  }
+}
+
+function onCanviSelectTema(val) {
+  const wrap = document.getElementById('cp-nou-tema-wrap');
+  if (wrap) {
+    wrap.style.display = (val === 'NOU_TEMA') ? 'block' : 'none';
+    if (val === 'NOU_TEMA') {
+      const input = document.getElementById('cp-nou-tema-input');
+      if (input) input.focus();
+    }
+  }
+}
+
+function marcarOpcioCorrecta(index) {
+  const hiddenInput = document.getElementById('cp-resposta-index');
+  if (hiddenInput) hiddenInput.value = index;
+
+  [0, 1, 2, 3].forEach(i => {
+    const row = document.getElementById(`row-op-${i}`);
+    const badge = document.getElementById(`badge-op-${i}`);
+    const radio = document.querySelector(`input[name="cp-correcta-radio"][value="${i}"]`);
+    if (row && badge) {
+      if (i === index) {
+        row.classList.add('correcta-activa');
+        badge.style.background = '#10b981';
+        badge.style.color = '#fff';
+        if (radio) radio.checked = true;
+      } else {
+        row.classList.remove('correcta-activa');
+        badge.style.background = 'var(--bg-card-subtle, #f1f5f9)';
+        badge.style.color = 'var(--text-main, #334155)';
+        if (radio) radio.checked = false;
+      }
+    }
+  });
+}
+
+function desarPreguntaDirecta(event) {
+  if (event) event.preventDefault();
+
+  const modal = document.getElementById('modal-crear-pregunta');
+  if (!modal) return;
+
+  const bancRadio = modal.querySelector('input[name="banc-pregunta"]:checked');
+  const banc = bancRadio ? bancRadio.value : 'pl';
+
+  const selectTema = document.getElementById('cp-select-tema');
+  const nouTemaInput = document.getElementById('cp-nou-tema-input');
+  let seccioFinal = selectTema ? selectTema.value.trim() : '';
+
+  if (seccioFinal === 'NOU_TEMA') {
+    seccioFinal = nouTemaInput ? nouTemaInput.value.trim() : '';
+  }
+
+  if (!seccioFinal) {
+    mostrarToast('❌ Si us plau, tria o escriu el tema/secció on vols afegir la pregunta.', 'error');
+    if (selectTema) selectTema.focus();
+    return;
+  }
+
+  const textPregunta = document.getElementById('cp-pregunta')?.value.trim();
+  if (!textPregunta) {
+    mostrarToast('❌ Si us plau, escriu l\'enunciat de la pregunta.', 'error');
+    document.getElementById('cp-pregunta')?.focus();
+    return;
+  }
+
+  const opcions = [
+    document.getElementById('cp-op-0')?.value.trim() || '',
+    document.getElementById('cp-op-1')?.value.trim() || '',
+    document.getElementById('cp-op-2')?.value.trim() || '',
+    document.getElementById('cp-op-3')?.value.trim() || ''
+  ];
+
+  if (opcions.some(op => !op)) {
+    mostrarToast('❌ Has d\'omplir les 4 opcions (A, B, C i D).', 'error');
+    return;
+  }
+
+  const respostaIndex = parseInt(document.getElementById('cp-resposta-index')?.value || '0', 10);
+  const explicacio = document.getElementById('cp-explicacio')?.value.trim() || '';
+
+  // Construir l'objecte pregunta compatible amb tots els temaris
+  const novaPregunta = {
+    id: `${banc}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    pregunta: textPregunta,
+    opcions: opcions,
+    resposta: respostaIndex,
+    explicacio: explicacio,
+    seccio: seccioFinal,
+    tema: seccioFinal,
+    categoria: seccioFinal,
+    creatEl: new Date().toISOString()
+  };
+
+  if (banc === 'mossos') {
+    // Si és Mossos, assignar àmbit A, B o C si està present
+    if (seccioFinal.includes('Àmbit B') || seccioFinal.includes('Ambit B')) novaPregunta.ambit = 'Àmbit B';
+    else if (seccioFinal.includes('Àmbit C') || seccioFinal.includes('Ambit C')) novaPregunta.ambit = 'Àmbit C';
+    else novaPregunta.ambit = 'Àmbit A';
+  }
+
+  // 1. Desar a la memòria local de l'aplicació
+  if (typeof window.afegirPreguntesCustom === 'function') {
+    window.afegirPreguntesCustom(banc, [novaPregunta]);
+  }
+
+  // 2. Persistir al servidor (/api/custom-questions) perquè quedi guardada permanentment
+  fetch('/api/custom-questions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ banc, pregunta: novaPregunta })
+  }).then(r => r.json()).then(res => {
+    console.log('Pregunta persistida al servidor:', res);
+  }).catch(err => {
+    console.warn('Avís en persistir pregunta al servidor:', err);
+  });
+
+  mostrarToast(`✅ Pregunta afegida amb èxit a «${seccioFinal}»!`, 'success');
+  tancarModalCrearPregunta();
+
+  // Si som a la vista de Policia Local o Inici, refresquem la vista per veure la nova pregunta
+  const viewPL = document.getElementById('view-pl');
+  if (viewPL && viewPL.classList.contains('view-activa') && typeof window.mostrarTemarioPL === 'function') {
+    window.mostrarTemarioPL();
+  } else if (typeof actualizarEstadisticasTop === 'function') {
+    actualizarEstadisticasTop();
+  }
+}
+
+window.obrirModalCrearPregunta = obrirModalCrearPregunta;
+window.tancarModalCrearPregunta = tancarModalCrearPregunta;
+window.canviarBancCrearPregunta = canviarBancCrearPregunta;
+window.onCanviSelectTema = onCanviSelectTema;
+window.marcarOpcioCorrecta = marcarOpcioCorrecta;
+window.desarPreguntaDirecta = desarPreguntaDirecta;
+
+// Carregar preguntes del servidor a l'arrencada per tenir sincronització total
+function carregarPreguntesServidor() {
+  fetch('/api/custom-questions')
+    .then(r => r.json())
+    .then(data => {
+      if (!data) return;
+      ['pl', 'mossos', 'act'].forEach(banc => {
+        const llistaServidor = data[banc];
+        if (Array.isArray(llistaServidor) && llistaServidor.length > 0) {
+          const viu = (typeof window.obtenirBancActiu === 'function') ? window.obtenirBancActiu(banc) : [];
+          llistaServidor.forEach(q => {
+            if (q && q.id && !viu.some(item => item && item.id === q.id)) {
+              viu.push(q);
+            }
+          });
+        }
+      });
+    })
+    .catch(() => { /* No hi ha connexió al servidor: mode estàtic resilient */ });
+}
+
+// Inicialització en carregar la pàgina
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    inicialitzarTema();
+    carregarPreguntesServidor();
+  });
+} else {
+  inicialitzarTema();
+  carregarPreguntesServidor();
+}

@@ -60,19 +60,75 @@
     });
   }
 
-  // ---------- UI d'estat del botó ----------
+  // ---------- UI d'estat del botó i xip de perfil ----------
   function actualitzarBotoLogin() {
     const btn = document.getElementById('btn-firebase-login');
-    if (!btn) return;
+    const chipName = document.getElementById('user-name-display');
+    const chipAvatar = document.getElementById('user-avatar-text');
+    const chipDot = document.getElementById('user-sync-dot');
+
+    const modalAvatar = document.getElementById('modal-user-avatar');
+    const modalName = document.getElementById('modal-user-name');
+    const modalEmail = document.getElementById('modal-user-email');
+    const modalSyncBadge = document.getElementById('modal-sync-badge');
+    const btnLoginModal = document.getElementById('btn-login-google-text');
+
     if (usuariActual) {
-      const nom = (usuariActual.displayName || usuariActual.email || 'Sincronitzat').split(' ')[0];
-      btn.textContent = `☁️ ${nom}`;
-      btn.title = `Sessió iniciada com ${usuariActual.email}. Clica per tancar sessió.`;
-      btn.classList.add('sincronitzat');
+      const nomComplet = usuariActual.displayName || usuariActual.email || 'Usuari';
+      const nomPila = nomComplet.split(' ')[0];
+      const inicial = (nomComplet[0] || 'U').toUpperCase();
+
+      if (btn) {
+        btn.textContent = `☁️ ${nomPila}`;
+        btn.title = `Sessió iniciada com ${usuariActual.email}.`;
+        btn.classList.add('sincronitzat');
+      }
+
+      if (chipName) chipName.textContent = nomPila;
+      if (chipAvatar) chipAvatar.textContent = inicial;
+      if (chipDot) {
+        chipDot.className = 'sync-status-indicator';
+        chipDot.title = 'Sincronitzat al núvol amb Google';
+      }
+
+      if (modalAvatar) {
+        if (usuariActual.photoURL) {
+          modalAvatar.innerHTML = `<img src="${usuariActual.photoURL}" alt="Avatar" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
+        } else {
+          modalAvatar.textContent = inicial;
+        }
+      }
+      if (modalName) modalName.textContent = nomComplet;
+      if (modalEmail) modalEmail.textContent = usuariActual.email || '';
+      if (modalSyncBadge) {
+        modalSyncBadge.innerHTML = '🟢 Sincronitzat al núvol (Google)';
+        modalSyncBadge.style.background = '#dcfce7';
+        modalSyncBadge.style.color = '#166534';
+      }
+      if (btnLoginModal) btnLoginModal.textContent = 'Tancar sessió';
     } else {
-      btn.textContent = '🔑 Sincronitzar';
-      btn.title = 'Inicia sessió amb Google per sincronitzar el progrés entre dispositius';
-      btn.classList.remove('sincronitzat');
+      if (btn) {
+        btn.textContent = '🔑 Sincronitzar';
+        btn.title = 'Inicia sessió amb Google per sincronitzar el progrés';
+        btn.classList.remove('sincronitzat');
+      }
+
+      if (chipName) chipName.textContent = 'Iniciar sessió';
+      if (chipAvatar) chipAvatar.textContent = '👤';
+      if (chipDot) {
+        chipDot.className = 'sync-status-indicator offline';
+        chipDot.title = 'Mode local (clica per iniciar sessió)';
+      }
+
+      if (modalAvatar) modalAvatar.textContent = '👤';
+      if (modalName) modalName.textContent = 'Mode Local (Sense compte)';
+      if (modalEmail) modalEmail.textContent = 'El progrés es guarda al navegador';
+      if (modalSyncBadge) {
+        modalSyncBadge.innerHTML = '🟡 Guardat al navegador (Local)';
+        modalSyncBadge.style.background = '#fef3c7';
+        modalSyncBadge.style.color = '#92400e';
+      }
+      if (btnLoginModal) btnLoginModal.textContent = 'Iniciar sessió amb Google';
     }
   }
 
@@ -80,17 +136,23 @@
     if (usuariActual) {
       if (confirm('Vols tancar la sessió de sincronització en aquest dispositiu?\n\nEl teu progrés es quedarà guardat localment igualment.')) {
         await auth.signOut();
+        actualitzarBotoLogin();
+        if (window.mostrarToast) window.mostrarToast('Sessió tancada correctament', 'info');
       }
       return;
     }
     try {
       const proveidor = new firebase.auth.GoogleAuthProvider();
       await auth.signInWithPopup(proveidor);
+      actualitzarBotoLogin();
+      if (window.mostrarToast) window.mostrarToast('✅ Sessió iniciada i sincronitzada amb èxit!', 'success');
     } catch (e) {
       alert('❌ No s\'ha pogut iniciar sessió: ' + (e && e.message ? e.message : e));
     }
   }
   window.alternarSessioFirebase = alternarSessioFirebase;
+  window.actualitzarBotoLogin = actualitzarBotoLogin;
+  window.obtenirUsuariFirebase = () => usuariActual;
 
   // ---------- Pujar / baixar dades ----------
   async function pujarDadesANucol() {

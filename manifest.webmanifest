@@ -1,0 +1,15 @@
+{
+  "name": "Agent Medina — Plataforma d'estudi",
+  "short_name": "Agent Medina",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#002B5E",
+  "theme_color": "#002B5E",
+  "icons": [
+    {
+      "src": "Escut.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "name": "Agent Medina — Plataforma d'estudi",
+  "description": "Plataforma d'estudi per a les oposicions de Mossos d'Esquadra i Policia Local amb preguntes de temari, tests, simulacres d'examen i actualitat.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

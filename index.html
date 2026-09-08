@@ -24,6 +24,18 @@
   <link rel="stylesheet" href="index-BNhYZkE9.css">
   <link rel="stylesheet" href="Dashboard-BJqoIV_6.css">
 
+  <script>
+    (function() {
+      try {
+        var temaGuardat = localStorage.getItem('agentmedina_theme') || 'light';
+        if (temaGuardat === 'dark') {
+          document.documentElement.classList.add('theme-dark');
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      } catch (e) {}
+    })();
+  </script>
+
   <style>
     /* Eliminació absoluta de qualsevol botó o barra de xat */
     .chat-mini, 
@@ -187,20 +199,33 @@
   <div id="root">
     <div class="layout chat-collapsed">
       <aside class="sidebar">
-        <div class="logo">
-          <span class="logo-sq">
-            <i></i><i></i><i></i><i></i><i></i>
-          </span>
-          <span>Agent Medina</span>
+        <div class="brand-header">
+          <div class="brand-crest-box">
+            <span style="font-size: 20px;">🛡️</span>
+          </div>
+          <div class="brand-title-wrap">
+            <span class="brand-name">AGENT MEDINA</span>
+            <span class="brand-subtitle">Acadèmia d'Oposicions</span>
+          </div>
         </div>
         <nav class="nav">
           <a data-tab="inici" class="nav-btn active"><span class="ico">🏠</span> Inici</a>
-          <a data-tab="mossos" class="nav-btn"><span class="ico"><img src="Escut.png" alt="Escut" style="width: 20px; height: 20px; vertical-align: middle;"></span> Temari Mossos</a>
+          <a data-tab="mossos" class="nav-btn"><span class="ico"><img src="Escut.png" alt="Escut" style="width: 18px; height: 18px; vertical-align: middle;"></span> Temari Mossos</a>
           <a data-tab="policia-local" class="nav-btn"><span class="ico">🚔</span> Policia Local</a>
           <a data-tab="actualitat" class="nav-btn"><span class="ico">📰</span> Actualitat</a>
           <a data-tab="editor" class="nav-btn"><span class="ico">✏️</span> Gestor de preguntes</a>
           <a data-tab="comunitat" class="nav-btn nav-comunitat"><span class="ico">💬</span> Comunitat</a>
         </nav>
+        <div class="sidebar-footer-card">
+          <div class="sidebar-user-brief" onclick="window.obrirModalPerfil()">
+            <span class="sidebar-user-avatar">👤</span>
+            <div class="sidebar-user-info">
+              <span class="sidebar-user-name" id="sidebar-user-name-txt">Opositor/a</span>
+              <span class="sidebar-user-status">Mode Estudi Actiu</span>
+            </div>
+            <span class="sidebar-gear-ico">⚙️</span>
+          </div>
+        </div>
       </aside>
 
       <div class="main">
@@ -209,10 +234,26 @@
           <div class="topright">
             <div class="trio" title="Ratxa · Notes mitjanes · Dies examen">
               <span class="m"><span class="v fire" id="ratxa-val">🔥 0</span><span class="l">ratxa</span></span>
-              <span class="m"><span class="v gold" id="nota-mossos">📊 0.00</span><span class="l">Mitjana Mossos</span></span>
-              <span class="m"><span class="v gold" id="nota-plocal">🚔 0.00</span><span class="l">Mitjana P.Local</span></span>
+              <span class="m"><span class="v gold" id="nota-mossos">📊 0.00</span><span class="l">Mossos</span></span>
+              <span class="m"><span class="v gold" id="nota-plocal">🚔 0.00</span><span class="l">P.Local</span></span>
               <a href="https://mossos.gencat.cat/web/.content/home/01_els_mossos_desquadra/ingres-cos/Escala-bAsica/convocatoria-46-26/Previsio-calendari-46-26-16.07.2026.pdf" target="_blank" rel="noopener noreferrer" class="m m-btn" style="text-decoration: none; cursor: pointer;"><span class="v" id="dies-examen">--</span><span class="l">dies examen</span></a>
-              <button id="btn-firebase-login" onclick="alternarSessioFirebase()" style="background:#002B5E;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap;">🔑 Sincronitzar</button>
+              
+              <!-- Canvi de tema (Fosc / Clar) -->
+              <button id="btn-theme-toggle" class="theme-switch-btn" onclick="window.toggleTheme()" title="Canviar estil visual (Fosc Neó / Clar Neumòrfic)">
+                <span id="theme-toggle-icon">🌙</span> <span id="theme-toggle-text">Fosc</span>
+              </button>
+
+              <!-- Botó Crear Pregunta Directa -->
+              <button id="btn-crear-pregunta-topbar" class="btn-crear-pregunta-top" onclick="window.obrirModalCrearPregunta()" title="Crear nova pregunta directament">
+                <span>➕</span> <span>Nova Pregunta</span>
+              </button>
+
+              <!-- Chip Perfil i Sincronització -->
+              <div id="btn-perfil-chip" class="user-profile-chip" onclick="window.obrirModalPerfil()" title="Compte i sincronització">
+                <span class="user-avatar-circle" id="user-avatar-text">👤</span>
+                <span class="user-name-text" id="user-name-display">Usuari</span>
+                <span class="sync-status-indicator offline" id="user-sync-dot" title="Mode local (clica per connectar)"></span>
+              </div>
             </div>
           </div>
         </div>
@@ -302,95 +343,7 @@
 
           <!-- PESTANYA MOSSOS -->
           <div id="view-mossos" class="view-content" style="display: none;">
-            <div class="teoria-host" style="display: flex;">
-              <div class="teoria">
-                <div class="teoria-tabs">
-                  <div class="seg" title="Banc a1-v2-0">
-                    <button class="on" data-sortida="estudia" id="btn-tab-estudia">▶ Estudia</button>
-                    <button class="" data-help="examen" id="btn-tab-examen">📝 Examen</button>
-                    <button data-help="actualitat" title="Preguntes d'actualitat i costums">📰 Actualitat</button>
-                  </div>
-                </div>
-                
-                <!-- CONTENIDOR DINÀMIC (ESTUDIA VS EXAMEN) -->
-                <div id="mossos-main-container">
-                  <div class="hub" id="hub-estudiar">
-                    <div class="startbar" data-help="start">
-                      <div class="sb-lab">
-                        <span class="sb-k">Si prems START faràs</span>
-                        <span class="sb-lab-row"><span class="sb-t"><span class="mission-copy-wide">🧠 Missió intel·ligent</span></span></span>
-                      </div>
-                      <div class="sb-go">
-                        <button class="btn-start" title="Sempre 10 preguntes">🧠 START</button>
-                        <span class="sb-level-now">🎯 Per aprovar</span>
-                      </div>
-                    </div>
-                    <p class="hub-pick-hint">👇 <b>Tria un tema</b></p>
-                    
-                    <div class="hub-ambit2 amb-active">
-                      <button class="amb-bar" title="sobre 7/7 temes">
-                        <span class="amb-sq" style="background: rgb(0, 122, 255);"></span>
-                        <span class="amb-name">Àmbit A<small>Coneixements de l'entorn</small></span>
-                        <span class="amb-mqbar mq-bar"><i class="c-grn" style="width: 5%;"></i><i class="c-gold" style="width: 2%;"></i></span>
-                        <span class="amb-pct">5%</span>
-                        <span class="amb-chev">▸</span>
-                      </button>
-                    </div>
-
-                    <div class="hub-ambit2 amb-active">
-                      <button class="amb-bar" title="sobre 8/8 temes">
-                        <span class="amb-sq" style="background: rgb(225, 29, 72);"></span>
-                        <span class="amb-name">Àmbit B<small>Institucional</small></span>
-                        <span class="amb-mqbar mq-bar"><i class="c-grn" style="width: 0%;"></i><i class="c-gold" style="width: 0%;"></i></span>
-                        <span class="amb-pct">0%</span>
-                        <span class="amb-chev">▸</span>
-                      </button>
-                    </div>
-
-                    <div class="hub-ambit2 amb-active">
-                      <button class="amb-bar" title="sobre 5/5 temes">
-                        <span class="amb-sq" style="background: rgb(22, 163, 74);"></span>
-                        <span class="amb-name">Àmbit C<small>Seguretat i policia</small></span>
-                        <span class="amb-mqbar mq-bar"><i class="c-grn" style="width: 0%;"></i><i class="c-gold" style="width: 0%;"></i></span>
-                        <span class="amb-pct">0%</span>
-                        <span class="amb-chev">⟩</span>
-                      </button>
-                    </div>
-
-                    <div class="hub-bottom">
-                      <div class="hub-toggles">
-                        <label class="lvl-toggle mix-toggle">
-                          <span class="lvl-toggle-lab">🔢 Per ordre</span>
-                          <input type="checkbox">
-                          <span class="lvl-toggle-track"><span class="lvl-toggle-knob"></span></span>
-                        </label>
-                        <label class="lvl-toggle">
-                          <span class="lvl-toggle-lab ok">🎯 Per aprovar</span>
-                          <input type="checkbox">
-                          <span class="lvl-toggle-track"><span class="lvl-toggle-knob"></span></span>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- INTERFÍCE SIMULACIÓ EXAMEN -->
-                  <div class="hub" id="hub-examen" style="display: none; text-align: center; padding: 40px 20px;">
-                    <div style="max-width: 600px; margin: 0 auto; background: #fff; border: 1px solid #e9ecef; padding: 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
-                      <span style="font-size: 40px; display: block; margin-bottom: 10px;">📝</span>
-                      <h3 style="margin: 0 0 10px 0; font-size: 22px; color: #333;">Simulacre d'Examen Oficial</h3>
-                      <p style="color: #6c757d; font-size: 14px; margin-bottom: 25px;">
-                        30 preguntes aleatòries (inclou Àmbits A, B, C i 2 preguntes d'Actualitat).<br>
-                        Temps límit: <b>30 minuts</b>. Errors resten 1/4 part. Blancs no penalitzen. Puntuació del 0 al 10.
-                      </p>
-                      <button onclick="comencarExamenOficial()" style="background: #007aff; color: white; border: none; padding: 12px 30px; font-weight: 700; border-radius: 8px; font-size: 16px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,122,255,0.2);">
-                        Començar Examen Ara 🚀
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-            </div>
+            <!-- Renderitzat dinàmicament per mostrarTemarioMossos() a app.js amb el nou disseny acadèmic -->
           </div>
 
           <!-- ALTRES PESTANYES -->
@@ -458,7 +411,13 @@
           navButtons.forEach(btn => btn.classList.remove('active'));
           document.querySelectorAll(`[data-tab="${targetTab}"]`).forEach(btn => btn.classList.add('active'));
 
-          document.body.className = `sec-${targetTab}`;
+          if (typeof window.establirClasseSeccio === 'function') {
+            window.establirClasseSeccio(targetTab);
+          } else {
+            const isDark = (localStorage.getItem('agentmedina_theme') === 'dark');
+            document.documentElement.classList.toggle('theme-dark', isDark);
+            document.body.className = `sec-${targetTab}${isDark ? ' theme-dark' : ''}`;
+          }
 
           document.querySelectorAll('.view-content').forEach(view => {
             view.style.display = (view.id === `view-${targetTab}`) ? 'block' : 'none';
@@ -722,6 +681,198 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
 <script src="firebase-sync.js"></script>
+
+<!-- ==========================================================================
+     MODAL: PERFIL D'USUARI I SINCRONITZACIÓ AL NÚVOL
+     ========================================================================== -->
+<div id="modal-perfil-usuari" class="modal-overlay-backdrop" onclick="if(event.target===this) window.tancarModalPerfil()">
+  <div class="modal-sheet-dialog" style="max-width: 520px;">
+    <div class="modal-dialog-header">
+      <h3 class="modal-dialog-title">👤 Perfil i Sincronització</h3>
+      <button class="modal-close-button" onclick="window.tancarModalPerfil()" title="Tancar">✕</button>
+    </div>
+
+    <!-- Targeta d'usuari -->
+    <div style="display:flex;align-items:center;gap:16px;padding:16px;background:var(--bg-card-subtle);border:1px solid var(--border-card);border-radius:14px;margin-bottom:18px;">
+      <div id="modal-user-avatar" style="width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#002B5E,#007aff);color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:900;flex-shrink:0;">
+        👤
+      </div>
+      <div style="flex:1;min-width:0;">
+        <h4 id="modal-user-name" style="margin:0;font-size:17px;font-weight:800;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Convidat / Mode Local</h4>
+        <p id="modal-user-email" style="margin:2px 0 0;font-size:13px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Sense sincronització activa</p>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:6px;">
+          <span id="modal-sync-badge" style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;background:#fef3c7;color:#92400e;">
+            🟡 Guardat al navegador (Local)
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Opcions de sessió Firebase -->
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">
+      <button id="btn-login-google-modal" onclick="window.gestionarLoginGoogleModal()" style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:12px;background:#002B5E;color:#fff;border:none;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;transition:all 0.2s ease;">
+        <span>🔑</span> <span id="btn-login-google-text">Iniciar sessió amb Google</span>
+      </button>
+
+      <button id="btn-forcar-sincro" onclick="window.forcarSincronitzacioManual()" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:10px;background:var(--bg-card-subtle);color:var(--text-main);border:1px solid var(--border-card);border-radius:10px;font-weight:600;font-size:13px;cursor:pointer;">
+        <span>🔄</span> <span>Sincronitzar ara amb el núvol</span>
+      </button>
+    </div>
+
+    <!-- Resum d'activitat -->
+    <div style="background:var(--bg-card-subtle);border:1px solid var(--border-card);border-radius:12px;padding:14px;margin-bottom:20px;">
+      <h5 style="margin:0 0 10px;font-size:13px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;">El teu progrés actual</h5>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center;">
+        <div>
+          <span style="display:block;font-size:18px;font-weight:800;color:var(--text-main);" id="perfil-stat-ratxa">0</span>
+          <span style="font-size:11px;color:var(--text-muted);">Dies de ratxa</span>
+        </div>
+        <div>
+          <span style="display:block;font-size:18px;font-weight:800;color:var(--text-main);" id="perfil-stat-preguntes">0</span>
+          <span style="font-size:11px;color:var(--text-muted);">Preguntes fetes</span>
+        </div>
+        <div>
+          <span style="display:block;font-size:18px;font-weight:800;color:var(--text-main);" id="perfil-stat-encerts">0%</span>
+          <span style="font-size:11px;color:var(--text-muted);">Encerts globals</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Còpia de seguretat -->
+    <div style="border-top:1px solid var(--border-card);padding-top:16px;">
+      <h5 style="margin:0 0 8px;font-size:13px;font-weight:700;color:var(--text-muted);">Còpia de seguretat manual</h5>
+      <div style="display:flex;gap:10px;">
+        <button onclick="window.descarregarProgresDirecte()" style="flex:1;padding:10px;background:var(--bg-card);color:var(--text-main);border:1px solid var(--border-card);border-radius:8px;font-weight:700;font-size:12px;cursor:pointer;">
+          ⬇️ Descarregar JSON
+        </button>
+        <label for="input-importar-modal" style="flex:1;text-align:center;padding:10px;background:var(--bg-card);color:var(--text-main);border:1px solid var(--border-card);border-radius:8px;font-weight:700;font-size:12px;cursor:pointer;">
+          ⬆️ Restaurar JSON
+        </label>
+        <input id="input-importar-modal" type="file" accept="application/json,.json" style="display:none;" onchange="window.restaurarProgresDirecte(event)">
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==========================================================================
+     MODAL: CREAR PREGUNTA DIRECTA AL TEMARI
+     ========================================================================== -->
+<div id="modal-crear-pregunta" class="modal-overlay-backdrop" onclick="if(event.target===this) window.tancarModalCrearPregunta()">
+  <div class="modal-sheet-dialog">
+    <div class="modal-dialog-header">
+      <div>
+        <h3 class="modal-dialog-title">➕ Afegir Nova Pregunta</h3>
+        <p style="margin:4px 0 0;font-size:13px;color:var(--text-muted);">La pregunta s'afegirà immediatament a la secció seleccionada i serà utilitzable als tests.</p>
+      </div>
+      <button class="modal-close-button" onclick="window.tancarModalCrearPregunta()" title="Tancar">✕</button>
+    </div>
+
+    <form id="form-crear-pregunta-directa" onsubmit="window.desarPreguntaDirecta(event)">
+      <!-- Selecció de Banc -->
+      <div class="form-group-block">
+        <label class="form-label-title">Oposició / Cos Policial:</label>
+        <div style="display:flex;gap:10px;margin-bottom:8px;">
+          <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--bg-card-subtle);border:1.5px solid var(--border-card);border-radius:10px;cursor:pointer;font-weight:700;font-size:13px;color:var(--text-main);">
+            <input type="radio" name="cp-banc" value="pl" checked onchange="window.canviarBancCrearPregunta('pl')">
+            <span>🚔 Policia Local</span>
+          </label>
+          <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--bg-card-subtle);border:1.5px solid var(--border-card);border-radius:10px;cursor:pointer;font-weight:700;font-size:13px;color:var(--text-main);">
+            <input type="radio" name="cp-banc" value="mossos" onchange="window.canviarBancCrearPregunta('mossos')">
+            <span>🔵 Mossos d'Esquadra</span>
+          </label>
+          <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--bg-card-subtle);border:1.5px solid var(--border-card);border-radius:10px;cursor:pointer;font-weight:700;font-size:13px;color:var(--text-main);">
+            <input type="radio" name="cp-banc" value="act" onchange="window.canviarBancCrearPregunta('act')">
+            <span>📰 Actualitat</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Selecció de Municipi / Àmbit (Específic per a Policia Local) -->
+      <div class="form-group-block" id="cp-bloc-municipi">
+        <label class="form-label-title">Municipi d'aplicació (Policia Local):</label>
+        <select id="cp-select-municipi" class="form-select-ctrl">
+          <option value="Comú">🌐 Comú / Compartit (Vàlid per a tots: Constantí, Cunit, etc.)</option>
+          <option value="Constantí">🏛️ Constantí</option>
+          <option value="Cunit">🏛️ Cunit</option>
+          <option value="Tàrrega">🏛️ Tàrrega</option>
+          <option value="Cubelles">🏛️ Cubelles</option>
+        </select>
+        <p style="margin:4px 0 0;font-size:12px;color:var(--text-muted);">
+          ℹ️ Els temes generals (Constitució, Codi Penal, Trànsit, Llei 16/1991...) recomanem guardar-los com a <b>Comú</b> perquè estiguin disponibles a qualsevol municipi.
+        </p>
+      </div>
+
+      <!-- Selector de Tema / Secció (Dinamitzat i ordenat 0 al 40) -->
+      <div class="form-group-block" id="cp-bloc-seccio">
+        <label class="form-label-title" id="cp-label-seccio">Tema / Secció de destí:</label>
+        <select id="cp-select-tema" class="form-select-ctrl" onchange="window.onCanviSelectTema(this.value)">
+          <!-- Es generarà dinàmicament ordenat del 0 al 40 -->
+        </select>
+        
+        <!-- Camp lliure si l'usuari vol escriure un nou tema no existent -->
+        <div id="cp-nou-tema-wrap" style="display:none;margin-top:8px;">
+          <input type="text" id="cp-nou-tema-input" class="form-input-text" placeholder="Ex: Constantí Tema 41 - Ordenança sobre residus...">
+        </div>
+      </div>
+
+      <!-- Text de la pregunta -->
+      <div class="form-group-block">
+        <label class="form-label-title">Enunciat de la pregunta:</label>
+        <textarea id="cp-text-pregunta" class="form-textarea-ctrl" rows="3" required placeholder="Escriu aquí l'enunciat clar de la pregunta..."></textarea>
+      </div>
+
+      <!-- Les 4 Opcions de resposta amb radio per triar la correcta -->
+      <div class="form-group-block">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <label class="form-label-title" style="margin-bottom:0;">Opcions de resposta:</label>
+          <span style="font-size:12px;color:#10b981;font-weight:700;">🟢 Marca el cercle de la resposta correcta</span>
+        </div>
+        
+        <div class="opcions-radio-grid">
+          <div class="opcio-input-row correcta" id="row-op-0">
+            <input type="radio" name="cp-resposta-correcta" value="0" checked class="opcio-radio-btn" onchange="window.marcarOpcioCorrecta(0)">
+            <span style="font-weight:800;color:var(--text-main);width:20px;">A</span>
+            <input type="text" id="cp-op-0" class="form-input-text" style="background:transparent;border:none;padding:6px 0;" required placeholder="Opció A...">
+          </div>
+          <div class="opcio-input-row" id="row-op-1">
+            <input type="radio" name="cp-resposta-correcta" value="1" class="opcio-radio-btn" onchange="window.marcarOpcioCorrecta(1)">
+            <span style="font-weight:800;color:var(--text-main);width:20px;">B</span>
+            <input type="text" id="cp-op-1" class="form-input-text" style="background:transparent;border:none;padding:6px 0;" required placeholder="Opció B...">
+          </div>
+          <div class="opcio-input-row" id="row-op-2">
+            <input type="radio" name="cp-resposta-correcta" value="2" class="opcio-radio-btn" onchange="window.marcarOpcioCorrecta(2)">
+            <span style="font-weight:800;color:var(--text-main);width:20px;">C</span>
+            <input type="text" id="cp-op-2" class="form-input-text" style="background:transparent;border:none;padding:6px 0;" required placeholder="Opció C...">
+          </div>
+          <div class="opcio-input-row" id="row-op-3">
+            <input type="radio" name="cp-resposta-correcta" value="3" class="opcio-radio-btn" onchange="window.marcarOpcioCorrecta(3)">
+            <span style="font-weight:800;color:var(--text-main);width:20px;">D</span>
+            <input type="text" id="cp-op-3" class="form-input-text" style="background:transparent;border:none;padding:6px 0;" required placeholder="Opció D...">
+          </div>
+        </div>
+      </div>
+
+      <!-- Explicació raonada -->
+      <div class="form-group-block">
+        <label class="form-label-title">Explicació / Justificació legal (opcional):</label>
+        <textarea id="cp-explicacio" class="form-textarea-ctrl" rows="2" placeholder="Ex: Art. 14 CE: Els espanyols són iguals davant la llei..."></textarea>
+      </div>
+
+      <!-- Botons d'acció -->
+      <div style="display:flex;gap:12px;margin-top:20px;">
+        <button type="submit" id="btn-guardar-pregunta-modal" style="flex:2;padding:12px;background:linear-gradient(135deg,#002B5E,#007aff);color:#fff;border:none;border-radius:10px;font-weight:800;font-size:14.5px;cursor:pointer;">
+          💾 Desar i afegir directament
+        </button>
+        <button type="button" onclick="window.tancarModalCrearPregunta()" style="flex:1;padding:12px;background:var(--bg-card-subtle);color:var(--text-main);border:1px solid var(--border-card);border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;">
+          Cancel·lar
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Contenidor de Toasts -->
+<div id="app-toast-container"></div>
 
 </body>
 </html>
