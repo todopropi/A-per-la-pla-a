@@ -175,11 +175,45 @@
             <button id="btn-tancar-gestio-municipis" style="background:none;border:none;font-size:16px;cursor:pointer;color:var(--text-muted,#64748b);">✕</button>
           </div>
 
-          <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
-            <input type="text" id="input-nou-municipi-pl" placeholder="Nom del nou municipi (ex: Vilanova i la Geltrú, Reus, Sitges)..." style="flex:1;min-width:240px;padding:10px 14px;border:1.5px solid var(--border-card,#e2e8f0);border-radius:10px;font-size:13.5px;background:var(--bg-card-subtle,#f8fafc);color:var(--text-main,#1e293b);outline:none;">
-            <button id="btn-afegir-municipi-pl" style="padding:10px 18px;background:#2563eb;color:#fff;border:none;border-radius:10px;font-weight:800;font-size:13.5px;cursor:pointer;">
-              ➕ Afegir municipi
-            </button>
+          <div style="margin-bottom:18px;background:var(--bg-card-subtle,#f8fafc);border:1.5px solid var(--border-card,#cbd5e1);border-radius:12px;padding:16px;">
+            <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
+              <input type="text" id="input-nou-municipi-pl" placeholder="Nom del nou municipi (ex: Reus, Vilanova i la Geltrú, Badalona, Sitges)..." style="flex:1;min-width:240px;padding:11px 14px;border:1.5px solid var(--border-card,#cbd5e1);border-radius:10px;font-size:14px;font-weight:600;background:var(--bg-card,#ffffff);color:var(--text-main,#1e293b);outline:none;">
+              <button id="btn-afegir-municipi-pl" style="padding:11px 18px;background:#2563eb;color:#fff;border:none;border-radius:10px;font-weight:800;font-size:13.5px;cursor:pointer;display:flex;align-items:center;gap:6px;">
+                <span>➕</span> <span>Afegir ràpid</span>
+              </button>
+            </div>
+
+            <!-- SECCIÓ D'ADJUNTAR BASES AMB CERCA AUTOMÀTICA DE COINCIDÈNCIES -->
+            <div style="border-top:1px dashed var(--border-card,#cbd5e1);padding-top:14px;margin-top:6px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+                <label style="font-size:13px;font-weight:800;color:var(--text-main,#0f172a);display:flex;align-items:center;gap:6px;">
+                  <span>📋</span> <span>Adjuntar bases oficials per cercar coincidències automàtiques (Recomanat)</span>
+                </label>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <button type="button" id="btn-carregar-exemple-bases-pl" style="background:none;border:none;color:#2563eb;font-weight:700;font-size:12px;cursor:pointer;text-decoration:underline;">
+                    Carregar exemple bases
+                  </button>
+                  <label style="background:#e2e8f0;color:#334155;padding:4px 10px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:4px;">
+                    <span>📁</span> <span>Arxiu .txt</span>
+                    <input type="file" id="file-bases-pl" accept=".txt,.doc,.docx,.text" style="display:none;">
+                  </label>
+                </div>
+              </div>
+              <textarea id="textarea-bases-pl" rows="4" placeholder="Enganxa aquí el llistat de temes de les bases (ex:&#10;Tema 1: La Constitució espanyola de 1978: estructura i drets fonamentals&#10;Tema 2: L'Estatut d'Autonomia de Catalunya: institucions&#10;Tema 3: El municipi i les competències locals&#10;Tema 4: Llei 16/1991 de les policies locals de Catalunya...)" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid var(--border-card,#cbd5e1);border-radius:8px;font-size:12.5px;font-family:monospace;background:var(--bg-card,#ffffff);color:var(--text-main,#1e293b);resize:vertical;"></textarea>
+
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;flex-wrap:wrap;gap:8px;">
+                <p style="margin:0;font-size:12px;color:var(--text-muted,#64748b);">
+                  El sistema analitzarà cada tema i buscarà les preguntes coincidents al banc comú (PL i Mossos).
+                </p>
+                <button type="button" id="btn-analitzar-bases-pl" style="padding:9px 18px;background:#059669;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:800;cursor:pointer;display:flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(5,150,105,0.25);">
+                  <span>🔍</span> <span>Cercar coincidències</span>
+                </button>
+              </div>
+
+              <!-- CONTENIDOR DE PREVISUALITZACIÓ DE COINCIDÈNCIES -->
+              <div id="contenidor-previsualitzacio-bases-pl" style="display:none;margin-top:14px;padding:14px;background:var(--bg-card,#ffffff);border:1.5px solid #10b981;border-radius:10px;">
+              </div>
+            </div>
           </div>
 
           <div style="font-size:12.5px;font-weight:700;color:var(--text-muted,#64748b);margin-bottom:8px;">Municipis actualment configurats:</div>
@@ -572,13 +606,166 @@
       });
     }
 
-    // 3. Afegir municipi nou
+    // 3. Afegir municipi nou (ràpid o amb bases)
     const btnAfegirMun = document.getElementById('btn-afegir-municipi-pl');
     const inputNouMun = document.getElementById('input-nou-municipi-pl');
+    const textareaBases = document.getElementById('textarea-bases-pl');
+    const btnAnalitzarBases = document.getElementById('btn-analitzar-bases-pl');
+    const btnExempleBases = document.getElementById('btn-carregar-exemple-bases-pl');
+    const fileBases = document.getElementById('file-bases-pl');
+    const contenidorPrevis = document.getElementById('contenidor-previsualitzacio-bases-pl');
+
+    if (btnExempleBases && textareaBases) {
+      btnExempleBases.addEventListener('click', () => {
+        if (!inputNouMun.value.trim()) {
+          inputNouMun.value = 'Vilafranca del Penedès';
+        }
+        textareaBases.value = `Tema 1: La Constitució espanyola de 1978: estructura, contingut i principis generals. Drets i deures fonamentals.
+Tema 2: L'Estatut d'Autonomia de Catalunya: institucions de la Generalitat, competències i organització.
+Tema 3: L'Administració local: el municipi, organització municipal, competències i procediment administratiu (Llei 39/2015 i 7/1985).
+Tema 4: La funció pública local: estatut dels empleats públics i règim disciplinari (Decret 179/2015).
+Tema 5: Transparència, accés a la informació i protecció de dades de caràcter personal (RGPD i Llei 3/2018).
+Tema 6: Llei 16/1991 de les policies locals de Catalunya: funcions, principis bàsics d'actuació i coordinació.
+Tema 7: Forces i Cossos de Seguretat (Llei Orgànica 2/1986): estructura i coordinació policial.
+Tema 8: Protecció de la seguretat ciutadana (Llei Orgànica 4/2015): identificacions, escorcolls i potestats policials.
+Tema 9: El sistema de seguretat pública de Catalunya (Llei 4/2003): juntes locals de seguretat.
+Tema 10: Dret Penal: delictes contra les persones, patrimoni, ordre públic i delictes lleus.
+Tema 11: La detenció i els drets del detingut. El procediment d'Habeas Corpus.
+Tema 12: Normativa de trànsit i seguretat viària: reglament general de circulació i de conductors.
+Tema 13: Accidents de trànsit i alcoholèmies: investigació d'accidents i atestats policials.
+Tema 14: Codi d'ètica de la Policia de Catalunya i deontologia policial.
+Tema 15: Ordenança Municipal de convivència ciutadana i via pública del municipi.
+Tema 16: Coneixement del municipi: història, geografia, carrerer i serveis municipals.`;
+        mostrarToast('Exemple de bases carregat', 'info');
+      });
+    }
+
+    if (fileBases && textareaBases) {
+      fileBases.addEventListener('change', e => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = ev => {
+          textareaBases.value = ev.target?.result || '';
+          mostrarToast(`Arxiu «${file.name}» carregat al formulari`, 'success');
+        };
+        reader.readAsText(file);
+      });
+    }
+
+    let darrerAnalisiBases = null;
+
+    if (btnAnalitzarBases && textareaBases && contenidorPrevis) {
+      btnAnalitzarBases.addEventListener('click', () => {
+        const nom = (inputNouMun ? inputNouMun.value.trim() : '');
+        const text = textareaBases.value.trim();
+        if (!text) {
+          mostrarToast('Enganxa primer el text de les bases de la convocatòria', 'warning');
+          textareaBases.focus();
+          return;
+        }
+
+        if (typeof window.analitzarBasesMunicipi !== 'function') {
+          mostrarToast('Funció d\'anàlisi no disponible', 'error');
+          return;
+        }
+
+        const resultat = window.analitzarBasesMunicipi(text, nom);
+        darrerAnalisiBases = { ...resultat, nomMunicipi: nom };
+
+        if (!resultat.temes.length) {
+          mostrarToast('No s\'ha pogut identificar cap tema al text facilitat', 'warning');
+          return;
+        }
+
+        const materiesDisponibles = window.MATERIES_COMPARTIDES || [];
+
+        contenidorPrevis.style.display = 'block';
+        contenidorPrevis.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+            <div>
+              <div style="font-size:14px;font-weight:900;color:#065f46;display:flex;align-items:center;gap:6px;">
+                <span>🎯</span> <span>Anàlisi de bases completat per a «${escapeHtml(nom || 'Nou municipi')}»</span>
+              </div>
+              <p style="margin:2px 0 0;font-size:12px;color:#047857;">
+                S'han detectat <b>${resultat.totalTemes}</b> temes. <b>${resultat.totalCoincidencies}</b> coincideixen amb matèries oficials amb un total de <b>${resultat.preguntesTotalsDisponibles}</b> preguntes compatibles!
+              </p>
+            </div>
+            <button type="button" id="btn-desar-municipi-amb-temari" style="padding:10px 18px;background:#059669;color:#fff;border:none;border-radius:10px;font-weight:900;font-size:13.5px;cursor:pointer;display:flex;align-items:center;gap:6px;box-shadow:0 3px 10px rgba(5,150,105,0.3);">
+              <span>💾</span> <span>Desar municipi i activar temari</span>
+            </button>
+          </div>
+
+          <div style="max-height:260px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;padding:6px;">
+            ${resultat.temes.map((t, i) => `
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;background:#ffffff;border:1px solid #e2e8f0;border-radius:6px;margin-bottom:5px;font-size:12px;">
+                <div style="flex:1;min-width:0;">
+                  <b style="color:#0f172a;">${escapeHtml(t.codi)}:</b> <span style="color:#334155;">${escapeHtml(t.nom.length > 75 ? t.nom.slice(0, 75) + '...' : t.nom)}</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+                  <select class="select-materia-tema-custom" data-idx="${i}" style="font-size:11.5px;padding:3px 6px;border-radius:6px;border:1px solid #cbd5e1;background:#fff;color:#1e293b;max-width:180px;">
+                    <option value="especific_${(nom||'local').toLowerCase()}" ${t.especific ? 'selected' : ''}>📍 Específic local (${escapeHtml(nom||'local')})</option>
+                    ${materiesDisponibles.map(m => `
+                      <option value="${m.id}" ${t.materia === m.id ? 'selected' : ''}>${escapeHtml(m.nom.slice(0, 30))}</option>
+                    `).join('')}
+                    <option value="altres" ${t.materia === 'altres' && !t.especific ? 'selected' : ''}>Altres matèries</option>
+                  </select>
+                  <span style="display:inline-block;padding:2px 8px;border-radius:12px;font-weight:800;font-size:11px;background:${t.totalPreguntes > 0 ? '#dcfce7' : '#f1f5f9'};color:${t.totalPreguntes > 0 ? '#15803d' : '#64748b'};">
+                    ${t.totalPreguntes > 0 ? `✨ ${t.totalPreguntes} preg.` : '0 preg.'}
+                  </span>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+
+        // Event de desar municipi amb el temari analitzat
+        const btnDesarCustom = document.getElementById('btn-desar-municipi-amb-temari');
+        if (btnDesarCustom) {
+          btnDesarCustom.addEventListener('click', () => {
+            const nomFinal = (inputNouMun ? inputNouMun.value.trim() : '') || 'Nou Municipi';
+            if (!nomFinal) {
+              mostrarToast('Indica el nom del municipi a la casella superior', 'warning');
+              inputNouMun?.focus();
+              return;
+            }
+
+            // Actualitzem les matèries segons els selects de l'usuari
+            const selects = contenidorPrevis.querySelectorAll('.select-materia-tema-custom');
+            const temesFinals = resultat.temes.map((t, idx) => {
+              const sel = selects[idx];
+              const novaMateria = sel ? sel.value : t.materia;
+              const esEsp = novaMateria.startsWith('especific_');
+              return {
+                ...t,
+                materia: novaMateria,
+                especific: esEsp
+              };
+            });
+
+            if (typeof window.guardarMunicipiAmbTemariPL === 'function') {
+              window.guardarMunicipiAmbTemariPL(nomFinal, {
+                nom: nomFinal,
+                referencia: 'Bases oficials',
+                descripcio: `Convocatòria oficial Policia Local de ${nomFinal} (${temesFinals.length} temes)`,
+                basesText: text,
+                temes: temesFinals
+              });
+              mostrarToast(`Municipi «${nomFinal}» desat amb ${temesFinals.length} temes!`, 'success');
+              refrestarVista();
+            }
+          });
+        }
+      });
+    }
+
     if (btnAfegirMun && inputNouMun) {
       const execAfegir = () => {
         const nom = inputNouMun.value.trim();
-        if (!nom) return;
+        if (!nom) {
+          mostrarToast('Escriu el nom del municipi', 'warning');
+          return;
+        }
         if (typeof window.afegirMunicipiPL === 'function') {
           window.afegirMunicipiPL(nom);
           window.establirMunicipiActiuPL(nom);

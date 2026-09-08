@@ -462,8 +462,30 @@
 
   // 4. Estat de municipis (persistència en localStorage)
   const MUNICIPIS_PL_KEY = 'agentmedina_municipis_pl_v1';
+  const CUSTOM_TEMARIS_KEY = 'agentmedina_custom_temaris_pl_v1';
   const MUNICIPIS_PL_DEFECTE = ['Constantí', 'Cubelles', 'Cunit'];
   const MUNICIPI_ACTIU_KEY = 'agentmedina_pl_municipi_actiu_v1';
+
+  function carregarCustomTemarisPL() {
+    try {
+      const raw = localStorage.getItem(CUSTOM_TEMARIS_KEY);
+      if (raw) {
+        const obj = JSON.parse(raw);
+        return (obj && typeof obj === 'object') ? obj : {};
+      }
+    } catch (e) {
+      console.error('Error carregant temaris personalitzats PL:', e);
+    }
+    return {};
+  }
+
+  function guardarCustomTemarisPL(dict) {
+    try {
+      localStorage.setItem(CUSTOM_TEMARIS_KEY, JSON.stringify(dict || {}));
+    } catch (e) {
+      console.error('Error guardant temaris personalitzats PL:', e);
+    }
+  }
 
   function carregarMunicipisPL() {
     try {
@@ -473,6 +495,13 @@
         if (Array.isArray(llista) && llista.length > 0) {
           // Assegurar que els 3 oficials estan presents
           ['Constantí', 'Cubelles', 'Cunit'].forEach(m => {
+            if (!llista.some(item => item.toLowerCase() === m.toLowerCase())) {
+              llista.push(m);
+            }
+          });
+          // Assegurar també els que tenen temari personalitzat desat
+          const custom = carregarCustomTemarisPL();
+          Object.keys(custom).forEach(m => {
             if (!llista.some(item => item.toLowerCase() === m.toLowerCase())) {
               llista.push(m);
             }
@@ -506,10 +535,38 @@
     return true;
   }
 
+  function guardarMunicipiAmbTemariPL(nom, configTemari) {
+    const net = String(nom || '').trim();
+    if (!net) return false;
+    afegirMunicipiPL(net);
+    const custom = carregarCustomTemarisPL();
+    custom[net] = {
+      nom: net,
+      referencia: configTemari.referencia || 'Bases de convocatòria',
+      descripcio: configTemari.descripcio || `Convocatòria oficial Policia Local de ${net}`,
+      dataCreacio: new Date().toISOString(),
+      basesText: configTemari.basesText || '',
+      temes: configTemari.temes || []
+    };
+    guardarCustomTemarisPL(custom);
+    establirMunicipiActiuPL(net);
+    return true;
+  }
+
   function eliminarMunicipiPL(nom) {
     const target = String(nom || '').trim().toLowerCase();
     const llista = carregarMunicipisPL().filter(m => String(m).trim().toLowerCase() !== target);
     guardarMunicipisPL(llista);
+
+    const custom = carregarCustomTemarisPL();
+    let esborrat = false;
+    Object.keys(custom).forEach(k => {
+      if (k.trim().toLowerCase() === target) {
+        delete custom[k];
+        esborrat = true;
+      }
+    });
+    if (esborrat) guardarCustomTemarisPL(custom);
     return true;
   }
 
@@ -530,14 +587,217 @@
     }
   }
 
+  // Heurística de detecció de matèria a partir del títol/descripció d'un tema de bases
+  function detectarMateriaPerTitolTema(titol, descripcio = '', nomMunicipi = '') {
+    const txt = `${titol} ${descripcio}`.toLowerCase();
+    const munLow = String(nomMunicipi || '').toLowerCase().trim();
+
+    // 1. Específic local si esmenta el municipi o carrerer / història local / ordenances
+    if (munLow && munLow.length > 2 && txt.includes(munLow)) {
+      return { id: `especific_${munLow}`, esEspecific: true };
+    }
+    if (txt.includes('ordenança municipal') || txt.includes('ordenances municipals') || txt.includes('ordenanza municipal') ||
+        txt.includes('carrerer') || txt.includes('història del municipi') || txt.includes('historia del municipi') ||
+        txt.includes('geografia del municipi') || txt.includes('equipaments municipals') || txt.includes('terme municipal')) {
+      return { id: munLow ? `especific_${munLow}` : 'especific_local', esEspecific: true };
+    }
+
+    // 2. Coincidències amb matèries troncals
+    if (txt.includes('16/1991') || txt.includes('policies locals de catalunya') || txt.includes('policia local de catalunya')) {
+      return { id: 'llei_16_1991', esEspecific: false };
+    }
+    if (txt.includes('constitució') || txt.includes('constitucio') || txt.includes('constitucional') || txt.includes('drets i deures fonamentals')) {
+      return { id: 'constitucio', esEspecific: false };
+    }
+    if (txt.includes('estatut') || txt.includes('generalitat') || txt.includes('parlament de catalunya')) {
+      return { id: 'estatut', esEspecific: false };
+    }
+    if (txt.includes('organització territorial') || txt.includes('7/1985') || txt.includes('bases del règim local') || txt.includes('bases de regim local') || txt.includes('el municipi') || txt.includes('competències municipals') || txt.includes('organització municipal')) {
+      return { id: 'regim_local', esEspecific: false };
+    }
+    if (txt.includes('procediment administratiu') || txt.includes('39/2015') || txt.includes('40/2015') || txt.includes('acte administratiu') || txt.includes('recursos administratius') || txt.includes('administració pública')) {
+      return { id: 'procediment_administratiu', esEspecific: false };
+    }
+    if (txt.includes('disciplinari') || txt.includes('179/2015') || txt.includes('incompatibilitats') || txt.includes('funció pública') || txt.includes('funcio publica') || txt.includes('empleats públics') || txt.includes('ebep')) {
+      return { id: 'disciplinari_incompatibilitats', esEspecific: false };
+    }
+    if (txt.includes('transparència') || txt.includes('transparencia') || txt.includes('protecció de dades') || txt.includes('proteccio de dades') || txt.includes('19/2014') || txt.includes('rgpd') || txt.includes('3/2018')) {
+      return { id: 'transparencia_dades', esEspecific: false };
+    }
+    if (txt.includes('2/1986') || txt.includes('forces i cossos de seguretat')) {
+      return { id: 'forces_cossos', esEspecific: false };
+    }
+    if (txt.includes('4/2015') || txt.includes('seguretat ciutadana') || txt.includes('protecció de la seguretat ciutadana')) {
+      return { id: 'seguretat_ciutadana', esEspecific: false };
+    }
+    if (txt.includes('4/2003') || txt.includes('seguretat pública de catalunya') || txt.includes('juntes locals de seguretat') || txt.includes('sistema de seguretat pública')) {
+      return { id: 'seguretat_publica', esEspecific: false };
+    }
+    if (txt.includes('codi penal') || txt.includes('delictes contra') || txt.includes('homicidi') || txt.includes('lesions') || txt.includes('delictes lleus') || txt.includes('responsabilitat penal') || txt.includes('jurisdicció penal')) {
+      return { id: 'codi_penal', esEspecific: false };
+    }
+    if (txt.includes('accident') || txt.includes('alcoholèmi') || txt.includes('alcoholemia') || txt.includes('drogues') || txt.includes('investigació d\'accidents')) {
+      return { id: 'accidents_transit', esEspecific: false };
+    }
+    if (txt.includes('trànsit') || txt.includes('transit') || txt.includes('circulació') || txt.includes('circulacio') || txt.includes('seguretat viària') || txt.includes('seguretat viaria') || txt.includes('conductors') || txt.includes('reglament general de circulació')) {
+      return { id: 'transit', esEspecific: false };
+    }
+    if (txt.includes('detenci') || txt.includes('habeas corpus') || txt.includes('drets del detingut') || txt.includes('lecrim') || txt.includes('enjudiciament criminal')) {
+      return { id: 'detencions', esEspecific: false };
+    }
+    if (txt.includes('atestat') || txt.includes('denúncia') || txt.includes('denuncia') || txt.includes('diligències')) {
+      return { id: 'atestat_policial', esEspecific: false };
+    }
+    if (txt.includes('ètica') || txt.includes('etica') || txt.includes('deontològic') || txt.includes('deontologia')) {
+      return { id: 'codi_etica', esEspecific: false };
+    }
+    if (txt.includes('unió europea') || txt.includes('unio europea') || txt.includes('institucions europees') || txt.includes('tractats comunitaris')) {
+      return { id: 'unio_europea', esEspecific: false };
+    }
+
+    return { id: 'altres', esEspecific: false };
+  }
+
+  // Analitzador de bases en text pla / adjuntat per a un municipi
+  function analitzarBasesMunicipi(textBases, nomMunicipi = '') {
+    const raw = String(textBases || '').trim();
+    if (!raw) return { temes: [], totalTemes: 0, totalCoincidencies: 0, preguntesTotalsDisponibles: 0 };
+
+    const poolPL = Array.isArray(window.bancoPoliciaLocal) ? window.bancoPoliciaLocal : [];
+    const poolMossos = Array.isArray(window.bancoPreguntes) ? window.bancoPreguntes.flat(Infinity) : [];
+
+    const linies = raw.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    const temesDetectats = [];
+    let temaActual = null;
+
+    const regexIniciTema = /^(?:tema|t\.)\s*([0-9a-zA-Z\.\-_]+)(?:[:\.\-\s]+)(.*)$/i;
+    const regexNumInici = /^([0-9]{1,3})[\.\-\)\s]+(.*)$/;
+
+    linies.forEach(linia => {
+      let m = linia.match(regexIniciTema);
+      let codi = '';
+      let titol = '';
+
+      if (m) {
+        codi = m[1].replace(/[^0-9a-zA-Z]/g, '');
+        titol = m[2].trim();
+      } else {
+        const mNum = linia.match(regexNumInici);
+        if (mNum && parseInt(mNum[1], 10) > 0 && parseInt(mNum[1], 10) <= 90) {
+          codi = mNum[1];
+          titol = mNum[2].trim();
+        }
+      }
+
+      if (codi && titol) {
+        if (temaActual) temesDetectats.push(temaActual);
+        temaActual = {
+          rawId: codi,
+          titol: titol,
+          descripcio: ''
+        };
+      } else if (temaActual) {
+        temaActual.descripcio += (temaActual.descripcio ? ' ' : '') + linia;
+      } else {
+        if (linia.length > 5 && linia.length < 250) {
+          temaActual = {
+            rawId: String(temesDetectats.length + 1),
+            titol: linia,
+            descripcio: ''
+          };
+        }
+      }
+    });
+    if (temaActual) temesDetectats.push(temaActual);
+
+    // Si no s'ha detectat amb regex de tema o número, tractem cada línia substantiva com a tema
+    if (temesDetectats.length === 0) {
+      linies.forEach((linia, idx) => {
+        if (linia.length > 5) {
+          temesDetectats.push({
+            rawId: String(idx + 1),
+            titol: linia,
+            descripcio: ''
+          });
+        }
+      });
+    }
+
+    let totalCoincidencies = 0;
+    let preguntesTotalsDisponibles = 0;
+
+    const temesProcessats = temesDetectats.map((item, idx) => {
+      const id = String(idx + 1);
+      const codi = `T${item.rawId || id}`;
+      const nomComplet = item.descripcio ? `${item.titol}: ${item.descripcio}` : item.titol;
+
+      const det = detectarMateriaPerTitolTema(item.titol, item.descripcio, nomMunicipi);
+      const materia = det.id;
+      const especific = det.esEspecific;
+
+      // Trobar informació de la matèria troncal si existeix
+      const matInfo = MATERIES_COMPARTIDES.find(m => m.id === materia);
+      const materiaNom = matInfo ? matInfo.nom : (especific ? `Específic local (${nomMunicipi || 'Municipi'})` : 'Altres matèries');
+
+      // Comptatge de preguntes coincidents al banc
+      let countPL = 0;
+      let countMossos = 0;
+
+      if (especific) {
+        const munLow = String(nomMunicipi || '').toLowerCase().trim();
+        countPL = poolPL.filter(q => {
+          const qMun = String(q.municipi || '').toLowerCase().trim();
+          const qTxt = `${q.seccio || ''} ${q.tema || ''}`.toLowerCase();
+          return qMun === munLow || (munLow && qTxt.includes(munLow));
+        }).length;
+      } else if (materia && materia !== 'altres') {
+        countPL = poolPL.filter(q => detectarMateriaPregunta(q) === materia).length;
+        countMossos = poolMossos.filter(q => detectarMateriaPregunta(q) === materia).length;
+        if (countPL > 0 || countMossos > 0) {
+          totalCoincidencies++;
+        }
+      }
+
+      const totalPreg = countPL + countMossos;
+      preguntesTotalsDisponibles += totalPreg;
+
+      return {
+        id,
+        codi,
+        nom: nomComplet,
+        materia,
+        materiaNom,
+        especific,
+        preguntesPL: countPL,
+        preguntesMossos: countMossos,
+        totalPreguntes: totalPreg
+      };
+    });
+
+    return {
+      temes: temesProcessats,
+      totalTemes: temesProcessats.length,
+      totalCoincidencies,
+      preguntesTotalsDisponibles
+    };
+  }
+
   // 5. Obtenir llista ordenada de temes per a un municipi
   function obtenirTemariPLPerMunicipi(municipi) {
     const mun = (municipi || obtenirMunicipiActiuPL()).trim();
+
+    // 1. Mirar si té temari personalitzat configurat per l'usuari amb bases
+    const custom = carregarCustomTemarisPL();
+    if (custom[mun] && Array.isArray(custom[mun].temes) && custom[mun].temes.length > 0) {
+      return custom[mun].temes;
+    }
+
+    // 2. Mirar si és un dels municipis oficials predefinits
     if (TEMARIS_MUNICIPALS[mun]) {
       return TEMARIS_MUNICIPALS[mun].temes;
     }
-    // Per a municipis afegits dinàmicament per l'usuari, es fa servir el model base de 40 temes
-    // personalitzant els dos temes específics locals
+
+    // 3. Per a municipis afegits sense bases explícites, model base de 40 temes
     const base = TEMARIS_MUNICIPALS['Constantí'].temes;
     return base.map(t => {
       if (t.id === '35') {
@@ -818,6 +1078,10 @@
   window.MATERIES_COMPARTIDES = MATERIES_COMPARTIDES;
   window.TEMARIS_MUNICIPALS = TEMARIS_MUNICIPALS;
   window.detectarMateriaPregunta = detectarMateriaPregunta;
+  window.carregarCustomTemarisPL = carregarCustomTemarisPL;
+  window.guardarCustomTemarisPL = guardarCustomTemarisPL;
+  window.guardarMunicipiAmbTemariPL = guardarMunicipiAmbTemariPL;
+  window.analitzarBasesMunicipi = analitzarBasesMunicipi;
   window.carregarMunicipisPL = carregarMunicipisPL;
   window.guardarMunicipisPL = guardarMunicipisPL;
   window.afegirMunicipiPL = afegirMunicipiPL;

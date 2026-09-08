@@ -2874,7 +2874,7 @@ document.addEventListener('DOMContentLoaded', () => {
   window.mostrarGestorPreguntes = mostrarGestorPreguntes;
   window.mostrarGestorPreguntes = mostrarGestorPreguntes;
 
-  // --- SELECTOR DE PREGUNTAS ---
+  // --- SELECTOR DE PREGUNTAS (MODAL ACCESSIBLE SENSE FER SCROLL A BAIX) ---
   function mostrarSelectorPreguntas(nom, dataset, mezclar = false) {
     const nomSelector = String(nom || '');
     const fontSelector = document.body.classList.contains('sec-policia-local') ||
@@ -2885,53 +2885,180 @@ document.addEventListener('DOMContentLoaded', () => {
         ? 'Actualitat'
         : 'Mossos';
     dataset = (dataset || []).map(q => ({ ...q, _font: q._font || fontSelector }));
-    const activeView = obtenirContenidorTest() || document.querySelector('.view-content') || document.body;
-    if (!activeView) return;
+    const totalDisponibles = dataset.length;
 
-    // Amaguem el "Tria un tema" i els botons d'àmbit perquè no quedin visibles
-    // per sobre del selector/test que estem a punt de mostrar.
+    if (totalDisponibles === 0) {
+      alert("No hi ha preguntes disponibles per a aquesta selecció.");
+      return;
+    }
+
+    // Eliminem qualsevol modal selector previ
+    const anticModal = document.getElementById('modal-selector-preguntes-directe');
+    if (anticModal) anticModal.remove();
+
+    // Amaguem el "Tria un tema" i els botons d'àmbit perquè la vista quedi neta
     document.querySelectorAll('.hub').forEach(h => { h.style.display = 'none'; });
 
-    activeView.innerHTML = `
-      <div style="background: #ffffff; padding: 28px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); text-align: center; margin-top: 20px;">
-        <h2 style="font-size: 20px; color: #0f172a; margin-bottom: 8px; font-weight: 700;">${nom}</h2>
-        <p style="font-size: 15px; color: #64748b; margin-bottom: 24px;">Selecciona la quantitat de preguntes (Disponibles: ${dataset.length}):</p>
-        <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;" id="selector-num-container">
-          <button class="btn-num-q" data-cant="5" style="padding: 14px 24px; background: #007aff; color: white; border: none; border-radius: 12px; font-size: 17px; font-weight: 700; cursor: pointer;">5</button>
-          <button class="btn-num-q" data-cant="10" style="padding: 14px 24px; background: #007aff; color: white; border: none; border-radius: 12px; font-size: 17px; font-weight: 700; cursor: pointer;">10</button>
-          <button class="btn-num-q" data-cant="20" style="padding: 14px 24px; background: #007aff; color: white; border: none; border-radius: 12px; font-size: 17px; font-weight: 700; cursor: pointer;">20</button>
-          <button class="btn-num-q" data-cant="30" style="padding: 14px 24px; background: #007aff; color: white; border: none; border-radius: 12px; font-size: 17px; font-weight: 700; cursor: pointer;">30</button>
+    // Creem el modal centrat en pantalla perquè l'usuari NO hagi d'anar al final de la pàgina
+    const modalEl = document.createElement('div');
+    modalEl.id = 'modal-selector-preguntes-directe';
+    modalEl.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 99999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(15, 23, 42, 0.65);
+      backdrop-filter: blur(4px);
+      padding: 16px;
+      box-sizing: border-box;
+    `;
+
+    const presets = [5, 10, 15, 20, 25, 30].filter(n => n < totalDisponibles);
+    presets.push(totalDisponibles);
+    let quantitatSeleccionada = Math.min(20, totalDisponibles);
+
+    modalEl.innerHTML = `
+      <div style="background: #ffffff; max-width: 500px; width: 100%; border-radius: 20px; box-shadow: 0 25px 60px rgba(0,0,0,0.3); border: 1px solid #e2e8f0; overflow: hidden; position: relative; font-family: inherit;">
+        <!-- Capçalera blava fosca estil Agent Medina -->
+        <div style="background: linear-gradient(135deg, #002B5E 0%, #1e3a8a 100%); padding: 20px 24px; color: #ffffff; position: relative;">
+          <button type="button" id="btn-tancar-modal-selector" style="position: absolute; top: 16px; right: 16px; background: rgba(255,255,255,0.18); border: none; color: #ffffff; width: 32px; height: 32px; border-radius: 50%; font-size: 15px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center;">✕</button>
+          <div style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #93c5fd; margin-bottom: 4px;">
+            🎯 Configuració del Test
+          </div>
+          <h2 style="font-size: 18px; margin: 0; font-weight: 800; line-height: 1.35; padding-right: 28px; color: #ffffff;">${nom}</h2>
+          <div style="margin-top: 8px; display: inline-flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.14); padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 700;">
+            <span>📚</span> <span><b>${totalDisponibles}</b> preguntes disponibles</span>
+          </div>
+        </div>
+
+        <!-- Cos amb selector de preguntes accessible -->
+        <div style="padding: 22px 24px;">
+          <label style="display: block; font-size: 13.5px; font-weight: 800; color: #0f172a; margin-bottom: 12px;">
+            Quantes preguntes vols fer?
+          </label>
+
+          <!-- Pills de quantitat -->
+          <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px;" id="modal-selector-pills">
+            ${presets.map(n => `
+              <button type="button" class="btn-preset-q-modal" data-cant="${n}" style="flex: 1 1 65px; padding: 11px 6px; background: ${n === quantitatSeleccionada ? '#007aff' : '#f1f5f9'}; color: ${n === quantitatSeleccionada ? '#ffffff' : '#1e293b'}; border: 1.5px solid ${n === quantitatSeleccionada ? '#007aff' : '#cbd5e1'}; border-radius: 10px; font-size: 14.5px; font-weight: 800; cursor: pointer; text-align: center; transition: all 0.15s;">
+                ${n === totalDisponibles ? `Totes (${n})` : n}
+              </button>
+            `).join('')}
+          </div>
+
+          <!-- Selector numèric manual -->
+          <div style="display: flex; align-items: center; justify-content: space-between; background: #f8fafc; padding: 10px 14px; border-radius: 10px; border: 1px solid #e2e8f0; margin-bottom: 20px;">
+            <span style="font-size: 12.5px; font-weight: 700; color: #475569;">Quantitat exacta:</span>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <button type="button" id="btn-modal-restar-q" style="width: 32px; height: 32px; border-radius: 8px; background: #ffffff; border: 1px solid #cbd5e1; font-weight: 900; cursor: pointer; font-size: 16px;">−</button>
+              <input type="number" id="input-modal-quantitat" value="${quantitatSeleccionada}" min="1" max="${totalDisponibles}" style="width: 60px; text-align: center; font-weight: 800; font-size: 15px; padding: 6px 4px; border: 1px solid #cbd5e1; border-radius: 8px; outline: none; background: #fff;">
+              <button type="button" id="btn-modal-sumar-q" style="width: 32px; height: 32px; border-radius: 8px; background: #ffffff; border: 1px solid #cbd5e1; font-weight: 900; cursor: pointer; font-size: 16px;">+</button>
+            </div>
+          </div>
+
+          <!-- Botó d'acció començar test -->
+          <button type="button" id="btn-modal-iniciar-test-actiu" style="width: 100%; padding: 14px; background: #007aff; color: #ffffff; border: none; border-radius: 12px; font-size: 16px; font-weight: 800; cursor: pointer; box-shadow: 0 4px 14px rgba(0,122,255,0.35); display: flex; align-items: center; justify-content: center; gap: 8px;">
+            <span>▶️ Començar Test</span> <span id="label-modal-btn-q">(${quantitatSeleccionada} preguntes)</span>
+          </button>
         </div>
       </div>
     `;
 
-    const contenedorBones = document.getElementById('selector-num-container');
-    if (contenedorBones) {
-        contenedorBones.onclick = (e) => {
-            const btn = e.target.closest('.btn-num-q');
-            if (!btn) return;
-            
-            const cantDeseada = parseInt(btn.getAttribute('data-cant'));
-            let subset = [...dataset];
-            
-            if (mezclar) {
-              barrejarArray(subset);
-            }
-            
-            const cantFinal = Math.min(cantDeseada, subset.length);
-            if (cantFinal === 0) {
-              alert("No hi ha preguntes disponibles per a aquesta selecció.");
-              return;
-            }
+    document.body.appendChild(modalEl);
 
-            if (typeof iniciarExamen === 'function') {
-              iniciarExamen(cantFinal, false, subset.slice(0, cantFinal));
-            } else {
-              // Fallback si iniciarExamen està definit en un altre fitxer
-              mostrarPregunta(subset[0]);
-            }
-        };
+    const inputQ = document.getElementById('input-modal-quantitat');
+    const labelBtnQ = document.getElementById('label-modal-btn-q');
+    const btnIniciar = document.getElementById('btn-modal-iniciar-test-actiu');
+    const btnTancar = document.getElementById('btn-tancar-modal-selector');
+
+    const actualitzarQuantitat = (novaQ) => {
+      let val = parseInt(novaQ, 10);
+      if (isNaN(val) || val < 1) val = 1;
+      if (val > totalDisponibles) val = totalDisponibles;
+      quantitatSeleccionada = val;
+      if (inputQ) inputQ.value = val;
+      if (labelBtnQ) labelBtnQ.textContent = `(${val} preguntes)`;
+
+      modalEl.querySelectorAll('.btn-preset-q-modal').forEach(b => {
+        const c = parseInt(b.dataset.cant, 10);
+        if (c === val) {
+          b.style.background = '#007aff';
+          b.style.color = '#ffffff';
+          b.style.borderColor = '#007aff';
+        } else {
+          b.style.background = '#f1f5f9';
+          b.style.color = '#1e293b';
+          b.style.borderColor = '#cbd5e1';
+        }
+      });
+    };
+
+    modalEl.querySelectorAll('.btn-preset-q-modal').forEach(b => {
+      b.addEventListener('click', () => {
+        const c = parseInt(b.dataset.cant, 10);
+        actualitzarQuantitat(c);
+      });
+    });
+
+    document.getElementById('btn-modal-restar-q')?.addEventListener('click', () => {
+      actualitzarQuantitat(quantitatSeleccionada - 1);
+    });
+
+    document.getElementById('btn-modal-sumar-q')?.addEventListener('click', () => {
+      actualitzarQuantitat(quantitatSeleccionada + 1);
+    });
+
+    if (inputQ) {
+      inputQ.addEventListener('input', () => {
+        actualitzarQuantitat(inputQ.value);
+      });
     }
+
+    const tancarModal = () => {
+      modalEl.remove();
+    };
+
+    if (btnTancar) btnTancar.addEventListener('click', tancarModal);
+    modalEl.addEventListener('click', e => {
+      if (e.target === modalEl) tancarModal();
+    });
+
+    const executarTest = () => {
+      const cantFinal = Math.min(quantitatSeleccionada, totalDisponibles);
+      if (cantFinal <= 0) {
+        alert("No hi ha preguntes disponibles.");
+        return;
+      }
+
+      let subset = [...dataset];
+      if (mezclar) {
+        barrejarArray(subset);
+      }
+
+      tancarModal();
+
+      if (typeof iniciarExamen === 'function') {
+        iniciarExamen(cantFinal, false, subset.slice(0, cantFinal));
+      } else {
+        mostrarPregunta(subset[0]);
+      }
+
+      // Fem scroll suau immediat fins al contenidor del test perquè la primera pregunta quedi en pantalla
+      requestAnimationFrame(() => {
+        const contenedor = obtenirContenidorTest();
+        if (contenedor) {
+          const y = Math.max(0, contenedor.getBoundingClientRect().top + window.scrollY - 20);
+          window.scrollTo({ top: y, behavior: 'smooth' });
+        }
+      });
+    };
+
+    if (btnIniciar) btnIniciar.addEventListener('click', executarTest);
   }
 
 
