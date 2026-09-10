@@ -126,8 +126,32 @@
 
     const totalCultura = (bancoPoliciaLocal || []).filter(q => (q.ambit || '').toLowerCase().includes('cultura')).length;
 
+    let temesAnnexos = [];
+    try {
+      temesAnnexos = JSON.parse(localStorage.getItem('agentmedina_temes_annexos') || '[]');
+    } catch (e) { temesAnnexos = []; }
+
+    let examensOficials = [];
+    try {
+      examensOficials = JSON.parse(localStorage.getItem('agentmedina_examens_oficials') || '[]');
+    } catch (e) { examensOficials = []; }
+
     contenedor.innerHTML = `
-      <div class="teoria-host" style="display:flex;flex-direction:column;gap:18px;">
+      <div style="max-width: 1100px; margin: 0 auto; width: 100%;">
+        <!-- ZONA DE TEST ACTIU PL (A DALT DE TOT) -->
+        <div id="pl-zona-test" style="display: none; margin-bottom: 24px;">
+          <div style="background: var(--bg-card, #ffffff); border: 1.5px solid var(--border-card, #e2e8f0); border-radius: 16px; padding: 14px 20px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.04);">
+            <button type="button" id="btn-pl-sortir-test" style="display: inline-flex; align-items: center; gap: 6px; background: var(--bg-card-subtle, #f1f5f9); color: var(--text-main, #1e293b); border: 1px solid var(--border-card, #cbd5e1); padding: 8px 14px; border-radius: 8px; font-weight: 700; font-size: 13px; cursor: pointer;">
+              ← Tornar al temari de Policia Local
+            </button>
+            <div id="pl-test-titol-superior" style="font-weight: 800; font-size: 14.5px; color: var(--text-main, #0f172a);">
+              🚔 Test de Policia Local en curs
+            </div>
+          </div>
+          <div id="test-container-pl"></div>
+        </div>
+
+        <div id="pl-contingut-principal" class="teoria-host" style="display:flex;flex-direction:column;gap:18px;">
         
         <!-- HEADER TOP AMB PESTANYES DE MUNICIPI I ACCIONS -->
         <div style="background:var(--bg-card,#fff);border:1.5px solid var(--border-card,#e2e8f0);padding:18px 20px;border-radius:16px;box-shadow:var(--shadow-card);">
@@ -671,6 +695,73 @@
           </div>
         `}
 
+        <!-- SECCIÓ DE TEMES ANNEXOS MUNICIPALS I EXÀMENS OFICIALS -->
+        <div style="background:var(--bg-card,#fff);border:1.5px solid var(--border-card,#e2e8f0);border-radius:16px;padding:20px;box-shadow:var(--shadow-card);display:flex;flex-direction:column;gap:14px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:22px;">🏛️</span>
+              <div>
+                <h3 style="margin:0;font-size:16.5px;color:var(--text-main,#0f172a);font-weight:800;">
+                  Temes Annexos Municipals i Exàmens Oficials
+                </h3>
+                <p style="margin:2px 0 0;font-size:12.5px;color:var(--text-muted,#64748b);">
+                  Practica exàmens reals en PDF o matèries específiques del teu municipi vinculades al teu compte.
+                </p>
+              </div>
+            </div>
+            <button type="button" onclick="const b=document.querySelector('[data-tab=\\'tutor-ia\\']');if(b)b.click();" style="background:#002B5E;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-weight:800;font-size:12.5px;cursor:pointer;display:flex;align-items:center;gap:6px;">
+              <span>⚡</span> Obrir Gestor / Tutor IA
+            </button>
+          </div>
+
+          ${(temesAnnexos.length === 0 && examensOficials.length === 0) ? `
+            <div style="background:var(--bg-card-subtle,#f8fafc);border:1px dashed #cbd5e1;border-radius:12px;padding:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+              <div style="font-size:12.5px;color:var(--text-muted,#64748b);">
+                💡 Encara no has afegit cap Tema Annex ni Examen Oficial en PDF/Word. Pots pujar exàmens reals i la IA en traurà les preguntes amb solucions i cites legals.
+              </div>
+              <button type="button" onclick="const b=document.querySelector('[data-tab=\\'tutor-ia\\']');if(b)b.click();" style="background:#0284c7;color:#fff;border:none;padding:7px 12px;border-radius:7px;font-weight:700;font-size:12px;cursor:pointer;">
+                ➕ Pujar Examen PDF
+              </button>
+            </div>
+          ` : `
+            <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(260px, 1fr));gap:12px;">
+              ${temesAnnexos.map(t => {
+                const qsDelTema = (bancoPoliciaLocal || []).filter(q => ((q.tema || '') + ' ' + (q.seccio || '')).toLowerCase().includes(t.nom.toLowerCase()));
+                return `
+                  <div style="background:var(--bg-card-subtle,#f8fafc);border:1px solid var(--border-card,#e2e8f0);border-radius:10px;padding:12px;display:flex;flex-direction:column;justify-content:space-between;gap:8px;">
+                    <div>
+                      <div style="font-weight:800;font-size:13px;color:var(--text-main,#0f172a);line-height:1.35;">📑 ${escapeHtml(t.nom)}</div>
+                      <div style="font-size:11.5px;color:var(--text-muted,#64748b);margin-top:3px;">
+                        🏛️ ${escapeHtml(t.municipi || 'Municipal')} • ❓ <b>${qsDelTema.length}</b> preguntes
+                      </div>
+                    </div>
+                    <button type="button" onclick="window.ferTestTemaAnnex('${escapeHtml(t.nom)}')" style="background:#16a34a;color:#fff;border:none;padding:6px 10px;border-radius:6px;font-weight:800;font-size:11.5px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;">
+                      <span>▶</span> Fer Test (${qsDelTema.length})
+                    </button>
+                  </div>
+                `;
+              }).join('')}
+
+              ${examensOficials.map(ex => {
+                const count = (ex.preguntes || []).length;
+                return `
+                  <div style="background:var(--bg-card-subtle,#f8fafc);border:1px solid var(--border-card,#e2e8f0);border-radius:10px;padding:12px;display:flex;flex-direction:column;justify-content:space-between;gap:8px;">
+                    <div>
+                      <div style="font-weight:800;font-size:13px;color:var(--text-main,#0f172a);line-height:1.35;">🏛️ ${escapeHtml(ex.titol)}</div>
+                      <div style="font-size:11.5px;color:var(--text-muted,#64748b);margin-top:3px;">
+                        📍 ${escapeHtml(ex.municipi || 'Oficial')} (${escapeHtml(ex.any || '')}) • ❓ <b>${count}</b> preguntes
+                      </div>
+                    </div>
+                    <button type="button" onclick="window.iniciarSimulacreExamenGuardat('${ex.id}')" style="background:#0284c7;color:#fff;border:none;padding:6px 10px;border-radius:6px;font-weight:800;font-size:11.5px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;">
+                      <span>⏱️</span> Simulacre Oficial (${count})
+                    </button>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `}
+        </div>
+
         <!-- APARTAT DE CULTURA GENERAL PER A POLICIA LOCAL -->
         <div style="background:var(--bg-card,#fff);border:1.5px solid var(--border-card,#e2e8f0);border-radius:16px;padding:18px 20px;box-shadow:var(--shadow-card);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;">
           <div>
@@ -691,13 +782,24 @@
           </div>
         </div>
 
+        </div>
       </div>
-      <div id="test-container"></div>
     `;
 
     // ----------------------------------------------------
     // ESDEVENIMENTS I HANDLERS DE LA VISTA DE POLICIA LOCAL
     // ----------------------------------------------------
+
+    const btnPlSortir = contenedor.querySelector('#btn-pl-sortir-test');
+    if (btnPlSortir) {
+      btnPlSortir.addEventListener('click', () => {
+        const z = document.getElementById('pl-zona-test');
+        const p = document.getElementById('pl-contingut-principal');
+        if (z) z.style.display = 'none';
+        if (p) p.style.display = 'flex';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    }
 
     // 1. Canvi de Pestanya Municipi o Temari Compartit
     contenedor.querySelectorAll('.btn-pl-tab-municipi').forEach(btn => {

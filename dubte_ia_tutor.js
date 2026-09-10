@@ -35,6 +35,8 @@
     preguntaActualDubte = preguntaObj;
     opcioTriadaActual = (typeof opcioTriadaIdx === 'number' && opcioTriadaIdx >= 0) ? opcioTriadaIdx : null;
     bancActual = detectarBancActiu();
+    window.preguntaActualDubteGlobal = preguntaObj;
+    window.opcioTriadaActualGlobal = opcioTriadaActual;
 
     const modal = document.getElementById('modal-dubte-ia');
     if (!modal) return;
@@ -251,6 +253,13 @@
           </div>
         </div>
       ` : ''}
+
+      <!-- Acció per aprofundir amb el Tutor IA -->
+      <div style="text-align:center;margin-top:14px;padding-top:10px;border-top:1px solid var(--border-card,#e2e8f0);">
+        <button type="button" onclick="window.tancarModalDubteIA(); if (typeof window.obrirTutorAmbPregunta === 'function') window.obrirTutorAmbPregunta(window.preguntaActualDubteGlobal, window.opcioTriadaActualGlobal);" style="background:#002B5E;color:#ffffff;border:none;padding:10px 20px;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:8px;box-shadow:0 3px 8px rgba(0,43,94,0.25);transition:all 0.2s;">
+          <span>🧠</span> <span>Aprofundir i debatre al Xat del Tutor IA</span> <span>➔</span>
+        </button>
+      </div>
     `;
   }
 

@@ -172,13 +172,84 @@
     }
   }
 
+  // Fusió intel·ligent entre les dades del núvol i les locals sense bloquejos
+  function fusionarDades(remotDades) {
+    if (!remotDades || typeof remotDades !== 'object') return;
+
+    Object.keys(remotDades).forEach((clau) => {
+      try {
+        const valorRemot = remotDades[clau];
+        const valorLocal = localStorage.getItem(clau);
+
+        if (!valorLocal) {
+          // Si en local no existeix, adoptar directament la del núvol
+          setItemOriginal.call(localStorage, clau, typeof valorRemot === 'string' ? valorRemot : JSON.stringify(valorRemot));
+          return;
+        }
+
+        // Fusió d'arrays amb identificadors (documents, temes annexos, exàmens, preguntes)
+        if (['agentmedina_documents_ordenances', 'agentmedina_temes_annexos', 'agentmedina_examens_oficials', 'preguntes_creades_usuari'].includes(clau)) {
+          try {
+            const arrLocal = JSON.parse(valorLocal);
+            const arrRemot = typeof valorRemot === 'string' ? JSON.parse(valorRemot) : valorRemot;
+            if (Array.isArray(arrLocal) && Array.isArray(arrRemot)) {
+              const mapa = new Map();
+              arrLocal.forEach(item => { if (item && item.id) mapa.set(String(item.id), item); });
+              arrRemot.forEach(item => {
+                if (item && item.id) {
+                  const existent = mapa.get(String(item.id));
+                  if (!existent) {
+                    mapa.set(String(item.id), item);
+                  } else {
+                    // Si el remot té data més recent o dades més completes, adoptar-lo
+                    const dataEx = existent.dataActualitzacio || existent.dataCreacio || '';
+                    const dataRem = item.dataActualitzacio || item.dataCreacio || '';
+                    if (dataRem >= dataEx) mapa.set(String(item.id), { ...existent, ...item });
+                  }
+                }
+              });
+              const fusionat = Array.from(mapa.values());
+              setItemOriginal.call(localStorage, clau, JSON.stringify(fusionat));
+              return;
+            }
+          } catch (e) {}
+        }
+
+        // Fusió d'estadístiques de preguntes contestades (mossos_stats_db)
+        if (clau === 'mossos_stats_db') {
+          try {
+            const statsLoc = JSON.parse(valorLocal) || {};
+            const statsRem = typeof valorRemot === 'string' ? JSON.parse(valorRemot) : valorRemot;
+            const respLoc = statsLoc.respondidas || {};
+            const respRem = (statsRem && statsRem.respondidas) || {};
+            const respFus = { ...respLoc, ...respRem };
+            const statsFus = { ...statsLoc, ...statsRem, respondidas: respFus };
+            setItemOriginal.call(localStorage, clau, JSON.stringify(statsFus));
+            return;
+          } catch (e) {}
+        }
+
+        // Ratxa de dies consecutius: conservar sempre la més gran
+        if (clau === 'ratxa_dies_consecutius' || clau === 'millor_ratxa' || clau === 'ratxa_comptador') {
+          const numLoc = Number(valorLocal) || 0;
+          const numRem = Number(valorRemot) || 0;
+          setItemOriginal.call(localStorage, clau, String(Math.max(numLoc, numRem)));
+          return;
+        }
+
+        // Per defecte: si no hi ha conflicte crític, mantenir el remot si està present
+        setItemOriginal.call(localStorage, clau, typeof valorRemot === 'string' ? valorRemot : JSON.stringify(valorRemot));
+      } catch (err) {}
+    });
+  }
+
   async function baixarDadesDelNucol() {
     if (!usuariActual) return;
     try {
       const snap = await db.collection('usuaris').doc(usuariActual.uid).get();
 
       if (!snap.exists) {
-        // Primer cop que aquest usuari sincronitza: pugem el que ja hi ha en local.
+        // Primer cop que aquest usuari sincronitza: pugem el que ja hi ha en local
         await pujarDadesANucol();
         return;
       }
@@ -186,21 +257,27 @@
       const remot = snap.data();
       if (!remot || !remot.dades) return;
 
-      const numClaus = Object.keys(remot.dades).length;
-      const missatge =
-        `S'ha trobat progrés guardat al núvol (${numClaus} claus).\n\n` +
-        `Vols carregar-lo en aquest dispositiu?\n` +
-        `Es sobreescriuran les dades locals que coincideixin (progrés, ratxa, convocatòries, preguntes pròpies...).`;
+      // Fusió automàtica sense popup molest
+      fusionarDades(remot.dades);
+      
+      // Pugem la versió fusionada perquè el núvol estigui 100% al dia
+      pujarDadesANucol();
 
-      if (!confirm(missatge)) return;
+      if (window.mostrarToast) {
+        window.mostrarToast('☁️ Dades i progrés sincronitzats amb el teu compte!', 'success');
+      }
 
-      escriureTotLocalStorage(remot.dades);
-      alert('✅ Progrés carregat des del núvol. Es recarregarà la pàgina per aplicar els canvis.');
-      window.location.reload();
+      // Notifiquem els mòduls de l'app perquè refresquin els seus comptadors
+      window.dispatchEvent(new CustomEvent('agentmedina:sync_complete', { detail: remot.dades }));
+      if (typeof window.actualizarEstadisticasTop === 'function') window.actualizarEstadisticasTop();
+      if (typeof window.actualitzarRatxaUI === 'function') window.actualitzarRatxaUI();
+      if (typeof window.carregarDashboard === 'function') window.carregarDashboard();
     } catch (e) {
       console.warn('[firebase-sync] No s\'han pogut baixar les dades del núvol:', e && e.message ? e.message : e);
     }
   }
+
+  window.pujarDadesANucolManual = pujarDadesANucol;
 
   // Es crida automàticament cada cop que canvia alguna cosa a localStorage
   // (amb un petit retard per no escriure a Firestore en cada clic).

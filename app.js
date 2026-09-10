@@ -93,18 +93,87 @@ function tornarAInici(e) {
 }
 window.tornarAInici = tornarAInici;
 
+function obtenirVistaActiva() {
+  const views = Array.from(document.querySelectorAll('.view-content'));
+  const ambClasse = views.find(v => v.classList.contains('view-activa') && v.style.display !== 'none');
+  if (ambClasse) return ambClasse;
+  const visible = views.find(v => v.style.display !== 'none' && window.getComputedStyle(v).display !== 'none');
+  if (visible) return visible;
+  return document.getElementById('view-inici') || views[0] || document.body;
+}
+window.obtenirVistaActiva = obtenirVistaActiva;
+
+function ferVisibleZonaPareTest(el) {
+  if (!el) return;
+  el.style.display = 'block';
+  const zona = el.closest('#mossos-zona-test, #pl-zona-test, #act-zona-test-container');
+  if (zona) {
+    zona.style.display = 'block';
+    const pare = zona.parentElement || zona.closest('.view-content');
+    if (pare) {
+      const principal = pare.querySelector('#mossos-contingut-principal, #pl-contingut-principal, #act-contingut-principal');
+      if (principal) principal.style.display = 'none';
+    }
+  }
+}
+
 function obtenirContenidorTest() {
-  const preferit = document.getElementById(activeTestContainerId);
-  if (preferit && (preferit.offsetParent !== null || preferit.style.display !== 'none')) return preferit;
+  if (activeTestContainerId) {
+    const preferit = document.getElementById(activeTestContainerId);
+    if (preferit) {
+      ferVisibleZonaPareTest(preferit);
+      return preferit;
+    }
+  }
+
+  const vistaActiva = obtenirVistaActiva();
+  if (vistaActiva) {
+    if (vistaActiva.id === 'view-mossos') {
+      const c = document.getElementById('test-container-mossos');
+      if (c) {
+        ferVisibleZonaPareTest(c);
+        activeTestContainerId = 'test-container-mossos';
+        return c;
+      }
+    } else if (vistaActiva.id === 'view-policia-local' || vistaActiva.id === 'view-pl') {
+      const c = document.getElementById('test-container-pl');
+      if (c) {
+        ferVisibleZonaPareTest(c);
+        activeTestContainerId = 'test-container-pl';
+        return c;
+      }
+    } else if (vistaActiva.id === 'view-actualitat') {
+      const c = document.getElementById('test-container-actualitat');
+      if (c) {
+        ferVisibleZonaPareTest(c);
+        activeTestContainerId = 'test-container-actualitat';
+        return c;
+      }
+    }
+
+    let local = vistaActiva.querySelector('#test-container') || vistaActiva.querySelector('.zona-test-activa');
+    if (!local) {
+      local = document.createElement('div');
+      local.id = 'test-container';
+      local.style.cssText = 'max-width:980px;margin:20px auto;width:100%;';
+      vistaActiva.prepend(local);
+    }
+    local.style.display = 'block';
+    activeTestContainerId = local.id;
+    return local;
+  }
+
   const candidats = ['test-container-mossos', 'test-container-pl', 'test-container-actualitat', 'test-container', 'repas-errors-container'];
   for (const id of candidats) {
     const el = document.getElementById(id);
-    if (el && (el.offsetParent !== null || el.closest('.view-activa') || window.getComputedStyle(el).display !== 'none')) {
+    if (el) {
+      ferVisibleZonaPareTest(el);
       return el;
     }
   }
-  return preferit || document.getElementById('test-container') || null;
+  return document.getElementById('test-container') || null;
 }
+window.obtenirContenidorTest = obtenirContenidorTest;
 
 function actualitzarFlashcardsDesErrors() {
   const errors = obtenirTotesLesPreguntesFallades()
@@ -353,41 +422,96 @@ function registrarRespuestaGlobal(idPregunta, esCorrecta, preguntaObj = null) {
 
   localStorage.setItem('mossos_stats_db', JSON.stringify(stats));
 
-  // Ratxa real: encerts consecutius. Es conserva entre recàrregues.
-  let ratxa = Number(localStorage.getItem('ratxa_comptador') || 0);
-  let millorRatxa = Number(localStorage.getItem('millor_ratxa') || 0);
+  // Ratxa d'encerts consecutius
+  let ratxaEncerts = Number(localStorage.getItem('ratxa_encerts_consecutius') || 0);
+  let millorRatxaEncerts = Number(localStorage.getItem('millor_ratxa_encerts') || 0);
   if (esCorrecta) {
-    ratxa += 1;
-    if (ratxa > millorRatxa) millorRatxa = ratxa;
+    ratxaEncerts += 1;
+    if (ratxaEncerts > millorRatxaEncerts) millorRatxaEncerts = ratxaEncerts;
   } else {
-    ratxa = 0;
+    ratxaEncerts = 0;
   }
-  localStorage.setItem('ratxa_comptador', String(ratxa));
-  localStorage.setItem('millor_ratxa', String(millorRatxa));
+  localStorage.setItem('ratxa_encerts_consecutius', String(ratxaEncerts));
+  localStorage.setItem('millor_ratxa_encerts', String(millorRatxaEncerts));
+
+  // Ratxa de dies consecutius d'estudi (calendari diari permanent)
+  registrarEstudiAvui();
+
   actualitzarRatxaUI();
   if (typeof actualizarEstadisticasTop === 'function') actualizarEstadisticasTop();
 }
 
+function calcularRatxaDiesEstudi() {
+  const avui = new Date().toISOString().slice(0, 10);
+  const ultimDia = localStorage.getItem('data_ultim_estudi');
+  let diesConsecutius = Number(localStorage.getItem('ratxa_dies_consecutius') || 0);
+
+  if (!ultimDia) return diesConsecutius || 0;
+
+  const dAvui = new Date(avui + 'T00:00:00');
+  const dUltim = new Date(ultimDia + 'T00:00:00');
+  const diffDies = Math.round((dAvui - dUltim) / (1000 * 60 * 60 * 24));
+
+  if (diffDies === 0 || diffDies === 1) {
+    return Math.max(1, diesConsecutius);
+  } else if (diffDies > 1) {
+    return 0;
+  }
+  return diesConsecutius;
+}
+
+function registrarEstudiAvui() {
+  const avui = new Date().toISOString().slice(0, 10);
+  const ultimDia = localStorage.getItem('data_ultim_estudi');
+  let diesConsecutius = Number(localStorage.getItem('ratxa_dies_consecutius') || 0);
+  let millorRatxa = Number(localStorage.getItem('millor_ratxa_dies') || 0);
+
+  if (!ultimDia) {
+    diesConsecutius = 1;
+  } else {
+    const dAvui = new Date(avui + 'T00:00:00');
+    const dUltim = new Date(ultimDia + 'T00:00:00');
+    const diffDies = Math.round((dAvui - dUltim) / (1000 * 60 * 60 * 24));
+
+    if (diffDies === 1) {
+      diesConsecutius += 1;
+    } else if (diffDies > 1) {
+      diesConsecutius = 1;
+    } else if (diffDies === 0 && diesConsecutius === 0) {
+      diesConsecutius = 1;
+    }
+  }
+
+  if (diesConsecutius > millorRatxa) millorRatxa = diesConsecutius;
+
+  localStorage.setItem('data_ultim_estudi', avui);
+  localStorage.setItem('ratxa_dies_consecutius', String(diesConsecutius));
+  localStorage.setItem('ratxa_comptador', String(diesConsecutius));
+  localStorage.setItem('millor_ratxa_dies', String(millorRatxa));
+  return diesConsecutius;
+}
+
 function obtenirRatxa() {
-  return Number(localStorage.getItem('ratxa_comptador') || 0);
+  return calcularRatxaDiesEstudi();
 }
 
 function obtenirMillorRatxa() {
-  return Number(localStorage.getItem('millor_ratxa') || 0);
+  return Number(localStorage.getItem('millor_ratxa_dies') || 0);
 }
 
 function actualitzarRatxaUI() {
   const ratxa = obtenirRatxa();
   const top = document.getElementById('ratxa-val');
-  if (top) top.textContent = `🔥 ${ratxa}`;
+  if (top) top.textContent = `🔥 ${ratxa}d`;
   const topLabel = top?.parentElement?.querySelector('.l');
-  if (topLabel) topLabel.textContent = `ratxa`;
+  if (topLabel) topLabel.textContent = `ratxa dies`;
   const inici = document.getElementById('inici-ratxa');
   if (inici) inici.textContent = `${ratxa}`;
   const iniciLabel = inici?.parentElement?.querySelector('span:last-child');
   if (iniciLabel) iniciLabel.textContent = `Ratxa activa`;
 }
 window.actualitzarRatxaUI = actualitzarRatxaUI;
+window.registrarEstudiAvui = registrarEstudiAvui;
 
 function normalitzarRespostaStat(valor) {
   if (typeof valor === 'boolean') return { correcta: valor };
@@ -676,7 +800,7 @@ function actualitzarDashboardInici() {
 
   const totalErrors = obtenirTotesLesPreguntesFallades().length;
   const badge = document.getElementById('total-errors-dashboard');
-  if (badge) badge.textContent = `${totalErrors} preguntes pendents`;
+  if (badge) badge.textContent = String(totalErrors);
 }
 
 function recuperarPreguntaCompleta(q) {
@@ -950,11 +1074,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const views = document.querySelectorAll('.view-content');
       views.forEach(view => {
-        if (view.id === `view-${targetTab}`) {
-          view.style.display = 'block';
-        } else {
-          view.style.display = 'none';
-        }
+        const isTarget = (view.id === `view-${targetTab}`);
+        view.style.display = isTarget ? 'block' : 'none';
+        view.classList.toggle('view-activa', isTarget);
       });
 
       if (targetTab === 'inici') {
@@ -967,6 +1089,10 @@ document.addEventListener('DOMContentLoaded', () => {
         mostrarTemarioActualitat();
       } else if (targetTab === 'editor') {
         mostrarGestorPreguntes();
+      } else if (targetTab === 'tutor-ia') {
+        if (typeof window.renderitzarVistaTutorIA === 'function') {
+          window.renderitzarVistaTutorIA();
+        }
       }
     });
   });
@@ -1301,6 +1427,15 @@ document.addEventListener('DOMContentLoaded', () => {
               <div>
                 <h4 class="action-card-title">Preguntes difícils</h4>
                 <p class="action-card-desc">Repàs prioritari d'aquelles preguntes amb més taxa d'error.</p>
+              </div>
+            </div>
+
+            <div id="centre-tutor-ia" class="action-card card-blue" onclick="document.querySelector('[data-tab=\'tutor-ia\']')?.click();" style="cursor:pointer;border:1.5px solid #002B5E;background:linear-gradient(135deg,rgba(0,43,94,0.04),rgba(0,122,255,0.06));">
+              <div class="action-card-icon-wrap" style="color:#002B5E;font-size:24px;">🧠</div>
+              <div>
+                <span class="action-card-badge" style="background:#002B5E;color:#fff;">Assistent Personal</span>
+                <h4 class="action-card-title" style="margin-top:4px;">Tutor IA & Ordenances</h4>
+                <p class="action-card-desc">Resol dubtes, puja ordenances (Cunit, Badalona...) i genera tests IA a mida.</p>
               </div>
             </div>
           </div>
@@ -3408,8 +3543,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- SELECTOR DE SECCIONS DINS D'UN ÀMBIT ---
   function mostrarSelectorSeccions(nomAmbit, dataset, onTornar) {
-    const activeView = obtenirContenidorTest() || document.querySelector('.view-content') || document.body;
-    if (!activeView) return;
+    let targetView = null;
+    const nomLower = String(nomAmbit || '').toLowerCase();
+    if (nomLower.includes('mossos') || nomLower.includes('àmbit')) {
+      targetView = document.getElementById('view-mossos');
+    } else if (nomLower.includes('actualitat')) {
+      targetView = document.getElementById('view-actualitat');
+    } else if (nomLower.includes('policia') || nomLower.includes('local') || nomLower.includes('municipi')) {
+      targetView = document.getElementById('view-policia-local') || document.getElementById('view-pl');
+    }
+    if (!targetView || targetView.style.display === 'none') {
+      targetView = (typeof obtenirVistaActiva === 'function' ? obtenirVistaActiva() : null) || document.getElementById('view-mossos') || document.body;
+    }
+
+    const hostEl = targetView.querySelector('#mossos-contingut-principal') ||
+                   targetView.querySelector('#pl-contingut-principal') ||
+                   targetView.querySelector('#act-contingut-principal') ||
+                   targetView;
+    if (!hostEl) return;
 
     // Amaguem el "Tria un tema" i els botons d'àmbit mentre es tria la secció/test.
     document.querySelectorAll('.hub').forEach(h => { h.style.display = 'none'; });
@@ -3448,7 +3599,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    activeView.innerHTML = `
+    hostEl.innerHTML = `
       <div style="background: var(--bg-card, #ffffff); padding: 24px; border-radius: 16px; border: 1px solid var(--border-card, #e2e8f0); box-shadow: var(--shadow-card, 0 4px 20px rgba(0,0,0,0.08)); margin-top: 20px; text-align: left;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
           ${onTornar ? `<button id="btn-tornar-seccions" style="background:none;border:none;color:#007aff;font-weight:700;cursor:pointer;padding:0;font-size:14px;">← Tornar</button>` : '<span></span>'}
@@ -3563,70 +3714,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // --- MOTOR D'EXAMENS ---
-  function iniciarExamen(numPreguntes, esRepasErrors, datasetSource) {
-    let indexPreguntaActual = 0;
-    let preguntesActives = datasetSource;
-    let encerts = 0;
-
-    function renderitzarPas() {
-      if (indexPreguntaActual >= preguntesActives.length) {
-        const contenedor = obtenirContenidorTest();
-        if (contenedor) {
-          contenedor.innerHTML = `
-            <div style="background: white; padding: 30px; border-radius: 12px; text-align: center; border: 1px solid #e2e8f0; margin-top: 20px;">
-              <h2>🏆 Test Finalitzat!</h2>
-              <p>Has encertat ${encerts} de ${preguntesActives.length} preguntes.</p>
-              <button onclick="location.reload()" style="background: #007aff; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 700;">Tornar a l'Inici</button>
-            </div>
-          `;
-        }
-        return;
-      }
-
-      const q = preguntesActives[indexPreguntaActual];
-      mostrarPregunta(q);
-
-      window.verificarRespuesta = function(indexTriat, indexCorrecte, explicacio) {
-        const feedback = document.getElementById('feedback');
-        if (!feedback) return;
-
-        const esCorrecta = (indexTriat === indexCorrecte);
-        registrarRespuestaGlobal(q.id, esCorrecta, q);
-
-        if (esCorrecta) {
-          encerts++;
-          eliminarPreguntaAcertada(q.id);
-          feedback.innerHTML = `
-            <div style="background: #d1fae5; border: 1px solid #6ee7b7; padding: 15px; border-radius: 8px; color: #065f46; margin-bottom: 15px;">
-              <p style="margin: 0 0 5px 0; font-weight: 700;">✅ Correcte!</p>
-              <p style="margin: 0; font-size: 13px;">${explicacio}</p>
-            </div>
-            <button id="btn-seguent-pregunta" style="background: #007aff; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 700; cursor: pointer;">Següent Pregunta ➔</button>
-          `;
-        } else {
-          guardarPreguntaFallada(q);
-          feedback.innerHTML = `
-            <div style="background: #fee2e2; border: 1px solid #fca5a5; padding: 15px; border-radius: 8px; color: #991b1b; margin-bottom: 15px;">
-              <p style="margin: 0 0 5px 0; font-weight: 700;">❌ Incorrecte.</p>
-              <p style="margin: 0; font-size: 13px;">${explicacio}</p>
-            </div>
-            <button id="btn-seguent-pregunta" style="background: #007aff; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 700; cursor: pointer;">Següent Pregunta ➔</button>
-          `;
-        }
-
-        const btnSeguent = document.getElementById('btn-seguent-pregunta');
-        if (btnSeguent) {
-          btnSeguent.onclick = () => {
-            indexPreguntaActual++;
-            renderitzarPas();
-          };
-        }
-      };
-    }
-
-    renderitzarPas();
-  }
 // ==========================================
 // EXAMEN OFICIAL MOSSOS — 30 PREGUNTES / 30 MIN
 // ==========================================
@@ -3661,7 +3748,22 @@ function iniciarExamenOficial(mode = 'estudi') {
     const respostes = [];
 
     window.ultimTestPreguntes = [...examen];
-    activeTestContainerId = 'test-container';
+    activeTestContainerId = 'test-container-mossos';
+    const mossosZona = document.getElementById('mossos-zona-test');
+    const mossosPrincipal = document.getElementById('mossos-contingut-principal');
+    if (mossosZona) mossosZona.style.display = 'block';
+    if (mossosPrincipal) mossosPrincipal.style.display = 'none';
+
+    const btnSortir = document.getElementById('btn-mossos-sortir-test');
+    if (btnSortir) {
+      btnSortir.onclick = () => {
+        if (temporitzador) clearInterval(temporitzador);
+        if (window._agentMedinaTimer) clearInterval(window._agentMedinaTimer);
+        if (mossosZona) mossosZona.style.display = 'none';
+        if (mossosPrincipal) mossosPrincipal.style.display = 'flex';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      };
+    }
 
     function contenidor() { return obtenirContenidorTest(); }
 
@@ -3682,7 +3784,7 @@ function iniciarExamenOficial(mode = 'estudi') {
       const nota = Math.max(0, Math.round((puntuacioBruta / 3) * 100) / 100);
       const percent = Math.round((encerts / 30) * 100);
       c.innerHTML = `
-        <div style="background:white;padding:30px;border-radius:16px;border:1px solid #e2e8f0;text-align:center;margin-top:20px;">
+        <div style="background:white;padding:30px;border-radius:16px;border:1.5px solid #e2e8f0;text-align:center;margin:10px auto;max-width:650px;box-shadow:var(--shadow-card);">
           <div style="font-size:42px;">${perTemps ? '⏰' : '🏁'}</div>
           <h2 style="color:#0f172a;margin:10px 0;">${perTemps ? 'Temps esgotat!' : 'Examen finalitzat'}</h2>
           <p style="color:#64748b;">${esEstudi ? 'Mode Estudi' : 'Mode Examen'} · 30 preguntes</p>
@@ -3694,10 +3796,16 @@ function iniciarExamenOficial(mode = 'estudi') {
           <p style="font-size:28px;font-weight:800;color:#007aff;margin:15px 0;">Nota: ${nota} / 10</p>
           <p style="color:#64748b;font-size:13px;">Aquesta simulació aplica +1 per encert, −0,25 per error i 0 per blanc.</p>
           <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:20px;">
-            <button id="btn-repas-oficial" style="background:#16a34a;color:white;border:none;padding:12px 20px;border-radius:8px;font-weight:700;cursor:pointer;">📚 Repasar les 30 preguntes</button>
-            <button id="btn-inici-oficial" style="background:#007aff;color:white;border:none;padding:12px 20px;border-radius:8px;font-weight:700;cursor:pointer;">🏠 Tornar a Inici</button>
+            <button id="btn-temari-oficial" style="background:#002B5E;color:white;border:none;padding:12px 20px;border-radius:8px;font-weight:700;cursor:pointer;">← Tornar al Temari</button>
+            <button id="btn-repas-oficial" style="background:#16a34a;color:white;border:none;padding:12px 20px;border-radius:8px;font-weight:700;cursor:pointer;">📚 Repassar les 30 preguntes</button>
+            <button id="btn-inici-oficial" style="background:var(--bg-card-subtle,#f1f5f9);color:var(--text-main,#1e293b);border:1px solid #cbd5e1;padding:12px 20px;border-radius:8px;font-weight:700;cursor:pointer;">🏠 Inici</button>
           </div>
         </div>`;
+      document.getElementById('btn-temari-oficial')?.addEventListener('click', () => {
+        if (mossosZona) mossosZona.style.display = 'none';
+        if (mossosPrincipal) mossosPrincipal.style.display = 'flex';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
       document.getElementById('btn-repas-oficial')?.addEventListener('click', iniciarRepasUltimTest);
       document.getElementById('btn-inici-oficial')?.addEventListener('click', tornarAInici);
     }
@@ -3828,10 +3936,17 @@ function iniciarExamen(quantitatDeseada = 10, esRepasErrors = false, datasetPers
     };
 
     const viewMossos = document.getElementById('view-mossos');
-    const viewPL = document.getElementById('view-pl');
+    const viewPL = document.getElementById('view-policia-local') || document.getElementById('view-pl');
     const viewAct = document.getElementById('view-actualitat');
 
-    if (viewAct && viewAct.classList.contains('view-activa')) {
+    const primeraQ = preguntesTest[0] || {};
+    const fontDetectada = primeraQ._font || (typeof detectarFontPregunta === 'function' ? detectarFontPregunta(primeraQ) : '') || '';
+
+    const esAct = (viewAct && (viewAct.style.display !== 'none' || viewAct.classList.contains('view-activa'))) || fontDetectada === 'Actualitat';
+    const esPL = (viewPL && (viewPL.style.display !== 'none' || viewPL.classList.contains('view-activa'))) || fontDetectada === 'Policia Local';
+    const esMossos = (viewMossos && (viewMossos.style.display !== 'none' || viewMossos.classList.contains('view-activa'))) || fontDetectada === 'Mossos' || (!esAct && !esPL);
+
+    if (esAct && document.getElementById('act-zona-test-container')) {
       activeTestContainerId = 'test-container-actualitat';
       const actZona = document.getElementById('act-zona-test-container');
       const actPrincipal = document.getElementById('act-contingut-principal');
@@ -3839,7 +3954,7 @@ function iniciarExamen(quantitatDeseada = 10, esRepasErrors = false, datasetPers
       if (actPrincipal) actPrincipal.style.display = 'none';
       const btnSortir = document.getElementById('btn-act-sortir-test');
       if (btnSortir) btnSortir.onclick = restaurarVistaSenseTest;
-    } else if (viewPL && viewPL.classList.contains('view-activa')) {
+    } else if (esPL && document.getElementById('pl-zona-test')) {
       activeTestContainerId = 'test-container-pl';
       const plZona = document.getElementById('pl-zona-test');
       const plPrincipal = document.getElementById('pl-contingut-principal');
@@ -3847,7 +3962,7 @@ function iniciarExamen(quantitatDeseada = 10, esRepasErrors = false, datasetPers
       if (plPrincipal) plPrincipal.style.display = 'none';
       const btnSortir = document.getElementById('btn-pl-sortir-test');
       if (btnSortir) btnSortir.onclick = restaurarVistaSenseTest;
-    } else if (viewMossos && viewMossos.classList.contains('view-activa')) {
+    } else if (esMossos && document.getElementById('mossos-zona-test')) {
       activeTestContainerId = 'test-container-mossos';
       const mossosZona = document.getElementById('mossos-zona-test');
       const mossosPrincipal = document.getElementById('mossos-contingut-principal');
@@ -3857,6 +3972,8 @@ function iniciarExamen(quantitatDeseada = 10, esRepasErrors = false, datasetPers
       if (btnSortir) btnSortir.onclick = restaurarVistaSenseTest;
     } else {
       activeTestContainerId = 'test-container';
+      const cont = obtenirContenidorTest();
+      if (cont) cont.style.display = 'block';
     }
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -4110,45 +4227,12 @@ function mostrarPreguntaAmbSeguent(preguntaObj, indexActual, totalPreguntes, onS
 // CORRECCIÓ DEL FILTRE D'ÀMBITS (Àmbit A, B, C)
 // ==========================================
 
-// Actualització de la funció que gestiona els clics als àmbits de Mossos
-document.addEventListener('DOMContentLoaded', () => {
-  const contenedorMossos = document.getElementById('view-mossos');
-  if (!contenedorMossos) return;
-
-  // Sobrescrivim l'esdeveniment dels botons d'àmbit de Mossos per filtrar correctament
-  const ambitsMossos = contenedorMossos.querySelectorAll('.amb-bar-mossos');
-  ambitsMossos.forEach(ambit => {
-    // Eliminem possibles esdeveniments anteriors clonant el node o assignant directament
-    const nouAmbit = ambit.cloneNode(true);
-    ambit.parentNode.replaceChild(nouAmbit, ambit);
-
-    nouAmbit.addEventListener('click', () => {
-      const nomAmbit = nouAmbit.querySelector('.amb-name')?.innerText.trim() || "";
-      const dades = window.bancoPreguntes && window.bancoPreguntes.length > 0 ? window.bancoPreguntes : bancoPreguntes;
-      
-      // Filtrem les preguntes segons l'àmbit seleccionat (Àmbit A, Àmbit B o Àmbit C)
-      let preguntesFiltrades = dades;
-      
-      if (nomAmbit.includes("Àmbit A")) {
-        preguntesFiltrades = dades.filter(q => q.ambit === "Àmbit A" || (q.tema && q.tema.startsWith("A")));
-      } else if (nomAmbit.includes("Àmbit B")) {
-        preguntesFiltrades = dades.filter(q => q.ambit === "Àmbit B" || (q.tema && q.tema.startsWith("B")));
-      } else if (nomAmbit.includes("Àmbit C")) {
-        preguntesFiltrades = dades.filter(q => q.ambit === "Àmbit C" || (q.tema && q.tema.startsWith("C")));
-      }
-
-      // Si no hi ha preguntes amb aquesta etiqueta exacta, avisem en lloc de mostrar dades incorrectes
-      if (preguntesFiltrades.length === 0) {
-        alert(`Encara no hi ha preguntes carregades per a "${nomAmbit}". Aquest àmbit estarà disponible properament.`);
-        return;
-      }
-
-      // Crida al selector de seccions amb les preguntes ja filtrades per àmbit
-      mostrarSelectorSeccions(nomAmbit, preguntesFiltrades, mostrarTemarioMossos);
-    });
-  });
+  window.iniciarExamen = iniciarExamen;
+  window.iniciarExamenOficial = iniciarExamenOficial;
+  window.mostrarSelectorSeccions = mostrarSelectorSeccions;
+  window.mostrarSelectorPreguntas = mostrarSelectorPreguntas;
+  window.mostrarPreguntaAmbSeguent = mostrarPreguntaAmbSeguent;
 });
-    });
 
 // ==========================================
 // 5. EXPORTAR / IMPORTAR PROGRÉS (portabilitat entre dispositius)

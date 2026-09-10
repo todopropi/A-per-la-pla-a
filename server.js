@@ -3,7 +3,35 @@ import path from 'path';
 import fs from 'fs';
 import vm from 'vm';
 import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
 import { GoogleGenAI } from '@google/genai';
+import mammoth from 'mammoth';
+
+const require = createRequire(import.meta.url);
+
+async function extractTextFromPdf(buffer) {
+  try {
+    const pkg = require('pdf-parse');
+    if (pkg && pkg.PDFParse) {
+      const parser = new pkg.PDFParse({ data: buffer });
+      const res = await parser.getText();
+      const txt = (res && res.text ? res.text : '').trim();
+      try { await parser.destroy(); } catch (_) {}
+      if (txt && txt.length > 5) return txt;
+    }
+    if (typeof pkg === 'function') {
+      const res = await pkg(buffer);
+      if (res && res.text && res.text.trim().length > 5) return res.text.trim();
+    }
+    if (pkg && typeof pkg.default === 'function') {
+      const res = await pkg.default(buffer);
+      if (res && res.text && res.text.trim().length > 5) return res.text.trim();
+    }
+  } catch (err) {
+    console.warn('Avís parsejant PDF amb pdf-parse:', err?.message || err);
+  }
+  return '';
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -11,9 +39,11 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = 3000;
 
-app.use(express.json({ limit: '15mb' }));
+app.use(express.json({ limit: '25mb' }));
 
 const CUSTOM_QUESTIONS_FILE = path.join(__dirname, 'custom_questions.json');
+const TEMES_ANNEXOS_FILE = path.join(__dirname, 'temes_annexos.json');
+const EXAMENS_OFICIALS_FILE = path.join(__dirname, 'examens_oficials.json');
 
 const BANK_FILES = {
   pl: {
@@ -263,19 +293,21 @@ function getGeminiClient() {
   return geminiClient;
 }
 
-async function executarGeminiAmbFallback(ai, prompt, responseMimeType = 'application/json') {
+async function executarGeminiAmbFallback(ai, promptOrContents, responseMimeType = 'application/json', tools = undefined) {
   // Models oficials compatibles segons les directrius de Gemini API
   const models = ['gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest', 'gemini-3.1-pro-preview'];
   let lastErr = null;
   for (const model of models) {
     for (let intent = 0; intent < 2; intent++) {
       try {
+        const config = {};
+        if (responseMimeType) config.responseMimeType = responseMimeType;
+        if (tools) config.tools = tools;
+
         const response = await ai.models.generateContent({
           model,
-          contents: prompt,
-          config: {
-            responseMimeType
-          }
+          contents: promptOrContents,
+          config
         });
         if (response && response.text) {
           return { response, model };
@@ -586,194 +618,650 @@ Respon ÚNICAMENT amb un array JSON amb aquest format:
 });
 
 // ==========================================
-// SERVEI DE COMUNITAT I MISSATGERIA (MSN MESSENGER)
+// SERVEI D'ORDENANCES I DOCUMENTS D'ESTUDI
 // ==========================================
-const COMUNITAT_FILE = path.join(__dirname, 'comunitat_data.json');
+const DOCUMENTS_FILE = path.join(__dirname, 'documents_ordenances.json');
 
-const INITIAL_USUARIS_ACTIUS = [
-  {
-    id: 'marc_mossos',
-    nom: 'Marc V. (Mossos 46/26)',
-    cos: 'Mossos',
-    avatar: '👮‍♂️',
-    estat: 'online',
-    estatText: 'Repassant Codi Penal (Homicidi i Lesions) 📖',
-    oposicio: 'Mossos d\'Esquadra 46/26',
-    ultimTest: 'Test Àmbit B: 9.2/10'
-  },
-  {
-    id: 'nuria_gub',
-    nom: 'Núria R. (Guàrdia Urbana)',
-    cos: 'Policia Local',
-    avatar: '👩‍✈️',
-    estat: 'online',
-    estatText: '♫ Fent test d\'ordenances municipals i trànsit ♫',
-    oposicio: 'Guàrdia Urbana de Barcelona',
-    ultimTest: 'Test Trànsit: 8.5/10'
-  },
-  {
-    id: 'jordi_pl',
-    nom: 'Jordi M. (PL Reus / Constantí)',
-    cos: 'Policia Local',
-    avatar: '👨‍✈️',
-    estat: 'online',
-    estatText: 'Algú sap si la Llei 16/1991 entra sencera a Constantí? (8)',
-    oposicio: 'Policia Local Constantí',
-    ultimTest: 'Tema 14 PL: 8.0/10'
-  },
-  {
-    id: 'laura_mosses',
-    nom: 'Laura B. (Àmbit C)',
-    cos: 'Mossos',
-    avatar: '👩‍💼',
-    estat: 'ocupat',
-    estatText: 'Fent Simulacre Oficial 30 minuts... No molestar ⏱️',
-    oposicio: 'Mossos d\'Esquadra',
-    ultimTest: 'Simulacre: 7.8/10'
-  },
-  {
-    id: 'pol_opositor',
-    nom: 'Pol C. (Actualitat 2026)',
-    cos: 'Mossos',
-    avatar: '🧑‍💻',
-    estat: 'online',
-    estatText: 'Les fites d\'actualitat 2026 cauen segur a l\'examen! (Y)',
-    oposicio: 'Mossos i Policia Local',
-    ultimTest: 'Actualitat: 9.5/10'
-  },
-  {
-    id: 'sergi_girona',
-    nom: 'Sergi T. (Policia Municipal)',
-    cos: 'Policia Local',
-    avatar: '👮',
-    estat: 'ocupat',
-    estatText: 'Estudiant tema 15 procediment administratiu ⚖️',
-    oposicio: 'Policia Municipal Girona',
-    ultimTest: 'Tema 15: 7.0/10'
-  }
-];
-
-const INITIAL_XAT_GLOBAL = [
-  {
-    id: 'g-1',
-    usuariId: 'marc_mossos',
-    nom: 'Marc V. (Mossos 46/26)',
-    avatar: '👮‍♂️',
-    cos: 'Mossos',
-    text: 'Hola companys! Com porteu el repàs del Codi Penal per a la convocatòria 46/26?',
-    hora: '10:15'
-  },
-  {
-    id: 'g-2',
-    usuariId: 'nuria_gub',
-    nom: 'Núria R. (Guàrdia Urbana)',
-    avatar: '👩‍✈️',
-    cos: 'Policia Local',
-    text: 'Molt ficada amb ordenances de trànsit! Recomano fer els tests dels temes 23 i 24 de PL!',
-    hora: '10:18'
-  },
-  {
-    id: 'g-3',
-    usuariId: 'pol_opositor',
-    nom: 'Pol C. (Actualitat 2026)',
-    avatar: '🧑‍💻',
-    cos: 'Mossos',
-    text: 'Heu vist les preguntes d\'Actualitat que acaben d\'actualitzar? Molt útils per consolidar política i esports.',
-    hora: '10:22'
-  }
-];
-
-function getComunitatData() {
+function getDocuments() {
   try {
-    if (fs.existsSync(COMUNITAT_FILE)) {
-      const d = JSON.parse(fs.readFileSync(COMUNITAT_FILE, 'utf8'));
-      return {
-        usuaris: d.usuaris || INITIAL_USUARIS_ACTIUS,
-        xatGlobal: d.xatGlobal || INITIAL_XAT_GLOBAL,
-        privats: d.privats || {}
-      };
+    if (fs.existsSync(DOCUMENTS_FILE)) {
+      const d = JSON.parse(fs.readFileSync(DOCUMENTS_FILE, 'utf8'));
+      if (Array.isArray(d)) return d;
     }
   } catch (e) {
-    console.error('Error reading comunitat data:', e);
+    console.error('Error llegint documents_ordenances.json:', e);
   }
-  return {
-    usuaris: INITIAL_USUARIS_ACTIUS,
-    xatGlobal: INITIAL_XAT_GLOBAL,
-    privats: {}
-  };
+  return [];
 }
 
-function saveComunitatData(data) {
+function saveDocuments(docs) {
   try {
-    fs.writeFileSync(COMUNITAT_FILE, JSON.stringify(data, null, 2), 'utf8');
+    fs.writeFileSync(DOCUMENTS_FILE, JSON.stringify(docs, null, 2), 'utf8');
+    return true;
   } catch (e) {
-    console.error('Error saving comunitat data:', e);
+    console.error('Error desant documents_ordenances.json:', e);
+    return false;
   }
 }
 
-app.get('/api/comunitat/estat', (req, res) => {
-  const data = getComunitatData();
-  res.json({
-    success: true,
-    usuaris: data.usuaris,
-    xatGlobal: data.xatGlobal,
-    privats: data.privats
-  });
+app.get('/api/documents-ordenances', (req, res) => {
+  res.json({ success: true, documents: getDocuments() });
 });
 
-app.post('/api/comunitat/xat-global', (req, res) => {
-  const { nom, avatar, cos, text } = req.body || {};
-  if (!text || !text.trim()) {
-    return res.status(400).json({ success: false, error: 'Text buit' });
+app.post('/api/documents-ordenances', (req, res) => {
+  const { doc } = req.body || {};
+  if (!doc || !doc.titol || !doc.contingutText) {
+    return res.status(400).json({ success: false, error: 'Falten el títol o el contingut del document' });
   }
 
-  const data = getComunitatData();
-  const d = new Date();
-  const hora = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-  
-  const nouMsg = {
-    id: 'g-' + Date.now(),
-    usuariId: 'me',
-    nom: nom || 'Tu (Opositor/a)',
-    avatar: avatar || '👤',
-    cos: cos || 'Opositor/a',
-    text: text.trim(),
-    hora
-  };
+  const docs = getDocuments();
+  let id = doc.id;
+  if (!id) {
+    id = 'doc_' + Date.now();
+    doc.id = id;
+  }
+  doc.dataActualitzacio = new Date().toISOString();
+  if (!doc.dataCreacio) doc.dataCreacio = doc.dataActualitzacio;
 
-  data.xatGlobal.push(nouMsg);
-  if (data.xatGlobal.length > 80) data.xatGlobal = data.xatGlobal.slice(-80);
-  saveComunitatData(data);
+  const idx = docs.findIndex(d => d.id === id);
+  if (idx !== -1) {
+    docs[idx] = { ...docs[idx], ...doc };
+  } else {
+    docs.unshift(doc);
+  }
 
-  return res.json({ success: true, missatge: nouMsg, xatGlobal: data.xatGlobal });
+  saveDocuments(docs);
+  res.json({ success: true, doc, total: docs.length });
 });
 
-app.post('/api/comunitat/privats', (req, res) => {
-  const { destId, text, esZumbit, deNom, deAvatar } = req.body || {};
-  if (!destId) {
-    return res.status(400).json({ success: false, error: 'destId requerit' });
+app.delete('/api/documents-ordenances/:id', (req, res) => {
+  const { id } = req.params;
+  let docs = getDocuments();
+  const inicial = docs.length;
+  docs = docs.filter(d => d.id !== id);
+  if (docs.length === inicial) {
+    return res.status(404).json({ success: false, error: 'Document no trobat' });
+  }
+  saveDocuments(docs);
+  res.json({ success: true, id, total: docs.length });
+});
+
+// ==========================================
+// GESTIÓ DE TEMES ANNEXOS (PERSONALITZATS / MUNICIPALS)
+// ==========================================
+function getTemesAnnexos() {
+  try {
+    if (!fs.existsSync(TEMES_ANNEXOS_FILE)) {
+      return [];
+    }
+    const data = fs.readFileSync(TEMES_ANNEXOS_FILE, 'utf8');
+    return JSON.parse(data);
+  } catch (e) {
+    console.error('Error llegint temes_annexos.json:', e);
+    return [];
+  }
+}
+
+function saveTemesAnnexos(temes) {
+  try {
+    fs.writeFileSync(TEMES_ANNEXOS_FILE, JSON.stringify(temes, null, 2), 'utf8');
+    return true;
+  } catch (e) {
+    console.error('Error desant temes_annexos.json:', e);
+    return false;
+  }
+}
+
+app.get('/api/temes-annexos', (req, res) => {
+  res.json({ success: true, temes: getTemesAnnexos() });
+});
+
+app.post('/api/temes-annexos', (req, res) => {
+  const { tema } = req.body || {};
+  if (!tema || !tema.nom) {
+    return res.status(400).json({ success: false, error: 'Falta el nom del tema annex' });
   }
 
-  const data = getComunitatData();
-  if (!data.privats[destId]) data.privats[destId] = [];
+  const temes = getTemesAnnexos();
+  let id = tema.id;
+  if (!id) {
+    id = 'annex_' + Date.now();
+    tema.id = id;
+  }
+  tema.dataActualitzacio = new Date().toISOString();
+  if (!tema.dataCreacio) tema.dataCreacio = tema.dataActualitzacio;
 
-  const d = new Date();
-  const hora = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  const idx = temes.findIndex(t => t.id === id);
+  if (idx !== -1) {
+    temes[idx] = { ...temes[idx], ...tema };
+  } else {
+    temes.push(tema);
+  }
 
-  const nouMsg = {
-    id: 'p-' + Date.now(),
-    de: 'me',
-    nom: deNom || 'Tu',
-    avatar: deAvatar || '👤',
-    text: esZumbit ? '📳 Has enviat un ZUMBIT!' : (text || '').trim(),
-    esZumbit: !!esZumbit,
-    hora
-  };
+  saveTemesAnnexos(temes);
+  res.json({ success: true, tema, total: temes.length });
+});
 
-  data.privats[destId].push(nouMsg);
-  saveComunitatData(data);
+app.delete('/api/temes-annexos/:id', (req, res) => {
+  const { id } = req.params;
+  let temes = getTemesAnnexos();
+  const inicial = temes.length;
+  temes = temes.filter(t => t.id !== id);
+  if (temes.length === inicial) {
+    return res.status(404).json({ success: false, error: 'Tema annex no trobat' });
+  }
+  saveTemesAnnexos(temes);
+  res.json({ success: true, id, total: temes.length });
+});
 
-  return res.json({ success: true, missatges: data.privats[destId] });
+// ==========================================
+// GESTIÓ D'EXÀMENS OFICIALS REALS (BLOCS DE SIMULACRE)
+// ==========================================
+function getExamensOficials() {
+  try {
+    if (!fs.existsSync(EXAMENS_OFICIALS_FILE)) {
+      return [];
+    }
+    const data = fs.readFileSync(EXAMENS_OFICIALS_FILE, 'utf8');
+    return JSON.parse(data);
+  } catch (e) {
+    console.error('Error llegint examens_oficials.json:', e);
+    return [];
+  }
+}
+
+function saveExamensOficials(examens) {
+  try {
+    fs.writeFileSync(EXAMENS_OFICIALS_FILE, JSON.stringify(examens, null, 2), 'utf8');
+    return true;
+  } catch (e) {
+    console.error('Error desant examens_oficials.json:', e);
+    return false;
+  }
+}
+
+app.get('/api/examens-oficials', (req, res) => {
+  res.json({ success: true, examens: getExamensOficials() });
+});
+
+app.post('/api/examens-oficials', (req, res) => {
+  const { examen } = req.body || {};
+  if (!examen || !examen.titol || !Array.isArray(examen.preguntes)) {
+    return res.status(400).json({ success: false, error: 'Falten el títol o les preguntes de l\'examen' });
+  }
+
+  const examens = getExamensOficials();
+  let id = examen.id;
+  if (!id) {
+    id = 'examen_' + Date.now();
+    examen.id = id;
+  }
+  examen.dataActualitzacio = new Date().toISOString();
+  if (!examen.dataCreacio) examen.dataCreacio = examen.dataActualitzacio;
+
+  const idx = examens.findIndex(e => e.id === id);
+  if (idx !== -1) {
+    examens[idx] = { ...examens[idx], ...examen };
+  } else {
+    examens.unshift(examen);
+  }
+
+  saveExamensOficials(examens);
+  res.json({ success: true, examen, total: examens.length });
+});
+
+app.delete('/api/examens-oficials/:id', (req, res) => {
+  const { id } = req.params;
+  let examens = getExamensOficials();
+  const inicial = examens.length;
+  examens = examens.filter(e => e.id !== id);
+  if (examens.length === inicial) {
+    return res.status(404).json({ success: false, error: 'Examen no trobat' });
+  }
+  saveExamensOficials(examens);
+  res.json({ success: true, id, total: examens.length });
+});
+
+// ==========================================
+// TUTOR IA PERSONAL (AGENT MEDINA)
+// ==========================================
+app.post('/api/gemini/tutor-xat', async (req, res) => {
+  const { missatge, historial, documentContext, titolDocument, municipi, cos } = req.body || {};
+  if (!missatge || !missatge.trim()) {
+    return res.status(400).json({ success: false, error: 'Missatge buit' });
+  }
+
+  const ai = getGeminiClient();
+  const cosTxt = cos === 'mossos' ? "Mossos d'Esquadra" : cos === 'pl' ? 'Policia Local' : 'Policia Local i Mossos d\'Esquadra';
+
+  if (!ai) {
+    return res.json({
+      success: true,
+      font: 'local_fallback',
+      resposta: `Hola! Sóc el teu Tutor d'Agent Medina. Actualment s'està utilitzant el mode local. 
+
+📌 **Consulta sobre:** "${missatge.trim()}"
+${documentContext ? `\n📖 *Document de referència:* ${titolDocument || 'Ordenança adjunta'}` : ''}
+
+Per gaudir de respostes jurídiques en temps real amb Gemini 3.8 Flash i cerca a la xarxa, afegeix la clau \`GEMINI_API_KEY\` a la configuració del projecte. Recorda que pots consultar qualsevol article de la Llei 16/1991, Llei 10/1994, Codi Penal o l'Estatut!`
+    });
+  }
+
+  try {
+    // Construcció del prompt amb context i historial
+    const historialTxt = Array.isArray(historial) && historial.length > 0
+      ? historial.slice(-6).map(h => `${h.role === 'user' ? 'Opositor' : 'Tutor'}: ${h.text}`).join('\n')
+      : '';
+
+    let contextInstruccions = '';
+    if (documentContext && documentContext.trim()) {
+      contextInstruccions = `
+DOCUMENT / ORDENANÇA ADJUNTA DE REFERÈNCIA:
+Títol: ${titolDocument || 'Document adjunt'} ${municipi ? `(Municipi: ${municipi})` : ''}
+---
+${documentContext.slice(0, 45000)}
+---
+REGLA D'OR DE CERCA:
+1. Analitza en primer lloc el text del document adjunt anterior. Si la resposta es troba a l'articulat o contingut d'aquest document, respon citant literalment l'article o apartat d'aquesta ordenança/document.
+2. Si la informació NO es troba al document adjunt, o si es tracta d'una consulta de normativa general policial (Codi Penal, LECrim, Constitució, Llei 16/1991, Llei 10/1994, etc.), utilitza la teva base de coneixement jurídica i dades actualitzades per respondre amb precisió. Especifica clarament a l'opositor quan la resposta prové del document adjunt i quan prové de la legislació general.
+`;
+    }
+
+    const prompt = `Ets el Tutor d'Intel·ligència Artificial personal de l'acadèmia "Agent Medina", especialitzat en la preparació d'oposicions de ${cosTxt} a Catalunya.
+
+El teu to és proper, pedagògic, rigorós i motivador.
+Escriu SEMPRE en català correcte.
+
+INSTRUCCIONS PRINCIPALS:
+- Cita sempre els articles concrets de les lleis aplicables (ex: Art. 17 CE, Art. 138 CP, Art. 11 Llei 16/1991, Art. 12 LO 4/2015, etc.).
+- Si l'opositor et demana una regla mnemotècnica, crea acrònims o associacions mentals fàcils de recordar.
+- Si et demana un cas pràctic, planteja una intervenció policial realista pas a pas amb la fonamentació jurídica i procediment d'actuació (identificació, escorcoll, citació o detenció).
+- Fes servir negretes, llistes i emoticones policials/jurídiques per estructurar la resposta de manera molt visual i llegible.
+${contextInstruccions}
+${historialTxt ? `HISTORIAL DE LA CONVERSA:\n${historialTxt}\n` : ''}
+CONSULTA DE L'OPOSITOR:
+"${missatge.trim()}"
+
+Respon de manera clara, pedagògica i estructurada:`;
+
+    const { response, model } = await executarGeminiAmbFallback(ai, prompt, 'text/plain');
+    const textResposta = response.text ? response.text.trim() : 'No s\'ha pogut generar una resposta.';
+
+    return res.json({
+      success: true,
+      font: `gemini (${model})`,
+      resposta: textResposta
+    });
+  } catch (error) {
+    console.error('Error a /api/gemini/tutor-xat:', error?.message);
+    return res.status(500).json({
+      success: false,
+      error: 'Error consultant el tutor: ' + (error?.message || 'Error del servei')
+    });
+  }
+});
+
+// ==========================================
+// GENERADOR DE PREGUNTES DES DE DOCUMENTS / ORDENANCES
+// ==========================================
+app.post('/api/gemini/generar-preguntes-document', async (req, res) => {
+  const { textDocument, titolDocument, municipi, quantitat, enfocament, temaDesti, bancDesti } = req.body || {};
+  if (!textDocument || !textDocument.trim()) {
+    return res.status(400).json({ success: false, error: 'Falta el text del document' });
+  }
+
+  const ai = getGeminiClient();
+  const numPreguntes = Math.min(Math.max(parseInt(quantitat, 10) || 5, 1), 20);
+  const titol = titolDocument || 'Ordenança Municipal';
+  const mun = municipi || 'General';
+  const banc = bancDesti || 'pl';
+
+  if (!ai) {
+    return res.status(400).json({
+      success: false,
+      error: 'Cal configurar GEMINI_API_KEY per utilitzar la generació automàtica de preguntes amb IA.'
+    });
+  }
+
+  try {
+    const prompt = `Ets un tribunal examinador oficial d'oposicions de Policia Local i Mossos d'Esquadra a Catalunya de l'Agent Medina.
+A partir del següent text d'una ordenança municipal o temari policial:
+
+TÍTOL DEL DOCUMENT: ${titol}
+MUNICIPI / ÀMBIT: ${mun}
+ENFOCAMENT REQUERIT: ${enfocament || 'Variat: infraccions, terminis, sancions i competències dels òrgans'}
+QUANTITAT DE PREGUNTES A GENERAR: ${numPreguntes}
+
+TEXT DEL DOCUMENT (extracte o contingut):
+---
+${textDocument.slice(0, 40000)}
+---
+
+INSTRUCCIONS DE GENERACIÓ PER A LES PREGUNTES:
+1. Genera exactament ${numPreguntes} preguntes tipus test basades ESTRICTAMENT en el text anterior.
+2. Cada pregunta ha de tenir 4 opcions (A, B, C, D) versemblants i rigoroses. Les opcions incorrectes han de ser distractors típics d'oposició (canvis en terminis, xifres de multes econòmiques, confusions entre òrgans com Alcalde vs Ple, qualificació d'infracció lleu/greu/molt greu).
+3. "resposta" ha de ser l'índex numèric de l'opció correcta (0 per A, 1 per B, 2 per C, 3 per D). Distribueix les respostes correctes de manera equilibrada entre les 4 lletres (no posis sempre la 0).
+4. "explicacio" ha de citar l'article i paràgraf exacte del document que justifica la resposta i explicar breument per què és la correcta.
+5. "tema" serà: "${temaDesti || `Ordenança: ${titol}`}".
+6. "seccio" serà: "${titol}".
+7. "municipi" serà: "${mun}".
+8. "banc" serà: "${banc}".
+
+Respon ÚNICAMENT amb un array JSON vàlid amb aquest format:
+[
+  {
+    "pregunta": "Segons l'ordenança de convivència, quina és la sanció màxima per una infracció molt greu?",
+    "opcions": [
+      "Fins a 750 euros",
+      "De 751 a 1.500 euros",
+      "De 1.501 a 3.000 euros",
+      "Fins a 6.000 euros"
+    ],
+    "resposta": 2,
+    "explicacio": "L'article 45.3 de l'ordenança estableix que les infraccions molt greus se sancionaran amb multa de 1.501 a 3.000 euros.",
+    "tema": "${temaDesti || `Ordenança: ${titol}`}",
+    "seccio": "${titol}",
+    "municipi": "${mun}"
+  }
+]`;
+
+    const { response, model } = await executarGeminiAmbFallback(ai, prompt, 'application/json');
+    let preguntes = [];
+    try {
+      let text = (response.text || '').trim();
+      text = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+      preguntes = JSON.parse(text);
+      if (!Array.isArray(preguntes)) preguntes = [preguntes];
+    } catch (parseErr) {
+      console.error('Error parsejant JSON de preguntes generades:', parseErr);
+      return res.status(500).json({ success: false, error: 'La resposta de la IA no tenia el format JSON esperat.' });
+    }
+
+    // Normalització i assignació d'IDs
+    const timestamp = Date.now();
+    preguntes = preguntes.map((q, idx) => {
+      return {
+        id: `${banc === 'pl' ? 'PL_GEN_' : 'MOSSOS_GEN_'}${timestamp}_${idx + 1}`,
+        pregunta: (q.pregunta || '').trim(),
+        opcions: Array.isArray(q.opcions) ? q.opcions.map(o => String(o).trim()) : [],
+        resposta: typeof q.resposta === 'number' && q.resposta >= 0 && q.resposta < (q.opcions || []).length ? q.resposta : 0,
+        explicacio: (q.explicacio || `Segons ${titol}`).trim(),
+        tema: q.tema || `Ordenança: ${titol}`,
+        seccio: q.seccio || titol,
+        municipi: q.municipi || mun,
+        banc: banc
+      };
+    }).filter(q => q.pregunta && q.opcions.length === 4);
+
+    return res.json({
+      success: true,
+      font: `gemini (${model})`,
+      total: preguntes.length,
+      preguntes
+    });
+  } catch (error) {
+    console.error('Error a /api/gemini/generar-preguntes-document:', error?.message);
+    return res.status(500).json({
+      success: false,
+      error: 'Error generant preguntes: ' + (error?.message || 'Error del model')
+    });
+  }
+});
+
+// ==========================================
+// IMPORTACIÓ I CLASSIFICACIÓ D'EXÀMENS OFICIALS REALS (PDF / WORD)
+// ==========================================
+app.post('/api/gemini/analitzar-examen-oficial', async (req, res) => {
+  const {
+    textExamen,
+    textDirecte,
+    fitxerBase64,
+    nomFitxer,
+    plantillaSolucions,
+    municipi,
+    titol,
+    any,
+    cos
+  } = req.body || {};
+
+  let textComplet = (textDirecte || textExamen || '').trim();
+  let pdfBase64Data = null;
+
+  // Extracció de text des de fitxer PDF o Word (.docx)
+  if (fitxerBase64) {
+    try {
+      const base64Net = fitxerBase64.replace(/^data:.*?;base64,/, '');
+      const buffer = Buffer.from(base64Net, 'base64');
+      const ext = (nomFitxer || '').toLowerCase();
+
+      if (ext.endsWith('.pdf')) {
+        pdfBase64Data = base64Net;
+        const textExtret = await extractTextFromPdf(buffer);
+        if (textExtret) {
+          textComplet = (textComplet ? textComplet + '\n\n' : '') + textExtret;
+        }
+      } else if (ext.endsWith('.docx') || ext.endsWith('.doc')) {
+        const mammothResult = await mammoth.extractRawText({ buffer });
+        const docxText = (mammothResult.value || '').trim();
+        if (docxText) {
+          textComplet = (textComplet ? textComplet + '\n\n' : '') + docxText;
+        }
+      } else {
+        // Text pla o desconegut
+        const rawText = buffer.toString('utf8').trim();
+        if (rawText) {
+          textComplet = (textComplet ? textComplet + '\n\n' : '') + rawText;
+        }
+      }
+    } catch (e) {
+      console.error('Error processant fitxer adjunt:', e);
+      const ext = (nomFitxer || '').toLowerCase();
+      if (!ext.endsWith('.pdf')) {
+        return res.status(400).json({
+          success: false,
+          error: 'No s\'ha pogut processar el document. Assegura\'t que és un PDF o Word (.docx) vàlid: ' + (e.message || e)
+        });
+      }
+    }
+  }
+
+  // Si no tenim text extret suficient i tampoc és un PDF amb contingut base64
+  if ((!textComplet || textComplet.length < 25) && !pdfBase64Data) {
+    return res.status(400).json({
+      success: false,
+      error: 'El document adjunt no conté text llegible o està buit. Si és un PDF escanejat com a imatge, assegura\'t que no estigui malmès.'
+    });
+  }
+
+  const ai = getGeminiClient();
+  if (!ai) {
+    return res.status(500).json({
+      success: false,
+      error: 'La clau GEMINI_API_KEY no està configurada al servidor.'
+    });
+  }
+
+  const cosNom = cos === 'mossos' ? "Mossos d'Esquadra" : "Policia Local";
+
+  const prompt = `Ets el màxim expert preparador i jurista d'oposicions de ${cosNom} a Catalunya (tribunal examinador oficial).
+T'adjuntem un EXAMEN OFICIAL REAL d'oposicions${municipi ? ` del municipi de ${municipi}` : ''}${any ? ` de l'any ${any}` : ''}.
+
+El teu objectiu és extreure totes les preguntes d'opció múltiple de l'examen, resoldre-les amb justificació jurídica vigent citant article i llei, i classificar-les respecte al temari oficial.
+
+${textComplet ? `TEXT DE L'EXAMEN RECOLLIT:
+"""
+${textComplet.slice(0, 48000)}
+"""` : `L'examen es troba al document PDF adjunt. Llegeix acuradament totes les preguntes, enunciats i opcions de resposta (A, B, C, D).`}
+
+${plantillaSolucions && plantillaSolucions.trim() ? `
+PLANTILLA DE RESPOSTES CORRECTES / SOLUCIONS OFICIALS DEL TRIBUNAL:
+"""
+${plantillaSolucions.trim()}
+"""
+` : 'ATENCIÓ: Si el document inclou al final la plantilla de solucions o les respostes correctes marcades pel tribunal, utilitza-les rigorosament. Si no en té o alguna no ve indicada, determina tu la resposta correcta jurídica oficial d\'acord amb la normativa vigent.'}
+
+TEMARI OFICIAL DE REFERÈNCIA:
+${cos === 'mossos' ? `
+Àmbit A: Coneixements de l'entorn (Geografia, Història, Societat i Institucions de Catalunya)
+Àmbit B: Institucional i Marc Legal (Constitució Espanyola 1978, Estatut d'Autonomia de Catalunya 2006, Institucions de l'Estat i UE, Procediment Administratiu 39/2015, Dret Penal i Processal Penal, LECrim, Detenció)
+Àmbit C: Seguretat i Policia (Llei 10/1994 de Mossos d'Esquadra, Llei 4/2003 de Seguretat Pública de Catalunya, Codi d'Ètica de la Policia de Catalunya, Llei 4/2015 de Seguretat Ciutadana, Trànsit i Seguretat Viària)
+` : `
+Tema 1: La Constitució espanyola de 1978: estructura i principis. Tribunal Constitucional.
+Tema 2: Drets i deures fonamentals. Garanties i suspensió. El Defensor del Poble.
+Tema 3: Organització territorial. L'Estatut d'Autonomia de Catalunya i la Generalitat.
+Tema 4: El municipi i la seva regulació jurídica. Organització i competències.
+Tema 5: L'Administració pública: principis d'actuació (eficàcia, jerarquia, coordinació).
+Tema 6: Fonts del Dret Públic: La llei i el Reglament.
+Tema 7: Les ordenances i els bans municipals.
+Tema 8: L'acte administratiu: concepte, classes i motivació.
+Tema 9: Els ciutadans davant l'Administració: drets i col·laboració.
+Tema 10: El procediment administratiu: principis i fases (Llei 39/2015).
+Tema 11: Els recursos administratius: alçada, reposició i revisió.
+Tema 12: El pressupost municipal: concepte i regulació.
+Tema 13: Règim d'incompatibilitats del personal al servei de les administracions públiques.
+Tema 14: Règim disciplinari dels funcionaris dels cossos de Policia Local.
+Tema 15: Transparència, accés a la informació pública i bon govern.
+Tema 16: El dret a la protecció de dades (RGPD i LOPDGDD).
+Tema 17: Llei 16/1991, de 10 de juliol, de les Policies Locals de Catalunya: funcions i coordinació.
+Tema 18: Llei Orgànica 4/2015 de Seguretat Ciutadana (I): Disposicions generals i documentació/identificació.
+Tema 19: Llei Orgànica 4/2015 de Seguretat Ciutadana (II): Actuacions per al manteniment de la seguretat ciutadana.
+Tema 20: Llei Orgànica 2/1986 de Forces i Cossos de Seguretat: principis d'actuació i Policia Local.
+Tema 21: Codi Penal (I): Homicidi, lesions, llibertat, llibertat sexual, intimitat, inviolabilitat domicili.
+Tema 22: Codi Penal (II): Delictes contra el patrimoni (furt, robatori, estafa, danys, usurpació).
+Tema 23: Codi Penal (III): Delictes contra la seguretat viària (arts. 379 a 385 ter).
+Tema 24: Codi Penal (IV): Ordre públic: atemptat, resistència, desobediència i desordres públics.
+Tema 25: Codi Penal (V): Delictes contra l'Administració pública: prevaricació, suborn, malversació.
+Tema 26: Llei 39/2015 del Procediment Administratiu Comú.
+Tema 27: Llei 4/2003 de Seguretat Pública de Catalunya (I): Disposicions generals i estructura.
+Tema 28: Llei 4/2003 de Seguretat Pública de Catalunya (II): Juntes Locals de Seguretat i coordinació.
+Tema 29: Llei 7/1985 Reguladora de les Bases del Règim Local (LRBRL): El municipi.
+Tema 30: Decret 179/2015 del Reglament del procediment del règim disciplinari de Policia Local.
+Tema 31: El Codi d'Ètica de la Policia de Catalunya: principis, ús de la força, detenció.
+Tema 32: Reglament General de Circulació (RGC): Normes generals de comportament en la circulació.
+Tema 33: Reglament General de Conductors: Permisos i llicències de conducció.
+Tema 34: Reglament General de Vehicles.
+Tema 35: Llei sobre Trànsit, Circulació de Vehicles a Motor i Seguretat Viària (LTSV): Infraccions i sancions.
+Tema 36: Procediment sancionador en matèria de trànsit.
+Tema 37: Investigació d'accidents de trànsit i atestats policials.
+Tema 38: La policia judicial: LECrim, actuacions inicials i cadena de custòdia.
+Tema 39: La detenció i els drets de la persona detinguda (art. 520 LECrim i Habeas Corpus).
+Tema 40: Violència de gènere i domèstica: Marc legal, protecció a la víctima i atenció policial.
+`}
+
+INSTRUCCIONS DE CLASSIFICACIÓ I EXTRACCIÓ:
+Per a CADA pregunta trobada a l'examen oficial:
+1. 'num': El número oficial de la pregunta (1, 2, 3...).
+2. 'pregunta': Enunciat complet, netejant talls o caràcters d'escaneig corruptes.
+3. 'opcions': Exactament 4 opcions (A, B, C, D), netes de lletres 'a)', 'b)', 'A.', etc.
+4. 'respostaCorrecta': Número enter 0, 1, 2 o 3 (0=A, 1=B, 2=C, 3=D).
+5. 'esReserva': true si a l'examen indica 'pregunta de reserva', 'R1', 'reserva 1', etc., altrament false.
+6. 'esAnulada': true si a la plantilla oficial o al text s'indica que el tribunal ha anul·lat aquesta pregunta, altrament false.
+7. 'temaClassificat': Si la pregunta coincideix clarament amb algun dels temes oficials esmentats a dalt, posa el nom exactament (ex: "Tema 21: Codi Penal (I)" o "Àmbit B: Institucional"). Si és una pregunta local, d'ordenança municipal o no encaixa en cap tema general, posa null.
+8. 'esMunicipalONoCoincideix': true si tracta d'història local, carrerer, patrimoni, ordenances d'un municipi en concret (${municipi || 'específic'}) o si no encaixa en el temari oficial general.
+9. 'motiuClassificacio': Explicació breu (1 frase) de perquè pertany a aquest tema oficial o perquè és municipal.
+10. 'explicacio': Justificació jurídica oficial per a l'estudi de l'opositor, CITANT SEMPRE L'ARTICLE I LA LLEI EXACTA (ex: "La resposta correcta és la B d'acord amb l'article 520.2 de la LECrim, que estableix...").
+
+Respon EXCLUSIVAMENT amb un objecte JSON que contingui:
+{
+  "titol": "${titol || 'Examen Oficial ' + (municipi || '') + ' ' + (any || '')}",
+  "municipi": "${municipi || ''}",
+  "any": "${any || ''}",
+  "cos": "${cos || 'pl'}",
+  "preguntes": [
+    {
+      "num": 1,
+      "pregunta": "...",
+      "opcions": ["opció A", "opció B", "opció C", "opció D"],
+      "respostaCorrecta": 1,
+      "esReserva": false,
+      "esAnulada": false,
+      "temaClassificat": "Tema 21: Codi Penal (I)",
+      "esMunicipalONoCoincideix": false,
+      "motiuClassificacio": "Tracta sobre la definició de furt i robatori amb força.",
+      "explicacio": "Correcta la B: Segons l'article 237 del Codi Penal, són reus de robatori els que..."
+    }
+  ]
+}`;
+
+  try {
+    // Si tenim PDF base64 i poc text extret (o per reforçar l'OCR de pàgines complexes), enviem part multimodal
+    let contents = prompt;
+    if (pdfBase64Data && (!textComplet || textComplet.length < 500)) {
+      contents = {
+        parts: [
+          {
+            inlineData: {
+              mimeType: 'application/pdf',
+              data: pdfBase64Data
+            }
+          },
+          {
+            text: prompt
+          }
+        ]
+      };
+    }
+
+    const { response } = await executarGeminiAmbFallback(ai, contents, 'application/json');
+    let textNetejat = (response?.text || '{}').trim();
+    if (textNetejat.startsWith('```json')) textNetejat = textNetejat.slice(7);
+    if (textNetejat.startsWith('```')) textNetejat = textNetejat.slice(3);
+    if (textNetejat.endsWith('```')) textNetejat = textNetejat.slice(0, -3);
+
+    const parsed = JSON.parse(textNetejat.trim());
+    const preguntes = (parsed.preguntes || []).map((q, idx) => ({
+      id: `oficial_${Date.now()}_${idx + 1}`,
+      num: q.num || (idx + 1),
+      pregunta: (q.pregunta || '').trim(),
+      opcions: Array.isArray(q.opcions) ? q.opcions.map(o => String(o).trim()) : [],
+      respostaCorrecta: typeof q.respostaCorrecta === 'number' && q.respostaCorrecta >= 0 && q.respostaCorrecta < 4 ? q.respostaCorrecta : 0,
+      esReserva: Boolean(q.esReserva),
+      esAnulada: Boolean(q.esAnulada),
+      temaClassificat: q.temaClassificat || null,
+      esMunicipalONoCoincideix: Boolean(q.esMunicipalONoCoincideix),
+      motiuClassificacio: q.motiuClassificacio || '',
+      explicacio: q.explicacio || '',
+      esExamenOficial: true,
+      examenOrigen: titol || `Examen Oficial ${municipi || ''} ${any || ''}`.trim(),
+      municipi: municipi || '',
+      any: any || '',
+      cos: cos || 'pl'
+    })).filter(q => q.pregunta && q.opcions.length === 4);
+
+    const coincidents = preguntes.filter(q => !q.esMunicipalONoCoincideix && q.temaClassificat);
+    const municipals = preguntes.filter(q => q.esMunicipalONoCoincideix || !q.temaClassificat);
+    const anulades = preguntes.filter(q => q.esAnulada);
+    const reserves = preguntes.filter(q => q.esReserva);
+
+    const examenObj = {
+      id: `examen_${Date.now()}`,
+      titol: parsed.titol || titol || `Examen Oficial ${municipi || ''} ${any || ''}`.trim(),
+      municipi: municipi || '',
+      any: any || '',
+      cos: cos || 'pl',
+      total: preguntes.length,
+      resum: {
+        total: preguntes.length,
+        coincidents: coincidents.length,
+        municipals: municipals.length,
+        anulades: anulades.length,
+        reserves: reserves.length
+      },
+      preguntes
+    };
+
+    return res.json({
+      success: true,
+      examen: examenObj,
+      ...examenObj
+    });
+  } catch (error) {
+    console.error('Error a /api/gemini/analitzar-examen-oficial:', error?.message);
+    return res.status(500).json({
+      success: false,
+      error: 'Error analitzant l\'examen oficial: ' + (error?.message || 'Error del model')
+    });
+  }
 });
 
 // Serve static assets from project root
