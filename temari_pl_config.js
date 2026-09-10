@@ -1074,6 +1074,47 @@
     return { totalImportades: novesPreguntes.length, novesPreguntes };
   }
 
+  // Afegir un tema personalitzat o nou tema suggerit per la IA al municipi actiu
+  function afegirTemaCustomMunicipiPL(municipi, temaObj) {
+    const mun = (municipi || obtenirMunicipiActiuPL() || 'Constantí').trim();
+    const custom = carregarCustomTemarisPL();
+    if (!custom[mun]) {
+      const base = (TEMARIS_MUNICIPALS[mun]?.temes || TEMARIS_MUNICIPALS['Constantí'].temes).map(t => ({ ...t }));
+      custom[mun] = {
+        nom: mun,
+        referencia: `Temari oficial i temes personalitzats de ${mun}`,
+        descripcio: `Bases oficials de Policia Local de ${mun}`,
+        dataCreacio: new Date().toISOString(),
+        basesText: '',
+        temes: base
+      };
+    }
+
+    const nomTema = String(typeof temaObj === 'string' ? temaObj : (temaObj.nom || temaObj.titol || '')).trim();
+    if (!nomTema) return null;
+
+    const existent = custom[mun].temes.find(t => (t.nom || '').toLowerCase() === nomTema.toLowerCase());
+    if (existent) return existent;
+
+    let maxId = 40;
+    custom[mun].temes.forEach(t => {
+      const n = parseInt(t.id, 10);
+      if (!isNaN(n) && n > maxId) maxId = n;
+    });
+    const nouId = String(maxId + 1);
+    const nouTema = {
+      id: nouId,
+      codi: `T${nouId}`,
+      nom: nomTema,
+      materia: (typeof temaObj === 'object' && temaObj.materia) ? temaObj.materia : 'altres',
+      especific: true
+    };
+
+    custom[mun].temes.push(nouTema);
+    guardarCustomTemarisPL(custom);
+    return nouTema;
+  }
+
   // Exportar al scope global de l'aplicació
   window.MATERIES_COMPARTIDES = MATERIES_COMPARTIDES;
   window.TEMARIS_MUNICIPALS = TEMARIS_MUNICIPALS;
@@ -1081,6 +1122,7 @@
   window.carregarCustomTemarisPL = carregarCustomTemarisPL;
   window.guardarCustomTemarisPL = guardarCustomTemarisPL;
   window.guardarMunicipiAmbTemariPL = guardarMunicipiAmbTemariPL;
+  window.afegirTemaCustomMunicipiPL = afegirTemaCustomMunicipiPL;
   window.analitzarBasesMunicipi = analitzarBasesMunicipi;
   window.carregarMunicipisPL = carregarMunicipisPL;
   window.guardarMunicipisPL = guardarMunicipisPL;

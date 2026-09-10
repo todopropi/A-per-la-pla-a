@@ -206,12 +206,27 @@ function mostrarPregunta(preguntaObj) {
         <div class="pregunta-box" style="background: white; padding: 25px; border-radius: 16px; border: 1px solid #e2e8f0; margin-top: 15px;">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
                 <h3 style="margin: 0; color: #0f172a; font-size: 16px;">${preguntaObj.pregunta}</h3>
-                ${etiquetaIdPreguntaHtml(preguntaObj)}
+                <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+                    <button type="button" class="btn-ia-dubte-head" title="Preguntar a la IA sobre aquesta pregunta" style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:6px;padding:3px 8px;font-size:11.5px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:4px;">
+                        <span>🤖</span><span>Dubte IA</span>
+                    </button>
+                    ${etiquetaIdPreguntaHtml(preguntaObj)}
+                </div>
             </div>
             <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 15px;" id="llista-opcions"></div>
         </div>
         <div id="feedback" style="margin-top: 15px;"></div>
     `;
+
+    const btnDubteHead = contenedor.querySelector('.btn-ia-dubte-head');
+    if (btnDubteHead) {
+        btnDubteHead.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (typeof window.obrirModalDubteIA === 'function') {
+                window.obrirModalDubteIA(preguntaObj);
+            }
+        });
+    }
 
     const llistaOpcions = contenedor.querySelector('#llista-opcions');
     
@@ -237,6 +252,15 @@ function mostrarPregunta(preguntaObj) {
                 }
             }
 
+            const feedbackIAPrompt = `
+                <div style="margin-top:12px;padding-top:10px;border-top:1px dashed ${esCorrecte ? '#6ee7b7' : '#fca5a5'};display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+                    <span style="font-size:12px;opacity:0.9;">Tens algun dubte sobre aquesta resposta o la llei aplicable?</span>
+                    <button type="button" class="btn-ia-feedback-ask" style="background:${esCorrecte ? '#059669' : '#dc2626'};color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 6px rgba(0,0,0,0.15);">
+                        <span>✨</span> <span>Pregunta a la IA (Gemini)</span>
+                    </button>
+                </div>
+            `;
+
             if (esCorrecte) {
                 btn.style.background = '#d1fae5';
                 btn.style.borderColor = '#10b981';
@@ -244,6 +268,7 @@ function mostrarPregunta(preguntaObj) {
                     <div style="background: #d1fae5; border: 1px solid #6ee7b7; padding: 15px; border-radius: 8px; color: #065f46;">
                         <p style="margin: 0 0 5px 0; font-weight: 700;">✅ Correcte!</p>
                         <p style="margin: 0; font-size: 13px;">${preguntaObj.explicacio || ''}</p>
+                        ${feedbackIAPrompt}
                     </div>
                 `;
             } else {
@@ -253,8 +278,19 @@ function mostrarPregunta(preguntaObj) {
                     <div style="background: #fee2e2; border: 1px solid #fca5a5; padding: 15px; border-radius: 8px; color: #991b1b;">
                         <p style="margin: 0 0 5px 0; font-weight: 700;">❌ Incorrecte.</p>
                         <p style="margin: 0; font-size: 13px;">${preguntaObj.explicacio || ''}</p>
+                        ${feedbackIAPrompt}
                     </div>
                 `;
+            }
+
+            const btnIA = feedback.querySelector('.btn-ia-feedback-ask');
+            if (btnIA) {
+                const opcioTriadaOriginal = preguntaObj.opcions.indexOf(opcio);
+                btnIA.addEventListener('click', () => {
+                    if (typeof window.obrirModalDubteIA === 'function') {
+                        window.obrirModalDubteIA(preguntaObj, opcioTriadaOriginal, esCorrecte);
+                    }
+                });
             }
         });
 
@@ -489,54 +525,91 @@ function obtenirDatasetPerFont(font) {
   return [];
 }
 
-function obtenirEstadistiquesBanc(dataset) {
-  const stats = obtenerHistorial();
+function calcularProgresPreguntes(dataset) {
+  if (!Array.isArray(dataset)) {
+    return { total: 0, contestades: 0, encerts: 0, encertades: 0, errors: 0, fallades: 0, maiFetes: 0, progrés: 0, pctProgres: 0, pctErrors: 0, pctEncerts: 0 };
+  }
+  const stats = (typeof obtenerHistorial === 'function') ? obtenerHistorial() : { respondidas: {}, descobertes: {} };
   const respostes = stats.respondidas || {};
   const descobertes = stats.descobertes || {};
-  const total = dataset.length;
+
+  let idsErrors = new Set();
+  try {
+    const errDb = (typeof migrarErrorsAntics === 'function') ? migrarErrorsAntics() : (typeof obtenerErrorDB === 'function' ? obtenerErrorDB() : null);
+    if (errDb) {
+      ['Mossos', 'Policia Local', 'Actualitat'].forEach(k => {
+        (errDb[k] || []).forEach(errQ => {
+          if (errQ && errQ.id) idsErrors.add(String(errQ.id));
+        });
+      });
+    }
+  } catch (_) {}
+
+  const idsUnics = new Set();
   let contestades = 0;
   let encerts = 0;
-
-  // Evitem comptar dues vegades el mateix id si, per error de dades,
-  // apareix repetit dins del mateix banc.
-  const idsUnics = new Set();
+  let fallades = 0;
+  let maiFetes = 0;
 
   dataset.forEach(q => {
     if (!q || !q.id) return;
-    if (idsUnics.has(q.id)) return;
-    idsUnics.add(q.id);
+    const qidStr = String(q.id);
+    if (idsUnics.has(qidStr)) return;
+    idsUnics.add(qidStr);
 
-    const font = detectarFontPregunta(q) || 'Mossos';
-    const clau = `${font}::${q.id}`;
+    const font = (typeof detectarFontPregunta === 'function' ? detectarFontPregunta(q) : '') || 'Mossos';
+    const clau = `${font}::${qidStr}`;
 
-    // Registre de la resposta: primer mirem la clau namespaced (correcta),
-    // i si no existeix, mirem la clau antiga (bare id) per compatibilitat
-    // amb progrés guardat abans d'aquesta correcció.
-    const registre = respostes[clau] || respostes[q.id];
+    const registre = respostes[clau] || respostes[qidStr] || respostes[q.id];
+    const haEstatVista = Object.prototype.hasOwnProperty.call(descobertes, clau) ||
+      Object.prototype.hasOwnProperty.call(descobertes, qidStr) ||
+      Object.prototype.hasOwnProperty.call(descobertes, q.id) ||
+      !!registre;
 
-    const vista = Object.prototype.hasOwnProperty.call(descobertes, clau) || !!registre;
-    if (!vista) return;
+    const estaEnBustiaErrors = idsErrors.has(qidStr) || idsErrors.has(String(q.id));
 
-    contestades++;
-    if (registre && normalitzarRespostaStat(registre).correcta === true) encerts++;
+    if (!haEstatVista && !registre && !estaEnBustiaErrors) {
+      maiFetes++;
+    } else {
+      contestades++;
+      const norm = registre ? (typeof normalitzarRespostaStat === 'function' ? normalitzarRespostaStat(registre) : registre) : null;
+      if (norm && norm.correcta === true && !estaEnBustiaErrors) {
+        encerts++;
+      } else {
+        fallades++;
+      }
+    }
   });
+
+  const total = idsUnics.size;
+  const progrés = total ? Math.round((encerts / total) * 100) : 0;
 
   return {
     total,
     contestades,
     encerts,
-    // El progrés real de l'oposició és el nombre de preguntes ÚNIQUES ja
-    // dominades (contestades i encertades) sobre el total del banc.
-    errors: Math.max(0, contestades - encerts),
-    progrés: total ? Math.round((encerts / total) * 100) : 0,
-    pctErrors: contestades ? Math.round(((contestades - encerts) / contestades) * 100) : 0,
+    encertades: encerts,
+    errors: fallades,
+    fallades,
+    maiFetes,
+    progrés,
+    pctProgres: progrés,
+    pctErrors: contestades ? Math.round((fallades / contestades) * 100) : 0,
     pctEncerts: contestades ? Math.round((encerts / contestades) * 100) : 0
   };
 }
 
-function obtenirEstadistiquesSeccio(dataset, seccio) {
-  return obtenirEstadistiquesBanc((dataset || []).filter(q => q.seccio === seccio));
+window.calcularProgresPreguntes = calcularProgresPreguntes;
+
+function obtenirEstadistiquesBanc(dataset) {
+  return calcularProgresPreguntes(dataset);
 }
+window.obtenirEstadistiquesBanc = obtenirEstadistiquesBanc;
+
+function obtenirEstadistiquesSeccio(dataset, seccio) {
+  return calcularProgresPreguntes((dataset || []).filter(q => q.seccio === seccio));
+}
+window.obtenirEstadistiquesSeccio = obtenirEstadistiquesSeccio;
 
 function actualitzarDashboardInici() {
   const dbErrors = migrarErrorsAntics();
@@ -1346,6 +1419,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const preguntesB = dades.filter(q => q.ambit && q.ambit.toUpperCase().includes("ÀMBIT B"));
     const preguntesC = dades.filter(q => q.ambit && q.ambit.toUpperCase().includes("ÀMBIT C"));
     
+    const estTotal = obtenirEstadistiquesBanc(dades);
     const estA = obtenirEstadistiquesBanc(preguntesA);
     const estB = obtenirEstadistiquesBanc(preguntesB);
     const estC = obtenirEstadistiquesBanc(preguntesC);
@@ -1382,6 +1456,40 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
         </div>
 
+        <!-- PANELL DE PROGRÈS GLOBAL MOSSOS -->
+        <div style="background: var(--bg-card, #ffffff); border: 1.5px solid var(--border-card, #e2e8f0); border-radius: 16px; padding: 18px 22px; box-shadow: var(--shadow-card); display: flex; flex-direction: column; gap: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+            <div>
+              <div style="font-size: 11.5px; font-weight: 800; color: var(--text-muted, #64748b); text-transform: uppercase; letter-spacing: 0.5px;">Progrés General del Temari de Mossos</div>
+              <div style="font-size: 15px; font-weight: 800; color: var(--text-main, #0f172a); margin-top: 3px;">
+                ${estTotal.encerts} encertades · ${estTotal.errors} fallades · ${estTotal.maiFetes} que encara no has fet mai
+              </div>
+            </div>
+            <div style="display: flex; align-items: baseline; gap: 6px;">
+              <span style="font-size: 24px; font-weight: 900; color: #1e3a8a;">${estTotal.progrés}%</span>
+              <span style="font-size: 12px; font-weight: 800; color: var(--text-muted, #64748b);">dominat (${estTotal.contestades} de ${estTotal.total})</span>
+            </div>
+          </div>
+
+          <div style="height: 10px; background: #e2e8f0; border-radius: 999px; overflow: hidden; display: flex;" title="${estTotal.encerts} encertades, ${estTotal.errors} fallades, ${estTotal.maiFetes} mai fetes">
+            <div style="width: ${estTotal.total ? (estTotal.encerts / estTotal.total) * 100 : 0}%; background: #10b981;" title="Encertades: ${estTotal.encerts}"></div>
+            <div style="width: ${estTotal.total ? (estTotal.errors / estTotal.total) * 100 : 0}%; background: #ef4444;" title="Fallades: ${estTotal.errors}"></div>
+            <div style="width: ${estTotal.total ? (estTotal.maiFetes / estTotal.total) * 100 : 0}%; background: #cbd5e1;" title="Mai fetes: ${estTotal.maiFetes}"></div>
+          </div>
+
+          <div style="display: flex; gap: 10px; flex-wrap: wrap; font-size: 12.5px; font-weight: 800;">
+            <span style="background: rgba(16, 185, 129, 0.12); color: #059669; padding: 4px 10px; border-radius: 8px; display: inline-flex; align-items: center; gap: 5px;">
+              <span>✅</span> <span>${estTotal.encerts} Encertades</span>
+            </span>
+            <span style="background: rgba(239, 68, 68, 0.12); color: #dc2626; padding: 4px 10px; border-radius: 8px; display: inline-flex; align-items: center; gap: 5px;">
+              <span>❌</span> <span>${estTotal.errors} Fallades</span>
+            </span>
+            <span style="background: rgba(100, 116, 139, 0.12); color: #475569; padding: 4px 10px; border-radius: 8px; display: inline-flex; align-items: center; gap: 5px;">
+              <span>⏳</span> <span>${estTotal.maiFetes} Que encara no has fet mai</span>
+            </span>
+          </div>
+        </div>
+
         <!-- Selector de Modes -->
         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
           <button class="tab-interna on" data-subtab="estudia" style="padding: 10px 18px; border-radius: 10px; font-weight: 800; font-size: 13.5px; cursor: pointer; border: 1.5px solid #007aff; background: #007aff; color: #ffffff; display: flex; align-items: center; gap: 8px;">
@@ -1413,14 +1521,29 @@ document.addEventListener('DOMContentLoaded', () => {
                     </p>
                   </div>
                 </div>
-                <div style="text-align: right; min-width: 100px;">
+                <div style="text-align: right; min-width: 110px;">
                   <div style="font-size: 20px; font-weight: 900; color: #2563eb;">${estA.progrés}%</div>
-                  <div style="font-size: 11px; color: var(--text-dim, #94a3b8);">${estA.contestades} / ${preguntesA.length} completades</div>
+                  <div style="font-size: 11px; color: var(--text-dim, #94a3b8);">${estA.contestades} / ${preguntesA.length} contestades</div>
                 </div>
               </div>
 
-              <div style="margin: 14px 0; height: 8px; background: var(--bg-card-subtle, #e2e8f0); border-radius: 999px; overflow: hidden;">
-                <div style="width: ${estA.progrés}%; height: 100%; background: linear-gradient(90deg, #2563eb, #60a5fa); border-radius: 999px;"></div>
+              <!-- Indicadors detallats Àmbit A -->
+              <div style="display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 6px; font-size: 12px; font-weight: 800;">
+                <span style="background: rgba(16, 185, 129, 0.12); color: #059669; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;">
+                  <span>✅</span> <span>${estA.encerts} encertades</span>
+                </span>
+                <span style="background: rgba(239, 68, 68, 0.12); color: #dc2626; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;">
+                  <span>❌</span> <span>${estA.errors} fallades</span>
+                </span>
+                <span style="background: rgba(100, 116, 139, 0.12); color: #475569; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;">
+                  <span>⏳</span> <span>${estA.maiFetes} mai fetes</span>
+                </span>
+              </div>
+
+              <div style="margin: 6px 0 14px; height: 8px; background: var(--bg-card-subtle, #e2e8f0); border-radius: 999px; overflow: hidden; display: flex;">
+                <div style="width: ${preguntesA.length ? (estA.encerts / preguntesA.length) * 100 : 0}%; height: 100%; background: #10b981;" title="Encertades: ${estA.encerts}"></div>
+                <div style="width: ${preguntesA.length ? (estA.errors / preguntesA.length) * 100 : 0}%; height: 100%; background: #ef4444;" title="Fallades: ${estA.errors}"></div>
+                <div style="width: ${preguntesA.length ? (estA.maiFetes / preguntesA.length) * 100 : 0}%; height: 100%; background: #cbd5e1;" title="Mai fetes: ${estA.maiFetes}"></div>
               </div>
 
               <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding-top: 4px;">
@@ -1455,14 +1578,29 @@ document.addEventListener('DOMContentLoaded', () => {
                     </p>
                   </div>
                 </div>
-                <div style="text-align: right; min-width: 100px;">
+                <div style="text-align: right; min-width: 110px;">
                   <div style="font-size: 20px; font-weight: 900; color: #e11d48;">${estB.progrés}%</div>
-                  <div style="font-size: 11px; color: var(--text-dim, #94a3b8);">${estB.contestades} / ${preguntesB.length} completades</div>
+                  <div style="font-size: 11px; color: var(--text-dim, #94a3b8);">${estB.contestades} / ${preguntesB.length} contestades</div>
                 </div>
               </div>
 
-              <div style="margin: 14px 0; height: 8px; background: var(--bg-card-subtle, #e2e8f0); border-radius: 999px; overflow: hidden;">
-                <div style="width: ${estB.progrés}%; height: 100%; background: linear-gradient(90deg, #e11d48, #f43f5e); border-radius: 999px;"></div>
+              <!-- Indicadors detallats Àmbit B -->
+              <div style="display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 6px; font-size: 12px; font-weight: 800;">
+                <span style="background: rgba(16, 185, 129, 0.12); color: #059669; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;">
+                  <span>✅</span> <span>${estB.encerts} encertades</span>
+                </span>
+                <span style="background: rgba(239, 68, 68, 0.12); color: #dc2626; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;">
+                  <span>❌</span> <span>${estB.errors} fallades</span>
+                </span>
+                <span style="background: rgba(100, 116, 139, 0.12); color: #475569; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;">
+                  <span>⏳</span> <span>${estB.maiFetes} mai fetes</span>
+                </span>
+              </div>
+
+              <div style="margin: 6px 0 14px; height: 8px; background: var(--bg-card-subtle, #e2e8f0); border-radius: 999px; overflow: hidden; display: flex;">
+                <div style="width: ${preguntesB.length ? (estB.encerts / preguntesB.length) * 100 : 0}%; height: 100%; background: #10b981;" title="Encertades: ${estB.encerts}"></div>
+                <div style="width: ${preguntesB.length ? (estB.errors / preguntesB.length) * 100 : 0}%; height: 100%; background: #ef4444;" title="Fallades: ${estB.errors}"></div>
+                <div style="width: ${preguntesB.length ? (estB.maiFetes / preguntesB.length) * 100 : 0}%; height: 100%; background: #cbd5e1;" title="Mai fetes: ${estB.maiFetes}"></div>
               </div>
 
               <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding-top: 4px;">
@@ -1497,14 +1635,29 @@ document.addEventListener('DOMContentLoaded', () => {
                     </p>
                   </div>
                 </div>
-                <div style="text-align: right; min-width: 100px;">
+                <div style="text-align: right; min-width: 110px;">
                   <div style="font-size: 20px; font-weight: 900; color: #10b981;">${estC.progrés}%</div>
-                  <div style="font-size: 11px; color: var(--text-dim, #94a3b8);">${estC.contestades} / ${preguntesC.length} completades</div>
+                  <div style="font-size: 11px; color: var(--text-dim, #94a3b8);">${estC.contestades} / ${preguntesC.length} contestades</div>
                 </div>
               </div>
 
-              <div style="margin: 14px 0; height: 8px; background: var(--bg-card-subtle, #e2e8f0); border-radius: 999px; overflow: hidden;">
-                <div style="width: ${estC.progrés}%; height: 100%; background: linear-gradient(90deg, #10b981, #34d399); border-radius: 999px;"></div>
+              <!-- Indicadors detallats Àmbit C -->
+              <div style="display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 6px; font-size: 12px; font-weight: 800;">
+                <span style="background: rgba(16, 185, 129, 0.12); color: #059669; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;">
+                  <span>✅</span> <span>${estC.encerts} encertades</span>
+                </span>
+                <span style="background: rgba(239, 68, 68, 0.12); color: #dc2626; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;">
+                  <span>❌</span> <span>${estC.errors} fallades</span>
+                </span>
+                <span style="background: rgba(100, 116, 139, 0.12); color: #475569; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;">
+                  <span>⏳</span> <span>${estC.maiFetes} mai fetes</span>
+                </span>
+              </div>
+
+              <div style="margin: 6px 0 14px; height: 8px; background: var(--bg-card-subtle, #e2e8f0); border-radius: 999px; overflow: hidden; display: flex;">
+                <div style="width: ${preguntesC.length ? (estC.encerts / preguntesC.length) * 100 : 0}%; height: 100%; background: #10b981;" title="Encertades: ${estC.encerts}"></div>
+                <div style="width: ${preguntesC.length ? (estC.errors / preguntesC.length) * 100 : 0}%; height: 100%; background: #ef4444;" title="Fallades: ${estC.errors}"></div>
+                <div style="width: ${preguntesC.length ? (estC.maiFetes / preguntesC.length) * 100 : 0}%; height: 100%; background: #cbd5e1;" title="Mai fetes: ${estC.maiFetes}"></div>
               </div>
 
               <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding-top: 4px;">
@@ -3129,12 +3282,23 @@ document.addEventListener('DOMContentLoaded', () => {
           ${seccions.map(([nom, count]) => {
             const m = nom.match(/Tema\s*(\d+)/i);
             const temaNum = m ? m[1] : null;
+            const qsSec = dataset.filter(q => q && (q.seccio === nom || (!q.seccio && nom === 'Sense secció')));
+            const estSec = (typeof window.calcularProgresPreguntes === 'function')
+              ? window.calcularProgresPreguntes(qsSec)
+              : { encertades: 0, fallades: 0, maiFetes: count, pctProgres: 0 };
             return `
             <label class="item-seccio-label" data-text="${nom.toLowerCase().replace(/"/g, '&quot;')}" style="display:flex; align-items:center; gap:10px; padding:12px 14px; background:var(--bg-card-subtle, #f8fafc); border:1.5px solid var(--border-card, #e2e8f0); border-radius:10px; cursor:pointer; font-size:14px; color:var(--text-main, #1e293b); font-weight:600; transition:all 0.15s ease;">
               <input type="checkbox" class="chk-seccio" data-seccio="${nom.replace(/"/g, '&quot;')}" style="width:18px;height:18px;accent-color:#007aff;flex:none;">
               ${temaNum !== null ? `<span style="background:#002B5E;color:#E8C000;font-weight:900;font-size:11px;padding:3px 7px;border-radius:6px;flex:none;">T${temaNum}</span>` : ''}
-              <span style="flex:1;">${nom}</span>
-              <span style="color:var(--text-muted, #94a3b8); font-weight:700; font-size:12px; background:var(--bg-card, #fff); padding:2px 8px; border-radius:6px; border:1px solid var(--border-card, #e2e8f0);">${count} p</span>
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:14px;line-height:1.35;">${nom}</div>
+                <div style="display:flex;align-items:center;gap:6px;margin-top:4px;font-size:11px;font-weight:800;flex-wrap:wrap;">
+                  <span style="color:#059669;background:rgba(16,185,129,0.12);padding:1.5px 6px;border-radius:4px;">✅ ${estSec.encertades}</span>
+                  <span style="color:#dc2626;background:rgba(239,68,68,0.12);padding:1.5px 6px;border-radius:4px;">❌ ${estSec.fallades}</span>
+                  <span style="color:#475569;background:rgba(100,116,139,0.12);padding:1.5px 6px;border-radius:4px;">⏳ ${estSec.maiFetes} mai fetes</span>
+                </div>
+              </div>
+              <span style="color:var(--text-muted, #94a3b8); font-weight:700; font-size:12px; background:var(--bg-card, #fff); padding:3px 8px; border-radius:6px; border:1px solid var(--border-card, #e2e8f0); flex:none;">${count} p</span>
             </label>
           `}).join('')}
         </div>
@@ -3548,13 +3712,28 @@ function mostrarPreguntaAmbSeguent(preguntaObj, indexActual, totalPreguntes, onS
         <div class="pregunta-box" style="background: white; padding: 25px; border-radius: 16px; border: 1px solid #e2e8f0; margin-top: 15px; max-height: 75vh; overflow-y: auto; box-sizing: border-box;">
             <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px;">
                 <div style="font-size: 12px; color: #64748b; font-weight: 700;">Pregunta ${indexActual + 1} de ${totalPreguntes}</div>
-                ${etiquetaIdPreguntaHtml(preguntaObj)}
+                <div style="display:flex;align-items:center;gap:6px;">
+                    <button type="button" class="btn-ia-dubte-head" title="Preguntar a la IA sobre aquesta pregunta" style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:6px;padding:3px 8px;font-size:11.5px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:4px;">
+                        <span>🤖</span><span>Dubte IA</span>
+                    </button>
+                    ${etiquetaIdPreguntaHtml(preguntaObj)}
+                </div>
             </div>
             <h3 style="margin-top: 0; color: #0f172a; font-size: 16px;">${preguntaObj.pregunta}</h3>
             <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 15px;" id="llista-opcions"></div>
         </div>
         <div id="feedback" style="margin-top: 15px; padding-bottom: 80px;"></div>
     `;
+
+    const btnDubteHead = contenedor.querySelector('.btn-ia-dubte-head');
+    if (btnDubteHead) {
+        btnDubteHead.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (typeof window.obrirModalDubteIA === 'function') {
+                window.obrirModalDubteIA(preguntaObj);
+            }
+        });
+    }
 
     const llistaOpcions = contenedor.querySelector('#llista-opcions');
     
@@ -3593,13 +3772,33 @@ function mostrarPreguntaAmbSeguent(preguntaObj, indexActual, totalPreguntes, onS
                 });
             }
 
+            const feedbackIAPrompt = `
+                <div style="margin-top:12px;padding-top:10px;border-top:1px dashed ${esCorrecte ? '#6ee7b7' : '#fca5a5'};display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+                    <span style="font-size:12px;opacity:0.9;">Tens algun dubte sobre aquesta resposta o la llei aplicable?</span>
+                    <button type="button" class="btn-ia-feedback-ask" style="background:${esCorrecte ? '#059669' : '#dc2626'};color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 6px rgba(0,0,0,0.15);">
+                        <span>✨</span> <span>Pregunta a la IA (Gemini)</span>
+                    </button>
+                </div>
+            `;
+
             feedback.innerHTML = `
                 <div style="background: ${esCorrecte ? '#d1fae5' : '#fee2e2'}; border: 1px solid ${esCorrecte ? '#6ee7b7' : '#fca5a5'}; padding: 15px; border-radius: 12px; color: ${esCorrecte ? '#065f46' : '#991b1b'}; margin-bottom: 15px;">
                     <p style="margin: 0 0 5px 0; font-weight: 700;">${esCorrecte ? '✅ Correcte!' : '❌ Incorrecte.'}</p>
                     <p style="margin: 0; font-size: 13px;">${preguntaObj.explicacio || ''}</p>
+                    ${feedbackIAPrompt}
                 </div>
                 <button id="btn-seguent-pregunta" style="background: #007aff; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 700; cursor: pointer; width: 100%;">Següent pregunta ➔</button>
             `;
+
+            const btnIA = feedback.querySelector('.btn-ia-feedback-ask');
+            if (btnIA) {
+                const opcioTriadaOriginal = preguntaObj.opcions.indexOf(opcio);
+                btnIA.addEventListener('click', () => {
+                    if (typeof window.obrirModalDubteIA === 'function') {
+                        window.obrirModalDubteIA(preguntaObj, opcioTriadaOriginal, esCorrecte);
+                    }
+                });
+            }
 
             // No facis saltar la pàgina després de respondre.
             requestAnimationFrame(() => window.scrollTo({ top: scrollAbans, behavior: 'auto' }));

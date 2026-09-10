@@ -444,6 +444,8 @@ Explicació: L'article 15 de la Constitució Espanyola garanteix el dret fonamen
   // ==========================================================================
   // 6. PROCESSAMENT I PREVISUALITZACIÓ DEL LOT
   // ==========================================================================
+  let filtreLotVisual = 'tots';
+
   window.processarTextLot = function () {
     const ta = document.getElementById('cp-lot-textarea');
     if (!ta) return;
@@ -459,6 +461,231 @@ Explicació: L'article 15 de la Constitució Espanyola garanteix el dret fonamen
       ambit: (banc === 'mossos') ? 'Àmbit A' : null
     });
 
+    filtreLotVisual = 'tots';
+    actualitzarVistaPreviaLot();
+  };
+
+  // Classificació intel·ligent massiva amb Gemini IA
+  window.classificarLotAmbIA = async function () {
+    const ta = document.getElementById('cp-lot-textarea');
+    if (!ta) return;
+    const text = ta.value.trim();
+
+    if (!text && preguntesLotActual.length === 0) {
+      if (typeof mostrarToast === 'function') {
+        mostrarToast('⚠️ Enganxa primer un text o llistat de preguntes abans de classificar.', 'error');
+      }
+      return;
+    }
+
+    if (preguntesLotActual.length === 0) {
+      window.processarTextLot();
+    }
+
+    const valides = preguntesLotActual.filter(q => q.valida);
+    if (valides.length === 0) {
+      if (typeof mostrarToast === 'function') {
+        mostrarToast('⚠️ No s\'ha detectat cap pregunta amb estructura vàlida per classificar.', 'error');
+      }
+      return;
+    }
+
+    const btnIA = document.getElementById('btn-ia-classificar-lot');
+    const textOriginalBtn = btnIA ? btnIA.innerHTML : '';
+    if (btnIA) {
+      btnIA.disabled = true;
+      btnIA.style.opacity = '0.7';
+      btnIA.innerHTML = '<span>⏳</span> <span>Classificant per temes i verificant vigència amb Gemini...</span>';
+    }
+
+    const banc = document.querySelector('input[name="cp-lot-banc"]:checked')?.value || 'pl';
+    const mun = (banc === 'pl') ? (document.getElementById('cp-lot-select-municipi')?.value || 'Constantí') : null;
+
+    // Obtenir catàleg de temes existents
+    let temarisDisponibles = [];
+    if (banc === 'pl') {
+      if (typeof window.obtenirTemariPLPerMunicipi === 'function') {
+        const tList = window.obtenirTemariPLPerMunicipi(mun) || [];
+        temarisDisponibles = tList.map(t => `${t.codi || ''}: ${t.nom || ''}`.trim());
+      }
+      if (Array.isArray(window.MATERIES_COMPARTIDES)) {
+        window.MATERIES_COMPARTIDES.forEach(m => {
+          temarisDisponibles.push(`Matèria Troncal: ${m.nom}`);
+        });
+      }
+    } else if (banc === 'mossos') {
+      temarisDisponibles = [
+        'Àmbit A: Coneixements de l\'entorn (Història, Institucions, Societat de Catalunya)',
+        'Àmbit B: Àmbit institucional (Constitució Espanyola de 1978, Estatut d\'Autonomia, Institucions)',
+        'Àmbit C: Seguretat i policia (Llei 10/1994 de Mossos, Codi Penal, LECrim, Seguretat Ciutadana 4/2015, Trànsit)'
+      ];
+    } else {
+      temarisDisponibles = ['Política i Societat Actual', 'Geopolítica i Unió Europea', 'Cultura i Efemèrides'];
+    }
+
+    try {
+      const res = await fetch('/api/gemini/classificar-lot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          preguntes: valides,
+          banc,
+          municipi: mun,
+          temarisDisponibles
+        })
+      });
+
+      const dades = await res.json();
+      if (dades.success && Array.isArray(dades.classificacions)) {
+        // Aplicar resultats a preguntesLotActual
+        const mapRes = new Map();
+        dades.classificacions.forEach(c => {
+          if (c && c.id) mapRes.set(String(c.id), c);
+        });
+
+        preguntesLotActual.forEach((q, idx) => {
+          const match = mapRes.get(String(q.id)) || dades.classificacions[idx];
+          if (match) {
+            q.iaClassificada = true;
+            q.iaCoincideix = Boolean(match.coincideix);
+            q.suggerimentNouTema = match.suggerimentNouTema || null;
+            q.estatVigencia = match.estatVigencia || 'vigent';
+            q.motiuVigencia = match.motiuVigencia || 'Normativa vigent';
+            q.confianca = match.confianca || 85;
+            q.bancRecomanat = match.bancRecomanat || banc;
+
+            if (match.temaCoincident) {
+              q.seccio = match.temaCoincident;
+              q.tema = match.temaCoincident;
+            }
+          }
+        });
+
+        if (typeof mostrarToast === 'function') {
+          mostrarToast(`✨ S'han analitzat ${valides.length} preguntes amb èxit!`, 'success');
+        }
+      } else {
+        if (typeof mostrarToast === 'function') {
+          mostrarToast('⚠️ No s\'ha pogut completar la classificació per IA.', 'error');
+        }
+      }
+    } catch (err) {
+      console.error('Error a classificarLotAmbIA:', err);
+      if (typeof mostrarToast === 'function') {
+        mostrarToast('⚠️ Error contactant amb el servei de classificació.', 'error');
+      }
+    } finally {
+      if (btnIA) {
+        btnIA.disabled = false;
+        btnIA.style.opacity = '1';
+        btnIA.innerHTML = textOriginalBtn || '<span>✨</span> <span>Classificar per temes i verificar vigència amb IA (Gemini)</span>';
+      }
+      actualitzarVistaPreviaLot();
+    }
+  };
+
+  // Accions individuals per a cada pregunta
+  window.crearTemaPerPregunta = function (idx) {
+    if (idx < 0 || idx >= preguntesLotActual.length) return;
+    const q = preguntesLotActual[idx];
+    const nomNou = prompt('Nom del nou tema que vols afegir al temari:', q.suggerimentNouTema || 'Nou Tema Específic');
+    if (!nomNou || !nomNou.trim()) return;
+
+    const banc = document.querySelector('input[name="cp-lot-banc"]:checked')?.value || 'pl';
+    const mun = (banc === 'pl') ? (document.getElementById('cp-lot-select-municipi')?.value || 'Constantí') : null;
+
+    if (banc === 'pl' && typeof window.afegirTemaCustomMunicipiPL === 'function') {
+      window.afegirTemaCustomMunicipiPL(mun, { nom: nomNou.trim() });
+    }
+
+    q.seccio = nomNou.trim();
+    q.tema = nomNou.trim();
+    q.iaCoincideix = true;
+    q.suggerimentNouTema = null;
+
+    if (typeof mostrarToast === 'function') {
+      mostrarToast(`✅ Tema "${nomNou.trim()}" creat i assignat a la pregunta #${idx + 1}!`, 'success');
+    }
+
+    actualitzarVistaPreviaLot();
+  };
+
+  window.assignarTemaAPregunta = function (idx, nomTema) {
+    if (idx < 0 || idx >= preguntesLotActual.length) return;
+    const q = preguntesLotActual[idx];
+    q.seccio = nomTema;
+    q.tema = nomTema;
+    q.iaCoincideix = true;
+    q.suggerimentNouTema = null;
+    actualitzarVistaPreviaLot();
+  };
+
+  window.triarTemaExistentPregunta = function (idx) {
+    if (idx < 0 || idx >= preguntesLotActual.length) return;
+    const banc = document.querySelector('input[name="cp-lot-banc"]:checked')?.value || 'pl';
+    const mun = (banc === 'pl') ? (document.getElementById('cp-lot-select-municipi')?.value || 'Constantí') : null;
+
+    let opcions = [];
+    if (banc === 'pl' && typeof window.obtenirTemariPLPerMunicipi === 'function') {
+      opcions = (window.obtenirTemariPLPerMunicipi(mun) || []).map(t => `${t.codi || ''} ${t.nom || ''}`.trim());
+    } else {
+      opcions = ['Àmbit A', 'Àmbit B', 'Àmbit C', 'General'];
+    }
+
+    const tria = prompt(`Tria o enganxa el nom del tema per a la pregunta #${idx + 1}:\n\n${opcions.slice(0, 10).join('\n')}`);
+    if (tria && tria.trim()) {
+      window.assignarTemaAPregunta(idx, tria.trim());
+    }
+  };
+
+  // Accions globals del lot
+  window.crearTotsElsTemesNousSuggerits = function () {
+    const banc = document.querySelector('input[name="cp-lot-banc"]:checked')?.value || 'pl';
+    const mun = (banc === 'pl') ? (document.getElementById('cp-lot-select-municipi')?.value || 'Constantí') : null;
+
+    let comptador = 0;
+    preguntesLotActual.forEach((q, idx) => {
+      if (q.iaClassificada && !q.iaCoincideix && q.suggerimentNouTema) {
+        const nomTema = q.suggerimentNouTema;
+        if (banc === 'pl' && typeof window.afegirTemaCustomMunicipiPL === 'function') {
+          window.afegirTemaCustomMunicipiPL(mun, { nom: nomTema });
+        }
+        q.seccio = nomTema;
+        q.tema = nomTema;
+        q.iaCoincideix = true;
+        q.suggerimentNouTema = null;
+        comptador++;
+      }
+    });
+
+    if (typeof mostrarToast === 'function') {
+      mostrarToast(`✅ S'han creat i assignat ${comptador} temes nous al temari!`, 'success');
+    }
+    actualitzarVistaPreviaLot();
+  };
+
+  window.descartarPreguntesSenseTema = function () {
+    const inicial = preguntesLotActual.length;
+    preguntesLotActual = preguntesLotActual.filter(q => !(q.iaClassificada && !q.iaCoincideix));
+    const descartades = inicial - preguntesLotActual.length;
+    if (typeof mostrarToast === 'function') {
+      mostrarToast(`🗑️ S'han descartat ${descartades} preguntes sense tema coincident.`, 'info');
+    }
+    actualitzarVistaPreviaLot();
+  };
+
+  window.descartarPreguntesDesactualitzades = function () {
+    const inicial = preguntesLotActual.length;
+    preguntesLotActual = preguntesLotActual.filter(q => q.estatVigencia !== 'desactualitzada');
+    const descartades = inicial - preguntesLotActual.length;
+    if (typeof mostrarToast === 'function') {
+      mostrarToast(`🗑️ S'han descartat ${descartades} preguntes amb possible desactualització.`, 'info');
+    }
+    actualitzarVistaPreviaLot();
+  };
+
+  window.canviarFiltreLot = function (filtre) {
+    filtreLotVisual = filtre;
     actualitzarVistaPreviaLot();
   };
 
@@ -482,27 +709,180 @@ Explicació: L'article 15 de la Constitució Espanyola garanteix el dret fonamen
     const valides = preguntesLotActual.filter(q => q.valida);
     const invalides = preguntesLotActual.length - valides.length;
 
+    // Comptadors IA
+    const senseTema = preguntesLotActual.filter(q => q.iaClassificada && !q.iaCoincideix);
+    const coincidents = preguntesLotActual.filter(q => q.iaClassificada && q.iaCoincideix);
+    const desactualitzades = preguntesLotActual.filter(q => q.estatVigencia === 'desactualitzada');
+    const vigents = preguntesLotActual.filter(q => q.estatVigencia === 'vigent');
+    const teDadesIA = preguntesLotActual.some(q => q.iaClassificada);
+
     blocResum.style.display = 'block';
-    badgeRecompte.innerHTML = invalides === 0
-      ? `🟢 S'han detectat <b>${valides.length} preguntes vàlides</b> llestes per importar`
-      : `⚠️ <b>${valides.length} correctes</b> | <b>${invalides} amb avisos</b> (revisa les respostes)`;
+
+    let resumHtml = `
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+        <span style="font-size:13px;font-weight:700;color:#059669;">
+          ${invalides === 0
+            ? `🟢 <b>${valides.length} preguntes vàlides</b> llestes per importar`
+            : `⚠️ <b>${valides.length} correctes</b> | <b>${invalides} amb avisos</b>`}
+        </span>
+        ${teDadesIA ? `
+          <span style="background:rgba(99,102,241,0.12);color:#4338ca;padding:3px 8px;border-radius:6px;font-size:11.5px;font-weight:800;display:inline-flex;align-items:center;gap:4px;">
+            <span>✨</span> <span>Classificades per IA (Gemini)</span>
+          </span>
+        ` : ''}
+      </div>
+    `;
+
+    // Alertes i accions ràpides si hi ha preguntes sense tema o desactualitzades
+    if (senseTema.length > 0) {
+      resumHtml += `
+        <div style="background:#fffbeb;border:1.5px solid #f59e0b;padding:10px 14px;border-radius:10px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+          <div>
+            <div style="font-size:12.5px;color:#92400e;font-weight:800;display:flex;align-items:center;gap:6px;">
+              <span>❓</span> <span>${senseTema.length} preguntes no coincideixen amb cap tema del temari actual:</span>
+            </div>
+            <p style="margin:2px 0 0;font-size:11.5px;color:#b45309;">
+              Pots crear automàticament els temes proposats per la IA o descartar-les abans de desar.
+            </p>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button type="button" onclick="window.crearTotsElsTemesNousSuggerits()" style="padding:6px 12px;background:#059669;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:5px;">
+              <span>➕</span> <span>Crear tots els temes nous</span>
+            </button>
+            <button type="button" onclick="window.descartarPreguntesSenseTema()" style="padding:6px 12px;background:#ef4444;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:5px;">
+              <span>🗑️</span> <span>Descartar-les</span>
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    if (desactualitzades.length > 0) {
+      resumHtml += `
+        <div style="background:#fef2f2;border:1.5px solid #ef4444;padding:10px 14px;border-radius:10px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+          <div>
+            <div style="font-size:12.5px;color:#991b1b;font-weight:800;display:flex;align-items:center;gap:6px;">
+              <span>⚠️</span> <span>S'han detectat ${desactualitzades.length} preguntes amb possible normativa desactualitzada:</span>
+            </div>
+            <p style="margin:2px 0 0;font-size:11.5px;color:#b91c1c;">
+              Revisa les alertes legals abans d'incorporar-les al banc d'estudi.
+            </p>
+          </div>
+          <button type="button" onclick="window.descartarPreguntesDesactualitzades()" style="padding:6px 12px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:5px;">
+            <span>🗑️</span> <span>Descartar desactualitzades</span>
+          </button>
+        </div>
+      `;
+    }
+
+    // Filtres visuals de la llista
+    if (teDadesIA) {
+      resumHtml += `
+        <div style="display:flex;align-items:center;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:10px;">
+          <span style="font-size:12px;font-weight:800;color:var(--text-muted,#64748b);margin-right:2px;">Filtrar vista:</span>
+          <button type="button" onclick="window.canviarFiltreLot('tots')" style="padding:4px 10px;border-radius:6px;font-size:11.5px;font-weight:700;cursor:pointer;border:1px solid ${filtreLotVisual === 'tots' ? '#2563eb' : 'var(--border-card,#cbd5e1)'};background:${filtreLotVisual === 'tots' ? '#2563eb' : 'var(--bg-card,#fff)'};color:${filtreLotVisual === 'tots' ? '#fff' : 'var(--text-main,#334155)'};">
+            Totes (${preguntesLotActual.length})
+          </button>
+          <button type="button" onclick="window.canviarFiltreLot('coincidents')" style="padding:4px 10px;border-radius:6px;font-size:11.5px;font-weight:700;cursor:pointer;border:1px solid ${filtreLotVisual === 'coincidents' ? '#059669' : 'var(--border-card,#cbd5e1)'};background:${filtreLotVisual === 'coincidents' ? '#059669' : 'var(--bg-card,#fff)'};color:${filtreLotVisual === 'coincidents' ? '#fff' : 'var(--text-main,#334155)'};">
+            🎯 Amb tema (${coincidents.length})
+          </button>
+          ${senseTema.length > 0 ? `
+            <button type="button" onclick="window.canviarFiltreLot('sense_tema')" style="padding:4px 10px;border-radius:6px;font-size:11.5px;font-weight:700;cursor:pointer;border:1px solid ${filtreLotVisual === 'sense_tema' ? '#d97706' : 'var(--border-card,#cbd5e1)'};background:${filtreLotVisual === 'sense_tema' ? '#d97706' : 'var(--bg-card,#fff)'};color:${filtreLotVisual === 'sense_tema' ? '#fff' : 'var(--text-main,#334155)'};">
+              ❓ Sense tema (${senseTema.length})
+            </button>
+          ` : ''}
+          ${desactualitzades.length > 0 ? `
+            <button type="button" onclick="window.canviarFiltreLot('desactualitzades')" style="padding:4px 10px;border-radius:6px;font-size:11.5px;font-weight:700;cursor:pointer;border:1px solid ${filtreLotVisual === 'desactualitzades' ? '#dc2626' : 'var(--border-card,#cbd5e1)'};background:${filtreLotVisual === 'desactualitzades' ? '#dc2626' : 'var(--bg-card,#fff)'};color:${filtreLotVisual === 'desactualitzades' ? '#fff' : 'var(--text-main,#334155)'};">
+              ⚠️ Desactualitzades (${desactualitzades.length})
+            </button>
+          ` : ''}
+        </div>
+      `;
+    }
+
+    badgeRecompte.innerHTML = resumHtml;
 
     btnConfirmar.disabled = valides.length === 0;
     btnConfirmar.style.opacity = valides.length > 0 ? '1' : '0.5';
     btnConfirmar.textContent = `💾 Confirmar i Desar (${valides.length} preguntes)`;
 
+    // Filtrar la llista a mostrar
+    let llistaAMostrar = preguntesLotActual.map((q, idx) => ({ q, originalIdx: idx }));
+    if (filtreLotVisual === 'coincidents') {
+      llistaAMostrar = llistaAMostrar.filter(item => item.q.iaClassificada && item.q.iaCoincideix);
+    } else if (filtreLotVisual === 'sense_tema') {
+      llistaAMostrar = llistaAMostrar.filter(item => item.q.iaClassificada && !item.q.iaCoincideix);
+    } else if (filtreLotVisual === 'desactualitzades') {
+      llistaAMostrar = llistaAMostrar.filter(item => item.q.estatVigencia === 'desactualitzada');
+    }
+
     // Generar targetes de previsualització
     const lletres = ['A', 'B', 'C', 'D'];
-    container.innerHTML = preguntesLotActual.map((q, idx) => {
+    container.innerHTML = llistaAMostrar.map(({ q, originalIdx }) => {
+      const idx = originalIdx;
+      const teIA = q.iaClassificada;
+      const esVigent = (q.estatVigencia || 'vigent') === 'vigent';
+      const esDesact = q.estatVigencia === 'desactualitzada';
+
       return `
-        <div style="background:var(--bg-card-subtle,#f8fafc);border:1.5px solid ${q.valida ? 'var(--border-card,#e2e8f0)' : '#f87171'};border-radius:12px;padding:12px;font-size:13px;position:relative;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-            <span style="font-weight:800;color:var(--text-main,#0f172a);font-size:12.5px;">#${idx + 1} ${q.seccio ? `· <span style="color:var(--text-muted);">${escapeHtml(q.seccio)}</span>` : ''}</span>
-            <button type="button" onclick="window.eliminarPreguntaDeLot(${idx})" title="Descartar aquesta pregunta" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:14px;padding:2px 6px;">🗑️</button>
+        <div style="background:var(--bg-card-subtle,#f8fafc);border:1.5px solid ${!q.valida ? '#f87171' : esDesact ? '#fca5a5' : teIA && !q.iaCoincideix ? '#fcd34d' : 'var(--border-card,#e2e8f0)'};border-radius:12px;padding:12px;font-size:13px;position:relative;">
+          
+          <!-- Capçalera de la targeta: Número, Tema assignat i Botó eliminar -->
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+              <span style="font-weight:800;color:var(--text-main,#0f172a);font-size:12.5px;">#${idx + 1}</span>
+              
+              ${teIA && q.iaCoincideix && (q.seccio || q.tema) ? `
+                <span style="background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:800;display:inline-flex;align-items:center;gap:4px;">
+                  <span>🎯</span> <span>${escapeHtml(q.seccio || q.tema)}</span>
+                </span>
+              ` : ''}
+
+              ${teIA && !q.iaCoincideix ? `
+                <span style="background:#fffbeb;color:#92400e;border:1px solid #fcd34d;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:800;display:inline-flex;align-items:center;gap:4px;">
+                  <span>❓</span> <span>Sense tema al catàleg</span>
+                </span>
+              ` : ''}
+
+              ${!teIA && q.seccio ? `
+                <span style="color:var(--text-muted);font-size:12px;">· ${escapeHtml(q.seccio)}</span>
+              ` : ''}
+            </div>
+
+            <div style="display:flex;align-items:center;gap:6px;">
+              <button type="button" onclick="window.obrirModalDubteIA(window.preguntesLotActual[${idx}])" title="Consultar a Gemini sobre aquesta pregunta" style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700;padding:3px 8px;display:inline-flex;align-items:center;gap:4px;">
+                <span>🤖</span> <span>Dubte IA</span>
+              </button>
+              <button type="button" onclick="window.eliminarPreguntaDeLot(${idx})" title="Descartar aquesta pregunta" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:14px;padding:2px 6px;">🗑️</button>
+            </div>
           </div>
+
+          <!-- Si la IA ha detectat que no coincideix amb cap tema existent: opcions de creació o descart -->
+          ${teIA && !q.iaCoincideix ? `
+            <div style="background:#fefce8;border:1px dashed #eab308;border-radius:8px;padding:8px 10px;margin-bottom:8px;display:flex;flex-direction:column;gap:6px;">
+              <div style="font-size:12px;color:#713f12;line-height:1.4;">
+                💡 <b>Nou tema proposat per la IA:</b> <span style="font-weight:800;color:#854d0e;">«${escapeHtml(q.suggerimentNouTema || 'Tema Específic Addicional')}»</span>
+              </div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                <button type="button" onclick="window.crearTemaPerPregunta(${idx})" style="padding:4px 8px;background:#059669;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:800;cursor:pointer;">
+                  ➕ Crear aquest tema i assignar
+                </button>
+                <button type="button" onclick="window.triarTemaExistentPregunta(${idx})" style="padding:4px 8px;background:var(--bg-card,#fff);color:var(--text-main,#1e293b);border:1px solid var(--border-card,#cbd5e1);border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;">
+                  📂 Triar tema existent
+                </button>
+                <button type="button" onclick="window.eliminarPreguntaDeLot(${idx})" style="padding:4px 8px;background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;">
+                  🗑️ Descartar
+                </button>
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- Text de la pregunta -->
           <div style="font-weight:700;color:var(--text-main,#0f172a);margin-bottom:8px;line-height:1.4;">
             ${escapeHtml(q.pregunta)}
           </div>
+
+          <!-- Opcions tipus test -->
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;">
             ${q.opcions.map((op, oIdx) => {
               const esCorrecta = oIdx === q.resposta;
@@ -515,8 +895,25 @@ Explicació: L'article 15 de la Constitució Espanyola garanteix el dret fonamen
               `;
             }).join('')}
           </div>
+
+          <!-- Estat de vigència i motiu legal si hi ha IA -->
+          ${teIA ? `
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-top:6px;padding-top:6px;border-top:1px dashed var(--border-card,#e2e8f0);">
+              <div style="font-size:11.5px;font-weight:700;display:inline-flex;align-items:center;gap:5px;${esVigent ? 'color:#15803d;' : esDesact ? 'color:#b91c1c;' : 'color:#0369a1;'}">
+                <span>${esVigent ? '🟢' : esDesact ? '⚠️' : 'ℹ️'}</span>
+                <span>${escapeHtml(q.motiuVigencia || (esVigent ? 'Normativa vigent' : 'Revisar vigència'))}</span>
+              </div>
+              ${esDesact ? `
+                <button type="button" onclick="window.eliminarPreguntaDeLot(${idx})" style="padding:2px 6px;background:#fef2f2;color:#dc2626;border:1px solid #f87171;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;">
+                  Descartar desactualitzada
+                </button>
+              ` : ''}
+            </div>
+          ` : ''}
+
+          <!-- Explicació si en té -->
           ${q.explicacio ? `
-            <div style="font-size:11.5px;color:#0369a1;background:#f0f9ff;padding:6px 8px;border-radius:6px;border-left:3px solid #0284c7;line-height:1.35;margin-top:4px;">
+            <div style="font-size:11.5px;color:#0369a1;background:#f0f9ff;padding:6px 8px;border-radius:6px;border-left:3px solid #0284c7;line-height:1.35;margin-top:6px;">
               💡 <b>Justificació:</b> ${escapeHtml(q.explicacio)}
             </div>
           ` : ''}
@@ -547,6 +944,15 @@ Explicació: L'article 15 de la Constitució Espanyola garanteix el dret fonamen
     const banc = document.querySelector('input[name="cp-lot-banc"]:checked')?.value || 'pl';
     const mun = (banc === 'pl') ? (document.getElementById('cp-lot-select-municipi')?.value || 'Constantí') : null;
     const seccioDefecte = document.getElementById('cp-lot-select-tema')?.value || '';
+
+    // Assegurar que qualsevol tema nou creat per la IA està donat d'alta al temari del municipi
+    if (banc === 'pl' && typeof window.afegirTemaCustomMunicipiPL === 'function') {
+      valides.forEach(q => {
+        if (q.seccio && !q.seccio.startsWith('Tema 1:') && !q.seccio.startsWith('T1') && q.seccio !== 'Comú') {
+          window.afegirTemaCustomMunicipiPL(mun, { nom: q.seccio });
+        }
+      });
+    }
 
     // Assignem secció / municipi a les que no en tinguin
     const preguntesFinals = valides.map(q => {

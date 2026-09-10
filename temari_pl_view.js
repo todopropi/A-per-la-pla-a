@@ -104,6 +104,26 @@
       totalPreguntesCompartides += qsTotals.length;
     });
 
+    // Càlcul de progrés global per a l'oposició municipal activa (PL + Mossos)
+    const allQsTotalsMunicipi = [];
+    temariActual.forEach(tema => {
+      const t = preguntesPerTemaMap.get(tema.id);
+      if (t && t.totals) allQsTotalsMunicipi.push(...t.totals);
+    });
+    const estPLTotal = (typeof window.calcularProgresPreguntes === 'function')
+      ? window.calcularProgresPreguntes(allQsTotalsMunicipi)
+      : { total: allQsTotalsMunicipi.length, encerts: 0, encertades: 0, errors: 0, fallades: 0, maiFetes: allQsTotalsMunicipi.length, progrés: 0, pctProgres: 0, contestades: 0 };
+
+    // Càlcul de progrés per al temari compartit transversal
+    const allQsTotalsCompartit = [];
+    materiesCompartides.forEach(m => {
+      const t = preguntesCompartidesMap.get(m.id);
+      if (t && t.totals) allQsTotalsCompartit.push(...t.totals);
+    });
+    const estCompartitTotal = (typeof window.calcularProgresPreguntes === 'function')
+      ? window.calcularProgresPreguntes(allQsTotalsCompartit)
+      : { total: allQsTotalsCompartit.length, encerts: 0, encertades: 0, errors: 0, fallades: 0, maiFetes: allQsTotalsCompartit.length, progrés: 0, pctProgres: 0, contestades: 0 };
+
     const totalCultura = (bancoPoliciaLocal || []).filter(q => (q.ambit || '').toLowerCase().includes('cultura')).length;
 
     contenedor.innerHTML = `
@@ -286,6 +306,33 @@
                 <div style="font-size:20px;font-weight:900;margin-top:2px;">Constantí · Cubelles · Cunit</div>
               </div>
             </div>
+
+            <!-- Progrés en matèries comunes (encertades / fallades / mai fetes) -->
+            <div style="background:rgba(255,255,255,0.12);backdrop-filter:blur(6px);padding:14px 18px;border-radius:12px;border:1px solid rgba(255,255,255,0.25);margin-top:14px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:8px;">
+                <span style="font-size:12px;font-weight:800;letter-spacing:0.4px;text-transform:uppercase;opacity:0.9;">
+                  Progrés en matèries transversals
+                </span>
+                <span style="font-size:13px;font-weight:900;">
+                  ${estCompartitTotal.pctProgres}% dominat (${estCompartitTotal.contestades} de ${estCompartitTotal.total})
+                </span>
+              </div>
+              <div style="height:8px;background:rgba(255,255,255,0.25);border-radius:999px;overflow:hidden;display:flex;margin-bottom:10px;">
+                <div style="width:${estCompartitTotal.total ? (estCompartitTotal.encertades / estCompartitTotal.total) * 100 : 0}%;background:#34d399;"></div>
+                <div style="width:${estCompartitTotal.total ? (estCompartitTotal.fallades / estCompartitTotal.total) * 100 : 0}%;background:#f87171;"></div>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:12px;font-weight:800;">
+                <span style="background:rgba(16,185,129,0.25);color:#ecfdf5;padding:3px 9px;border-radius:6px;">
+                  ✅ ${estCompartitTotal.encertades} encertades
+                </span>
+                <span style="background:rgba(239,68,68,0.25);color:#fee2e2;padding:3px 9px;border-radius:6px;">
+                  ❌ ${estCompartitTotal.fallades} fallades
+                </span>
+                <span style="background:rgba(255,255,255,0.2);color:#ffffff;padding:3px 9px;border-radius:6px;">
+                  ⏳ ${estCompartitTotal.maiFetes} que encara no has fet mai
+                </span>
+              </div>
+            </div>
           </div>
 
           <!-- LLISTA DE MATÈRIES COMPARTIDES -->
@@ -309,6 +356,9 @@
                 const qsObj = preguntesCompartidesMap.get(m.id) || { pl: [], mossos: [], totals: [] };
                 const qs = qsObj.totals || [];
                 const c = m.concordances || {};
+                const estMat = (typeof window.calcularProgresPreguntes === 'function')
+                  ? window.calcularProgresPreguntes(qs)
+                  : { total: qs.length, encertades: 0, fallades: 0, maiFetes: qs.length, pctProgres: 0 };
                 return `
                   <div class="card-materia-compartida" data-nom="${escapeHtml(m.nom.toLowerCase())}" style="background:var(--bg-card-subtle,#f8fafc);border:1.5px solid var(--border-card,#e2e8f0);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:10px;transition:all .15s ease;">
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;">
@@ -319,6 +369,26 @@
                         <p style="margin:0;font-size:13px;color:var(--text-muted,#64748b);line-height:1.4;">
                           ${escapeHtml(m.descripcio)}
                         </p>
+                        ${qs.length > 0 ? `
+                          <div style="display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap;">
+                            <span style="background:rgba(16,185,129,0.12);color:#059669;padding:2px 7px;border-radius:5px;font-size:11px;font-weight:800;">
+                              ✅ ${estMat.encertades} encertades
+                            </span>
+                            <span style="background:rgba(239,68,68,0.12);color:#dc2626;padding:2px 7px;border-radius:5px;font-size:11px;font-weight:800;">
+                              ❌ ${estMat.fallades} fallades
+                            </span>
+                            <span style="background:rgba(100,116,139,0.12);color:#475569;padding:2px 7px;border-radius:5px;font-size:11px;font-weight:800;">
+                              ⏳ ${estMat.maiFetes} mai fetes
+                            </span>
+                            <span style="font-size:11px;font-weight:800;color:#0284c7;margin-left:3px;">
+                              ${estMat.pctProgres}% dominat
+                            </span>
+                          </div>
+                          <div style="margin-top:4px;height:4px;background:#e2e8f0;border-radius:999px;overflow:hidden;display:flex;max-width:220px;" title="${estMat.encertades} encertades, ${estMat.fallades} fallades, ${estMat.maiFetes} mai fetes">
+                            <div style="width:${qs.length ? (estMat.encertades / qs.length) * 100 : 0}%;background:#10b981;"></div>
+                            <div style="width:${qs.length ? (estMat.fallades / qs.length) * 100 : 0}%;background:#ef4444;"></div>
+                          </div>
+                        ` : ''}
                       </div>
 
                       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
@@ -402,6 +472,33 @@
                 </div>
               </div>
             </div>
+
+            <!-- Progrés de preguntes oficials (encertades / fallades / mai fetes) -->
+            <div style="background:rgba(0,0,0,0.22);backdrop-filter:blur(8px);padding:14px 18px;border-radius:12px;border:1px solid rgba(255,255,255,0.25);margin-top:14px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:8px;">
+                <span style="font-size:12px;font-weight:800;letter-spacing:0.4px;text-transform:uppercase;opacity:0.95;">
+                  Progrés en el temari de Policia Local (${escapeHtml(municipiActiu)})
+                </span>
+                <span style="font-size:13px;font-weight:900;">
+                  ${estPLTotal.pctProgres}% dominat (${estPLTotal.contestades} de ${estPLTotal.total} contestades)
+                </span>
+              </div>
+              <div style="height:8px;background:rgba(255,255,255,0.25);border-radius:999px;overflow:hidden;display:flex;margin-bottom:10px;" title="${estPLTotal.encertades} encertades, ${estPLTotal.fallades} fallades, ${estPLTotal.maiFetes} mai fetes">
+                <div style="width:${estPLTotal.total ? (estPLTotal.encertades / estPLTotal.total) * 100 : 0}%;background:#34d399;"></div>
+                <div style="width:${estPLTotal.total ? (estPLTotal.fallades / estPLTotal.total) * 100 : 0}%;background:#f87171;"></div>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:12px;font-weight:800;">
+                <span style="background:rgba(16,185,129,0.25);color:#ecfdf5;padding:3px 9px;border-radius:6px;">
+                  ✅ ${estPLTotal.encertades} encertades
+                </span>
+                <span style="background:rgba(239,68,68,0.25);color:#fee2e2;padding:3px 9px;border-radius:6px;">
+                  ❌ ${estPLTotal.fallades} fallades
+                </span>
+                <span style="background:rgba(255,255,255,0.2);color:#ffffff;padding:3px 9px;border-radius:6px;">
+                  ⏳ ${estPLTotal.maiFetes} que encara no has fet mai
+                </span>
+              </div>
+            </div>
           </div>
 
           <!-- LLISTA DELS TEMES ORDENATS SEGONS LES BASES -->
@@ -417,8 +514,14 @@
                 <button type="button" class="btn-filtre-estat" data-estat="amb_preguntes" style="padding:6px 12px;border-radius:8px;font-size:12.5px;font-weight:800;cursor:pointer;border:1.5px solid ${plFiltreEstat === 'amb_preguntes' ? '#10b981' : 'var(--border-card,#e2e8f0)'};background:${plFiltreEstat === 'amb_preguntes' ? '#10b981' : 'var(--bg-card-subtle,#f8fafc)'};color:${plFiltreEstat === 'amb_preguntes' ? '#fff' : 'var(--text-main,#334155)'};">
                   ✓ Amb preguntes (${temesAmbPreguntes})
                 </button>
+                <button type="button" class="btn-filtre-estat" data-estat="amb_fallades" style="padding:6px 12px;border-radius:8px;font-size:12.5px;font-weight:800;cursor:pointer;border:1.5px solid ${plFiltreEstat === 'amb_fallades' ? '#ef4444' : 'var(--border-card,#e2e8f0)'};background:${plFiltreEstat === 'amb_fallades' ? '#ef4444' : 'var(--bg-card-subtle,#f8fafc)'};color:${plFiltreEstat === 'amb_fallades' ? '#fff' : 'var(--text-main,#334155)'};">
+                  ❌ Amb fallades
+                </button>
+                <button type="button" class="btn-filtre-estat" data-estat="mai_fetes" style="padding:6px 12px;border-radius:8px;font-size:12.5px;font-weight:800;cursor:pointer;border:1.5px solid ${plFiltreEstat === 'mai_fetes' ? '#0284c7' : 'var(--border-card,#e2e8f0)'};background:${plFiltreEstat === 'mai_fetes' ? '#0284c7' : 'var(--bg-card-subtle,#f8fafc)'};color:${plFiltreEstat === 'mai_fetes' ? '#fff' : 'var(--text-main,#334155)'};">
+                  ⏳ Amb mai fetes
+                </button>
                 <button type="button" class="btn-filtre-estat" data-estat="sense_preguntes" style="padding:6px 12px;border-radius:8px;font-size:12.5px;font-weight:800;cursor:pointer;border:1.5px solid ${plFiltreEstat === 'sense_preguntes' ? '#f59e0b' : 'var(--border-card,#e2e8f0)'};background:${plFiltreEstat === 'sense_preguntes' ? '#f59e0b' : 'var(--bg-card-subtle,#f8fafc)'};color:${plFiltreEstat === 'sense_preguntes' ? '#fff' : 'var(--text-main,#334155)'};">
-                  ⚠️ Pendents d'afegir (${temesSensePreguntes})
+                  ⚠️ Pendents (${temesSensePreguntes})
                 </button>
               </div>
 
@@ -451,9 +554,15 @@
                 const countTotals = tData.totals.length;
                 const hasQuestions = countTotals > 0;
                 
+                const estTema = (typeof window.calcularProgresPreguntes === 'function')
+                  ? window.calcularProgresPreguntes(tData.totals)
+                  : { total: countTotals, encertades: 0, fallades: 0, maiFetes: countTotals, pctProgres: 0 };
+
                 // Filtre d'estat
                 if (plFiltreEstat === 'amb_preguntes' && !hasQuestions) return '';
                 if (plFiltreEstat === 'sense_preguntes' && hasQuestions) return '';
+                if (plFiltreEstat === 'amb_fallades' && (!hasQuestions || estTema.fallades === 0)) return '';
+                if ((plFiltreEstat === 'mai_fetes' || plFiltreEstat === 'amb_mai_fetes') && (!hasQuestions || estTema.maiFetes === 0)) return '';
                 
                 // Filtre de bloc Cunit
                 if (municipiActiu === 'Cunit' && plFiltreBlocCunit !== 'Tots' && tema.bloc !== plFiltreBlocCunit) {
@@ -504,6 +613,26 @@
                             </span>
                           `}
                         </div>
+                        ${hasQuestions ? `
+                          <div style="display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap;">
+                            <span style="background:rgba(16,185,129,0.12);color:#059669;padding:2px 7px;border-radius:5px;font-size:11px;font-weight:800;">
+                              ✅ ${estTema.encertades} encertades
+                            </span>
+                            <span style="background:rgba(239,68,68,0.12);color:#dc2626;padding:2px 7px;border-radius:5px;font-size:11px;font-weight:800;">
+                              ❌ ${estTema.fallades} fallades
+                            </span>
+                            <span style="background:rgba(100,116,139,0.12);color:#475569;padding:2px 7px;border-radius:5px;font-size:11px;font-weight:800;">
+                              ⏳ ${estTema.maiFetes} mai fetes
+                            </span>
+                            <span style="font-size:11px;font-weight:800;color:#002B5E;margin-left:3px;">
+                              ${estTema.pctProgres}% dominat
+                            </span>
+                          </div>
+                          <div style="margin-top:4px;height:4px;background:#e2e8f0;border-radius:999px;overflow:hidden;display:flex;max-width:240px;" title="${estTema.encertades} encertades, ${estTema.fallades} fallades, ${estTema.maiFetes} mai fetes">
+                            <div style="width:${countTotals ? (estTema.encertades / countTotals) * 100 : 0}%;background:#10b981;"></div>
+                            <div style="width:${countTotals ? (estTema.fallades / countTotals) * 100 : 0}%;background:#ef4444;"></div>
+                          </div>
+                        ` : ''}
                       </div>
                     </div>
 
