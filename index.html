@@ -280,7 +280,6 @@
           <a data-tab="mossos" class="nav-btn"><span class="ico"><img src="Escut.png" alt="Escut" style="width: 18px; height: 18px; vertical-align: middle;"></span> Temari Mossos</a>
           <a data-tab="policia-local" class="nav-btn"><span class="ico">🚔</span> Policia Local</a>
           <a data-tab="actualitat" class="nav-btn"><span class="ico">📰</span> Actualitat</a>
-          <a data-tab="editor" class="nav-btn"><span class="ico">✏️</span> Gestor de preguntes</a>
           <a data-tab="comunitat" class="nav-btn nav-comunitat"><span class="ico">💬</span> Comunitat</a>
         </nav>
         <div class="sidebar-footer-card">
@@ -302,11 +301,15 @@
             <span>Agent Medina</span>
           </span>
           <div class="topright">
-            <div class="trio" title="Ratxa · Notes mitjanes · Dies examen">
-              <span class="m"><span class="v fire" id="ratxa-val">🔥 0</span><span class="l">ratxa</span></span>
-              <span class="m"><span class="v gold" id="nota-mossos">📊 0.00</span><span class="l">Mossos</span></span>
-              <span class="m"><span class="v gold" id="nota-plocal">🚔 0.00</span><span class="l">P.Local</span></span>
-              <a href="https://mossos.gencat.cat/web/.content/home/01_els_mossos_desquadra/ingres-cos/Escala-bAsica/convocatoria-46-26/Previsio-calendari-46-26-16.07.2026.pdf" target="_blank" rel="noopener noreferrer" class="m m-btn" style="text-decoration: none; cursor: pointer;"><span class="v" id="dies-examen">--</span><span class="l">dies examen</span></a>
+            <div class="trio" title="Compte enrere per a les convocatòries d'examen">
+              <!-- Comptador enrere dinàmic d'exàmens -->
+              <div id="topbar-examens-countdown" class="exam-countdown-container"></div>
+              
+              <!-- Elements de compatibilitat interna ocults -->
+              <span style="display:none;" id="ratxa-val">0</span>
+              <span style="display:none;" id="nota-mossos">0.00</span>
+              <span style="display:none;" id="nota-plocal">0.00</span>
+              <span style="display:none;" id="dies-examen">--</span>
               
               <!-- Canvi de tema (Fosc / Clar) -->
               <button id="btn-theme-toggle" class="theme-switch-btn" onclick="window.toggleTheme()" title="Canviar estil visual (Fosc Neó / Clar Neumòrfic)">
@@ -334,10 +337,10 @@
             <div style="max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px;">
               
               <!-- CONVOCATÒRIES ACTIVES -->
-              <div style="background: #eef6ff; border: 1px solid #b8daff; padding: 15px 20px; border-radius: 12px; display: flex; flex-direction: column; gap: 12px;">
+              <div class="convocatories-box">
                 <div style="display: flex; align-items: center; gap: 8px;">
                   <span style="font-size: 20px;">📜</span>
-                  <h4 style="margin: 0; font-size: 16px; color: #004085;">Convocatòries Actives</h4>
+                  <h4 class="convocatories-box-title">Convocatòries Actives</h4>
                 </div>
                 <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                   <a href="https://mossos.gencat.cat/ca/els_mossos_desquadra/acces_al_cos/Mosso_a/mosso-a-convocatoria-46-26/" target="_blank" rel="noopener noreferrer" style="background: #007aff; color: white; text-decoration: none; padding: 8px 16px; font-weight: 600; border-radius: 6px; font-size: 13px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
@@ -431,11 +434,6 @@
             <h2>Comunitat</h2>
             <p>Fòrum i xat de la comunitat.</p>
           </div>
-
-          <div id="view-editor" class="view-content" style="display: none;">
-            <h2>Gestor de preguntes</h2>
-            <p>Afegeix o edita preguntes.</p>
-          </div>
         </div>
 
         <nav class="bottom-nav">
@@ -443,7 +441,6 @@
           <button data-tab="mossos" class="bn-item"><span class="bn-ico"><img src="Escut.png" alt="Escut" style="width: 20px; height: 20px; vertical-align: middle;"></span><span class="bn-lab">Mossos</span></button>
           <button data-tab="policia-local" class="bn-item"><span class="bn-ico">🚔</span><span class="bn-lab">P. Local</span></button>
           <button data-tab="actualitat" class="bn-item"><span class="bn-ico">📰</span><span class="bn-lab">Actualitat</span></button>
-          <button data-tab="editor" class="bn-item"><span class="bn-ico">✏️</span><span class="bn-lab">Preguntes</span></button>
           <button data-tab="comunitat" class="bn-item"><span class="bn-ico">💬</span><span class="bn-lab">Comunitat</span></button>
         </nav>
       </div>
@@ -747,6 +744,7 @@
 <script src="app.js"></script>
 <script src="dubte_ia_tutor.js"></script>
 <script src="importador_preguntes_lot.js"></script>
+<script src="comunitat_messenger.js"></script>
 
 <!-- Sincronització entre dispositius: Firebase Authentication + Firestore.
      Fem servir els SDK "compat" (variable global `firebase`) perquè no calen
@@ -836,24 +834,35 @@
   <div class="modal-sheet-dialog">
     <div class="modal-dialog-header">
       <div>
-        <h3 class="modal-dialog-title" id="modal-cp-titol">➕ Afegir Preguntes al Temari</h3>
-        <p style="margin:4px 0 0;font-size:13px;color:var(--text-muted);">Crea preguntes manuals o importa múltiples preguntes d'un cop des de ChatGPT o Gemini.</p>
+        <h3 class="modal-dialog-title" id="modal-cp-titol">⚙️ Banc de Preguntes — Crear o Modificar</h3>
+        <p style="margin:4px 0 0;font-size:13px;color:var(--text-muted);">Crea noves preguntes, modifica les existents guardades als bancs de preguntes o importa llistats per IA.</p>
       </div>
       <button class="modal-close-button" onclick="window.tancarModalCrearPregunta()" title="Tancar">✕</button>
     </div>
 
-    <!-- Selector de mode de creació: 1 a 1 o Massiu (IA) -->
+    <!-- Selector de mode de creació: Nova Pregunta, Modificar Existent, Massiu (IA) -->
     <div style="display:flex;gap:8px;padding:4px;background:var(--bg-card-subtle);border-radius:12px;margin-bottom:18px;border:1px solid var(--border-card);">
-      <button type="button" id="btn-mode-crear-manual" onclick="window.canviarModeCreacio('manual')" style="flex:1;padding:10px 14px;border-radius:9px;font-weight:700;font-size:13.5px;border:none;cursor:pointer;background:linear-gradient(135deg,#002B5E,#007aff);color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;transition:all .2s;">
-        📝 Formulari individual
+      <button type="button" id="btn-mode-crear-manual" onclick="window.canviarModeCreacio('manual')" style="flex:1;padding:10px 10px;border-radius:9px;font-weight:700;font-size:13px;border:none;cursor:pointer;background:linear-gradient(135deg,#002B5E,#007aff);color:#fff;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .2s;">
+        ➕ Nova pregunta
       </button>
-      <button type="button" id="btn-mode-crear-lot" onclick="window.canviarModeCreacio('lot')" style="flex:1;padding:10px 14px;border-radius:9px;font-weight:700;font-size:13.5px;border:none;cursor:pointer;background:transparent;color:var(--text-main);display:flex;align-items:center;justify-content:center;gap:8px;transition:all .2s;">
-        ⚡ Importació massiva / IA
+      <button type="button" id="btn-mode-crear-modificar" onclick="window.canviarModeCreacio('editar')" style="flex:1;padding:10px 10px;border-radius:9px;font-weight:700;font-size:13px;border:none;cursor:pointer;background:transparent;color:var(--text-main);display:flex;align-items:center;justify-content:center;gap:6px;transition:all .2s;">
+        ✏️ Modificar existent
+      </button>
+      <button type="button" id="btn-mode-crear-lot" onclick="window.canviarModeCreacio('lot')" style="flex:1;padding:10px 10px;border-radius:9px;font-weight:700;font-size:13px;border:none;cursor:pointer;background:transparent;color:var(--text-main);display:flex;align-items:center;justify-content:center;gap:6px;transition:all .2s;">
+        ⚡ Lot / IA
       </button>
     </div>
 
-    <!-- PANELL 1: FORMULARI MANUAL INDIVIDUAL (1 a 1) -->
+    <!-- PANELL 1: FORMULARI MANUAL INDIVIDUAL (Crear / Editar) -->
     <form id="form-crear-pregunta-directa" onsubmit="window.desarPreguntaDirecta(event)">
+      <!-- Banner actiu quan s'està editant una pregunta -->
+      <div id="cp-banner-mode-edicio" style="display:none;background:rgba(245,158,11,0.15);border:1.5px solid #f59e0b;border-radius:10px;padding:10px 14px;margin-bottom:14px;align-items:center;justify-content:space-between;gap:10px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:18px;">✏️</span>
+          <span id="cp-text-mode-edicio" style="font-size:13px;font-weight:700;color:var(--text-main);">Editant pregunta existent</span>
+        </div>
+        <button type="button" onclick="window.netejarFormulariCrearPregunta()" style="background:var(--bg-card);border:1px solid var(--border-card);color:var(--text-main);padding:4px 10px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;">➕ Crear nova en blanc</button>
+      </div>
       <!-- Selecció de Banc -->
       <div class="form-group-block">
         <label class="form-label-title">Oposició / Cos Policial:</label>
@@ -954,7 +963,49 @@
       </div>
     </form>
 
-    <!-- PANELL 2: IMPORTACIÓ MASSIVA / GENERACIÓ AMB IA (EN LOT) -->
+    <!-- PANELL 2: MODIFICAR PREGUNTES EXISTENTS ALS BANCS -->
+    <div id="panell-modificar-preguntes-existent" style="display:none;">
+      <!-- Filtres per banc -->
+      <div class="form-group-block">
+        <label class="form-label-title">Banc de preguntes a consultar / modificar:</label>
+        <div style="display:flex;gap:10px;margin-bottom:8px;">
+          <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--bg-card-subtle);border:1.5px solid var(--border-card);border-radius:10px;cursor:pointer;font-weight:700;font-size:13px;color:var(--text-main);">
+            <input type="radio" name="cp-mod-banc" value="pl" checked onchange="window.canviarBancModificar('pl')">
+            <span>🚔 Policia Local</span>
+          </label>
+          <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--bg-card-subtle);border:1.5px solid var(--border-card);border-radius:10px;cursor:pointer;font-weight:700;font-size:13px;color:var(--text-main);">
+            <input type="radio" name="cp-mod-banc" value="mossos" onchange="window.canviarBancModificar('mossos')">
+            <span>🔵 Mossos d'Esquadra</span>
+          </label>
+          <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--bg-card-subtle);border:1.5px solid var(--border-card);border-radius:10px;cursor:pointer;font-weight:700;font-size:13px;color:var(--text-main);">
+            <input type="radio" name="cp-mod-banc" value="act" onchange="window.canviarBancModificar('act')">
+            <span>📰 Actualitat</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Barra de cerca en temps real -->
+      <div class="form-group-block">
+        <label class="form-label-title">Cercar pregunta per modificar:</label>
+        <div style="position:relative;">
+          <input type="text" id="cp-mod-cerca-input" class="form-input-ctrl" placeholder="🔍 Escriu una paraula clau, tema, opció o ID..." oninput="window.filtrarPreguntesModificar(this.value)" style="padding-right:32px;">
+          <button type="button" onclick="document.getElementById('cp-mod-cerca-input').value=''; window.filtrarPreguntesModificar('');" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-muted);font-size:14px;cursor:pointer;">✕</button>
+        </div>
+      </div>
+
+      <!-- Estat i comptador de preguntes trobades -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:12.5px;color:var(--text-muted);">
+        <span id="cp-mod-comptador">Carregant preguntes...</span>
+        <span style="font-style:italic;">Fes clic a «✏️ Modificar» per editar-la directament</span>
+      </div>
+
+      <!-- Llista de preguntes amb scroll còmode -->
+      <div id="llista-cerca-preguntes-modificar" style="max-height:380px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding-right:4px;">
+        <!-- Generat dinàmicament -->
+      </div>
+    </div>
+
+    <!-- PANELL 3: IMPORTACIÓ MASSIVA / GENERACIÓ AMB IA (EN LOT) -->
     <div id="panell-crear-preguntes-lot" style="display:none;">
       <!-- Opcions de Destí per al Lot -->
       <div class="form-group-block">
@@ -1109,6 +1160,108 @@
         </div>
         <div id="dia-resposta-contingut" style="display:flex;flex-direction:column;gap:12px;"></div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==========================================================================
+     MODAL: GESTOR DE DATES D'EXAMEN I COMPTE ENRERE
+     ========================================================================== -->
+<div id="modal-gestio-examens" class="modal-overlay-backdrop" onclick="if(event.target===this) window.tancarModalGestioExamens()">
+  <div class="modal-sheet-dialog" style="max-width: 540px;">
+    <div class="modal-dialog-header">
+      <div>
+        <h3 class="modal-dialog-title">⏱️ Dates d'Examen i Convocatòries</h3>
+        <p style="margin:4px 0 0;font-size:13px;color:var(--text-muted);">Configura les dates d'examen per tenir el compte enrere en dies a la barra superior.</p>
+      </div>
+      <button class="modal-close-button" onclick="window.tancarModalGestioExamens()" title="Tancar">✕</button>
+    </div>
+
+    <!-- Formulari per afegir nova data -->
+    <form id="form-afegir-examen" onsubmit="window.desarDataExamen(event)" style="background:var(--bg-card-subtle);border:1px solid var(--border-card);padding:16px;border-radius:12px;margin-bottom:18px;display:flex;flex-direction:column;gap:12px;">
+      <div style="font-weight:800;font-size:13.5px;color:var(--text-main);display:flex;align-items:center;gap:6px;">
+        <span>➕</span> <span>Afegir nova data d'examen</span>
+      </div>
+      <div>
+        <label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;color:var(--text-muted);">Nom de l'oposició / convocatòria:</label>
+        <input type="text" id="input-examen-nom" required placeholder="Ex: Mossos d'Esquadra 46-26, Guàrdia Urbana Barcelona..." class="form-input-ctrl" style="width:100%;box-sizing:border-box;">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div>
+          <label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;color:var(--text-muted);">Data de l'examen:</label>
+          <input type="date" id="input-examen-data" required class="form-input-ctrl" style="width:100%;box-sizing:border-box;">
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;color:var(--text-muted);">Icona / Tipus:</label>
+          <select id="input-examen-ico" class="form-select-ctrl" style="width:100%;box-sizing:border-box;">
+            <option value="🔵">🔵 Mossos</option>
+            <option value="🚔">🚔 Policia Local</option>
+            <option value="🛡️">🛡️ Guàrdia Urbana</option>
+            <option value="📜">📜 General</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;color:var(--text-muted);">Enllaç oficial de la convocatòria (opcional):</label>
+        <input type="url" id="input-examen-link" placeholder="https://mossos.gencat.cat/... o PDF de bases" class="form-input-ctrl" style="width:100%;box-sizing:border-box;">
+      </div>
+      <button type="submit" style="padding:10px 16px;background:linear-gradient(135deg,#002B5E,#007aff);color:#ffffff;border:none;border-radius:9px;font-weight:800;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;box-shadow:0 3px 10px rgba(0,122,255,0.25);">
+        💾 Desar Convocatòria
+      </button>
+    </form>
+
+    <!-- Llistat d'exàmens actuals -->
+    <div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <span style="font-weight:800;font-size:13px;color:var(--text-main);">Convocatòries actives monitoritzades:</span>
+      </div>
+      <div id="llista-examens-gestio" style="display:flex;flex-direction:column;gap:8px;max-height:260px;overflow-y:auto;padding-right:4px;">
+        <!-- Generat dinàmicament -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==========================================================================
+     MODAL: GESTOR DE PREGUNTES D'ACTUALITAT (ESBORRAR DESACTUALITZADES)
+     ========================================================================== -->
+<div id="modal-gestor-actualitat" class="modal-overlay-backdrop" onclick="if(event.target===this) window.tancarModalGestorActualitat()">
+  <div class="modal-sheet-dialog" style="max-width: 820px;">
+    <div class="modal-dialog-header">
+      <div>
+        <h3 class="modal-dialog-title">📰 Gestor de Preguntes d'Actualitat</h3>
+        <p style="margin:4px 0 0;font-size:13px;color:var(--text-muted);">Revisa i elimina fàcilment preguntes desactualitzades, obsoletes o modifica el seu contingut.</p>
+      </div>
+      <button class="modal-close-button" onclick="window.tancarModalGestorActualitat()" title="Tancar">✕</button>
+    </div>
+
+    <!-- Barra de cerca i filtres de categoria -->
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px;">
+      <div style="display:flex;gap:10px;">
+        <input type="text" id="cerca-gestor-actualitat" oninput="window.filtrarGestorActualitat()" placeholder="🔍 Cercar per paraula clau (ex: Indianapolis, Govern, Nobel, 2026...)" class="form-input-ctrl" style="flex:1;">
+        <button type="button" onclick="window.obrirModalCrearPregunta('act')" class="btn-crear-pregunta-top" style="font-size:12.5px;padding:8px 14px;">
+          ➕ Nova Pregunta
+        </button>
+      </div>
+      <div id="filtres-categoria-actualitat" style="display:flex;gap:6px;flex-wrap:wrap;">
+        <button type="button" class="btn-filtre-act active" data-cat="totes" onclick="window.canviarFiltreCategoriaActualitat('totes', this)" style="padding:4px 10px;border-radius:6px;font-size:12px;font-weight:700;border:1px solid var(--border-card);background:var(--bg-card);color:var(--text-main);cursor:pointer;">Totes</button>
+        <button type="button" class="btn-filtre-act" data-cat="esports" onclick="window.canviarFiltreCategoriaActualitat('esports', this)" style="padding:4px 10px;border-radius:6px;font-size:12px;font-weight:700;border:1px solid var(--border-card);background:var(--bg-card);color:var(--text-main);cursor:pointer;">⚽ Esports</button>
+        <button type="button" class="btn-filtre-act" data-cat="politica" onclick="window.canviarFiltreCategoriaActualitat('politica', this)" style="padding:4px 10px;border-radius:6px;font-size:12px;font-weight:700;border:1px solid var(--border-card);background:var(--bg-card);color:var(--text-main);cursor:pointer;">🏛️ Política</button>
+        <button type="button" class="btn-filtre-act" data-cat="seguretat" onclick="window.canviarFiltreCategoriaActualitat('seguretat', this)" style="padding:4px 10px;border-radius:6px;font-size:12px;font-weight:700;border:1px solid var(--border-card);background:var(--bg-card);color:var(--text-main);cursor:pointer;">⚖️ Seguretat</button>
+        <button type="button" class="btn-filtre-act" data-cat="cultura" onclick="window.canviarFiltreCategoriaActualitat('cultura', this)" style="padding:4px 10px;border-radius:6px;font-size:12px;font-weight:700;border:1px solid var(--border-card);background:var(--bg-card);color:var(--text-main);cursor:pointer;">🏆 Premis / Cultura</button>
+        <button type="button" class="btn-filtre-act" data-cat="repetides" onclick="window.canviarFiltreCategoriaActualitat('repetides', this)" style="padding:4px 10px;border-radius:6px;font-size:12px;font-weight:700;border:1px solid var(--border-card);background:var(--bg-card);color:var(--text-main);cursor:pointer;">🔥 Preguntes Clau</button>
+      </div>
+    </div>
+
+    <!-- Comptador -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:12px;color:var(--text-muted);">
+      <span id="comptador-gestor-actualitat">Carregant preguntes...</span>
+      <span style="color:#ef4444;font-weight:600;">🗑️ Clica a la paperera per eliminar qualsevol pregunta desactualitzada</span>
+    </div>
+
+    <!-- Llista de preguntes amb scroll -->
+    <div id="llista-preguntes-gestor-actualitat" style="max-height:420px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding-right:4px;">
+      <!-- Generat dinàmicament -->
     </div>
   </div>
 </div>

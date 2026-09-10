@@ -995,6 +995,77 @@ body.theme-dark .action-card-badge {
   border-color: var(--blue-accent, #007aff) !important;
 }
 
+/* ==========================================
+   CONVOCATÒRIES ACTIVES BANNER & DARK MODE
+   ========================================== */
+.convocatories-box {
+  background: #f0f7ff;
+  border: 1.5px solid #bfdbfe;
+  padding: 16px 20px;
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.convocatories-box-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: #1e40af;
+  letter-spacing: -0.01em;
+}
+
+.convocatories-box-btn-add {
+  border: 1px dashed #94a3b8;
+  background: #ffffff;
+  color: #334155;
+  padding: 6px 12px;
+  font-weight: 700;
+  border-radius: 8px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.convocatories-box-btn-add:hover {
+  border-color: #007aff;
+  color: #007aff;
+}
+
+/* Modo oscuro per a Convocatòries Actives */
+html.theme-dark .convocatories-box,
+body.theme-dark .convocatories-box,
+html[data-theme="dark"] .convocatories-box {
+  background: #172033 !important;
+  border-color: #2b3b5c !important;
+  color: #f1f5f9 !important;
+}
+
+html.theme-dark .convocatories-box-title,
+body.theme-dark .convocatories-box-title,
+html[data-theme="dark"] .convocatories-box-title {
+  color: #93c5fd !important;
+}
+
+html.theme-dark .convocatories-box-btn-add,
+body.theme-dark .convocatories-box-btn-add,
+html[data-theme="dark"] .convocatories-box-btn-add {
+  background: #0f172a !important;
+  color: #cbd5e1 !important;
+  border-color: #475569 !important;
+}
+
+html.theme-dark .convocatories-box-btn-add:hover,
+body.theme-dark .convocatories-box-btn-add:hover,
+html[data-theme="dark"] .convocatories-box-btn-add:hover {
+  background: #1e293b !important;
+  color: #60a5fa !important;
+  border-color: #3b82f6 !important;
+}
+
 /* Question box & test options in dark mode */
 html.theme-dark .pregunta-box,
 body.theme-dark .pregunta-box,
@@ -1017,6 +1088,203 @@ body.theme-dark .btn-opcio-test:hover,
 html[data-theme="dark"] .btn-opcio-test:hover {
   border-color: #38bdf8 !important;
   background: rgba(56, 189, 248, 0.15) !important;
+}
+
+/* ==========================================================================
+   🌙 MODE FOSC: Targetes de Progrés, Flashcards, Ranking i Tauler
+   ========================================================================== */
+html.theme-dark .dash-progress-card,
+body.theme-dark .dash-progress-card,
+html[data-theme="dark"] .dash-progress-card {
+  background: #151e32 !important;
+  border-color: #263554 !important;
+  color: #f8fafc !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.35) !important;
+}
+
+html.theme-dark .dash-progress-card:hover,
+body.theme-dark .dash-progress-card:hover,
+html[data-theme="dark"] .dash-progress-card:hover {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 6px 20px rgba(0, 43, 94, 0.4) !important;
+}
+
+html.theme-dark .dash-progress-card [style*="color:#0f172a"],
+body.theme-dark .dash-progress-card [style*="color:#0f172a"],
+html.theme-dark .dash-progress-card [style*="color: #0f172a"],
+body.theme-dark .dash-progress-card [style*="color: #0f172a"] {
+  color: #f8fafc !important;
+}
+
+html.theme-dark .dash-progress-card [style*="color:#94a3b8"],
+body.theme-dark .dash-progress-card [style*="color:#94a3b8"],
+html.theme-dark .dash-progress-card [style*="color:#64748b"],
+body.theme-dark .dash-progress-card [style*="color:#64748b"] {
+  color: #94a3b8 !important;
+}
+
+html.theme-dark .fallades-block,
+body.theme-dark .fallades-block,
+html[data-theme="dark"] .fallades-block,
+html.theme-dark .flashcard-block,
+body.theme-dark .flashcard-block,
+html[data-theme="dark"] .flashcard-block {
+  background: #151e32 !important;
+  border-color: #263554 !important;
+  color: #f8fafc !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.35) !important;
+}
+
+html.theme-dark #flashcard-container,
+body.theme-dark #flashcard-container,
+html[data-theme="dark"] #flashcard-container {
+  background: #101726 !important;
+  border-color: #3b82f6 !important;
+  color: #f8fafc !important;
+}
+
+html.theme-dark #flashcard-text,
+body.theme-dark #flashcard-text,
+html[data-theme="dark"] #flashcard-text {
+  color: #f8fafc !important;
+}
+
+html.theme-dark .dash-rank-row,
+body.theme-dark .dash-rank-row,
+html[data-theme="dark"] .dash-rank-row {
+  border-bottom-color: #1e2942 !important;
+}
+
+html.theme-dark .dash-rank-q,
+body.theme-dark .dash-rank-q,
+html[data-theme="dark"] .dash-rank-q {
+  color: #f8fafc !important;
+}
+
+html.theme-dark .dash-rank-meta,
+body.theme-dark .dash-rank-meta,
+html[data-theme="dark"] .dash-rank-meta {
+  color: #94a3b8 !important;
+}
+
+html.theme-dark .dash-empty,
+body.theme-dark .dash-empty,
+html[data-theme="dark"] .dash-empty {
+  color: #94a3b8 !important;
+}
+
+/* ==========================================================================
+   ⏱️ WIDGET COMPTE ENRERE D'EXÀMENS (TOPBAR)
+   ========================================================================== */
+.exam-countdown-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.exam-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 700;
+  text-decoration: none;
+  background: var(--bg-card, #ffffff);
+  color: var(--text-main, #1e293b);
+  border: 1.5px solid var(--border-card, #cbd5e1);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.exam-pill:hover {
+  transform: translateY(-1px);
+  border-color: #007aff;
+  box-shadow: 0 4px 10px rgba(0, 122, 255, 0.2);
+}
+
+.exam-pill .exam-badge-days {
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.exam-badge-blue {
+  background: rgba(0, 122, 255, 0.12);
+  color: #007aff;
+}
+
+.exam-badge-green {
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
+}
+
+.exam-badge-gold {
+  background: rgba(245, 158, 11, 0.15);
+  color: #d97706;
+}
+
+.exam-badge-red {
+  background: rgba(239, 68, 68, 0.12);
+  color: #dc2626;
+}
+
+.exam-pill-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--bg-card-subtle, #f1f5f9);
+  color: var(--text-muted, #475569);
+  border: 1.5px dashed var(--border-card, #94a3b8);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.exam-pill-add:hover {
+  background: #007aff;
+  color: #ffffff;
+  border-color: #007aff;
+  border-style: solid;
+}
+
+html.theme-dark .exam-pill,
+body.theme-dark .exam-pill,
+html[data-theme="dark"] .exam-pill {
+  background: #151e32 !important;
+  border-color: #263554 !important;
+  color: #f8fafc !important;
+}
+
+html.theme-dark .exam-pill:hover,
+body.theme-dark .exam-pill:hover,
+html[data-theme="dark"] .exam-pill:hover {
+  border-color: #3b82f6 !important;
+  background: #1e2942 !important;
+}
+
+html.theme-dark .exam-pill-add,
+body.theme-dark .exam-pill-add,
+html[data-theme="dark"] .exam-pill-add {
+  background: #101726 !important;
+  border-color: #334155 !important;
+  color: #94a3b8 !important;
+}
+
+html.theme-dark .exam-pill-add:hover,
+body.theme-dark .exam-pill-add:hover,
+html[data-theme="dark"] .exam-pill-add:hover {
+  background: #007aff !important;
+  color: #ffffff !important;
+  border-color: #007aff !important;
 }
 
 /* Hide obsolete clone classes */

@@ -214,23 +214,33 @@
   window.analitzarTextPreguntes = analitzarTextPreguntes;
 
   // ==========================================================================
-  // 2. CANVI DE MODE (MANUAL VS LOT / IA) AL MODAL
+  // 2. CANVI DE MODE (MANUAL VS MODIFICAR EXISTENT VS LOT / IA) AL MODAL
   // ==========================================================================
   window.canviarModeCreacio = function (mode) {
     const btnManual = document.getElementById('btn-mode-crear-manual');
+    const btnModificar = document.getElementById('btn-mode-crear-modificar');
     const btnLot = document.getElementById('btn-mode-crear-lot');
     const formManual = document.getElementById('form-crear-pregunta-directa');
+    const panellModificar = document.getElementById('panell-modificar-preguntes-existent');
     const panellLot = document.getElementById('panell-crear-preguntes-lot');
 
     if (!btnManual || !btnLot || !formManual || !panellLot) return;
 
+    // Reset botons
+    [btnManual, btnModificar, btnLot].forEach(btn => {
+      if (!btn) return;
+      btn.style.background = 'transparent';
+      btn.style.color = 'var(--text-main)';
+    });
+
+    // Amagar tots els panells
+    formManual.style.display = 'none';
+    if (panellModificar) panellModificar.style.display = 'none';
+    panellLot.style.display = 'none';
+
     if (mode === 'lot') {
-      btnManual.style.background = 'transparent';
-      btnManual.style.color = 'var(--text-main)';
       btnLot.style.background = 'linear-gradient(135deg,#002B5E,#007aff)';
       btnLot.style.color = '#fff';
-
-      formManual.style.display = 'none';
       panellLot.style.display = 'block';
 
       // Sincronitzar selecció de banc i tema des del manual
@@ -242,15 +252,25 @@
       const munLot = document.getElementById('cp-lot-select-municipi');
       if (munLot) munLot.value = munManual;
 
-      window.canviarBancLot(bancManual);
+      if (typeof window.canviarBancLot === 'function') window.canviarBancLot(bancManual);
+    } else if (mode === 'editar') {
+      if (btnModificar) {
+        btnModificar.style.background = 'linear-gradient(135deg,#002B5E,#007aff)';
+        btnModificar.style.color = '#fff';
+      }
+      if (panellModificar) {
+        panellModificar.style.display = 'block';
+        const bancManual = document.querySelector('input[name="cp-banc"]:checked')?.value || 'pl';
+        const radioMod = document.querySelector(`input[name="cp-mod-banc"][value="${bancManual}"]`);
+        if (radioMod) radioMod.checked = true;
+        if (typeof window.renderLlistaModificarPreguntes === 'function') {
+          window.renderLlistaModificarPreguntes(bancManual);
+        }
+      }
     } else {
       btnManual.style.background = 'linear-gradient(135deg,#002B5E,#007aff)';
       btnManual.style.color = '#fff';
-      btnLot.style.background = 'transparent';
-      btnLot.style.color = 'var(--text-main)';
-
       formManual.style.display = 'block';
-      panellLot.style.display = 'none';
     }
   };
 
@@ -295,7 +315,21 @@
 
     let html = `<option value="">-- Assignar tema o deixar que la IA el detecti --</option>`;
 
-    if (temesOficials.length > 0) {
+    if (banc === 'act') {
+      html += `<optgroup label="Categories Oficials d'Actualitat">`;
+      const categoriesAct = [
+        { val: 'Esports', nom: '⚽ Esports i Fites Esportives' },
+        { val: 'Política', nom: '🏛️ Política, Govern i Institucions' },
+        { val: 'Seguretat', nom: '⚖️ Seguretat Pública i Policia' },
+        { val: 'Premis', nom: '🏆 Premis, Cultura i Ciència' },
+        { val: 'Repetides', nom: '🔥 Preguntes Clau i Més Repetides' },
+        { val: 'Societat', nom: '🌍 Societat, Medi Ambient i Efemèrides' }
+      ];
+      categoriesAct.forEach(c => {
+        html += `<option value="${escapeHtml(c.val)}">${escapeHtml(c.nom)}</option>`;
+      });
+      html += `</optgroup>`;
+    } else if (temesOficials.length > 0) {
       const munNom = document.getElementById('cp-lot-select-municipi')?.value || 'Constantí';
       html += `<optgroup label="Temari Oficial de ${escapeHtml(munNom)}">`;
       temesOficials.forEach(t => {
@@ -460,6 +494,35 @@ Explicació: L'article 15 de la Constitució Espanyola garanteix el dret fonamen
       municipi: mun,
       ambit: (banc === 'mossos') ? 'Àmbit A' : null
     });
+
+    if (banc === 'act') {
+      const seccioDefecte = seccio || '';
+      preguntesLotActual.forEach(q => {
+        if (!q.categoria || q.categoria === '') {
+          const txt = `${q.pregunta || ''} ${q.explicacio || ''} ${q.seccio || ''}`.toLowerCase();
+          if (/esport|futbol|pilota|bal[oó]|copa|mundial|champions|ol[ií]mp|campionat|jocs|f1|motor|tenis|basket|atlet|palou|bonmat[ií]/i.test(txt)) {
+            q.categoria = 'Esports';
+            q.seccio = 'Esports i Fites Esportives';
+          } else if (/pol[ií]tic|govern|parlament|llei|decret|ministr|president|elecci|senat|congres|partit|estatut|consell|ue\b|unió europea|generalitat/i.test(txt)) {
+            q.categoria = 'Política';
+            q.seccio = 'Política, Govern i Institucions';
+          } else if (/policia|mossos|gu[aà]rdia|delicte|seguretat|penal|crim|jutge|tribunal|tr[aà]nsit|emerg[eè]nc|bomber|112/i.test(txt)) {
+            q.categoria = 'Seguretat';
+            q.seccio = 'Seguretat Pública i Policia';
+          } else if (/nobel|premi|oscar|goya|cultur|cinem|art|llib|literat|m[uú]sic|gala|festival|ci[eè]nc|tecnolog/i.test(txt)) {
+            q.categoria = 'Premis';
+            q.seccio = 'Premis, Cultura i Ciència';
+          } else if (seccioDefecte) {
+            q.categoria = seccioDefecte;
+            q.seccio = seccioDefecte === 'Esports' ? 'Esports i Fites Esportives' : seccioDefecte === 'Política' ? 'Política, Govern i Institucions' : seccioDefecte === 'Seguretat' ? 'Seguretat Pública i Policia' : seccioDefecte === 'Premis' ? 'Premis, Cultura i Ciència' : 'Preguntes Clau i Més Repetides';
+          } else {
+            q.categoria = 'Esports';
+            q.seccio = 'Esports i Fites Esportives';
+          }
+        }
+        q.tema = q.seccio;
+      });
+    }
 
     filtreLotVisual = 'tots';
     actualitzarVistaPreviaLot();
@@ -733,6 +796,51 @@ Explicació: L'article 15 de la Constitució Espanyola garanteix el dret fonamen
       </div>
     `;
 
+    const banc = document.querySelector('input[name="cp-lot-banc"]:checked')?.value || 'pl';
+
+    // Banner d'Actualitat amb selecció de destinació express ("Encontradas X preguntas y van a - esports")
+    if (banc === 'act') {
+      const freq = {};
+      valides.forEach(q => {
+        const c = q.categoria || 'Esports';
+        freq[c] = (freq[c] || 0) + 1;
+      });
+      let maxC = 0;
+      let predomCat = 'Esports';
+      Object.keys(freq).forEach(k => {
+        if (freq[k] > maxC) {
+          maxC = freq[k];
+          predomCat = k;
+        }
+      });
+      resumHtml += `
+        <div style="background:var(--bg-card,#ffffff);border:1.5px solid #3b82f6;padding:12px 16px;border-radius:12px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;box-shadow:0 2px 10px rgba(59,130,246,0.08);">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:22px;">🎯</span>
+            <div>
+              <div style="font-size:13.5px;font-weight:800;color:var(--text-main,#0f172a);">
+                Trobades <b>${valides.length}</b> preguntes d'Actualitat i van a: <span style="color:#2563eb;text-decoration:underline;">${escapeHtml(predomCat)}</span>
+              </div>
+              <p style="margin:2px 0 0;font-size:12px;color:var(--text-muted,#64748b);">
+                Pots canviar la categoria de destí de tot el lot o assignar-les individualment a cada targeta.
+              </p>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:12px;font-weight:700;color:var(--text-muted);">Canviar tot a:</span>
+            <select onchange="window.reassignarCategoriaGlobalLot(this.value)" class="form-select-ctrl" style="padding:6px 12px;font-weight:800;font-size:12.5px;border-radius:8px;background:var(--bg-card);color:var(--text-main);border:1.5px solid #3b82f6;cursor:pointer;">
+              <option value="Esports" ${predomCat === 'Esports' ? 'selected' : ''}>⚽ Esports</option>
+              <option value="Política" ${predomCat === 'Política' ? 'selected' : ''}>🏛️ Política</option>
+              <option value="Seguretat" ${predomCat === 'Seguretat' ? 'selected' : ''}>⚖️ Seguretat</option>
+              <option value="Premis" ${predomCat === 'Premis' ? 'selected' : ''}>🏆 Premis / Cultura</option>
+              <option value="Repetides" ${predomCat === 'Repetides' ? 'selected' : ''}>🔥 Preguntes Clau</option>
+              <option value="Societat" ${predomCat === 'Societat' ? 'selected' : ''}>🌍 Societat / Altres</option>
+            </select>
+          </div>
+        </div>
+      `;
+    }
+
     // Alertes i accions ràpides si hi ha preguntes sense tema o desactualitzades
     if (senseTema.length > 0) {
       resumHtml += `
@@ -917,10 +1025,60 @@ Explicació: L'article 15 de la Constitució Espanyola garanteix el dret fonamen
               💡 <b>Justificació:</b> ${escapeHtml(q.explicacio)}
             </div>
           ` : ''}
+
+          <!-- Si és banc d'Actualitat: selector de categoria individual per a cada pregunta -->
+          ${banc === 'act' ? `
+            <div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border-card,#e2e8f0);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+              <span style="font-size:11.5px;font-weight:700;color:var(--text-muted);">📂 Categoria d'Actualitat:</span>
+              <select onchange="window.reassignarCategoriaIndividualLot(${idx}, this.value)" class="form-select-ctrl" style="padding:4px 8px;font-size:11.5px;font-weight:700;border-radius:6px;background:var(--bg-card);color:var(--text-main);border:1px solid var(--border-card);cursor:pointer;">
+                <option value="Esports" ${q.categoria === 'Esports' ? 'selected' : ''}>⚽ Esports i Fites Esportives</option>
+                <option value="Política" ${q.categoria === 'Política' ? 'selected' : ''}>🏛️ Política, Govern i Institucions</option>
+                <option value="Seguretat" ${q.categoria === 'Seguretat' ? 'selected' : ''}>⚖️ Seguretat Pública i Policia</option>
+                <option value="Premis" ${q.categoria === 'Premis' ? 'selected' : ''}>🏆 Premis, Cultura i Ciència</option>
+                <option value="Repetides" ${q.categoria === 'Repetides' ? 'selected' : ''}>🔥 Preguntes Clau i Més Repetides</option>
+                <option value="Societat" ${q.categoria === 'Societat' ? 'selected' : ''}>🌍 Societat, Medi Ambient i Efemèrides</option>
+              </select>
+            </div>
+          ` : ''}
         </div>
       `;
     }).join('');
   }
+
+  window.reassignarCategoriaGlobalLot = function (cat) {
+    if (!cat) return;
+    const catNomMap = {
+      'Esports': 'Esports i Fites Esportives',
+      'Política': 'Política, Govern i Institucions',
+      'Seguretat': 'Seguretat Pública i Policia',
+      'Premis': 'Premis, Cultura i Ciència',
+      'Repetides': 'Preguntes Clau i Més Repetides',
+      'Societat': 'Societat, Medi Ambient i Efemèrides'
+    };
+    preguntesLotActual.forEach(q => {
+      q.categoria = cat;
+      q.seccio = catNomMap[cat] || cat;
+      q.tema = q.seccio;
+    });
+    actualitzarVistaPreviaLot();
+  };
+
+  window.reassignarCategoriaIndividualLot = function (idx, cat) {
+    if (preguntesLotActual[idx]) {
+      const catNomMap = {
+        'Esports': 'Esports i Fites Esportives',
+        'Política': 'Política, Govern i Institucions',
+        'Seguretat': 'Seguretat Pública i Policia',
+        'Premis': 'Premis, Cultura i Ciència',
+        'Repetides': 'Preguntes Clau i Més Repetides',
+        'Societat': 'Societat, Medi Ambient i Efemèrides'
+      };
+      preguntesLotActual[idx].categoria = cat;
+      preguntesLotActual[idx].seccio = catNomMap[cat] || cat;
+      preguntesLotActual[idx].tema = preguntesLotActual[idx].seccio;
+      actualitzarVistaPreviaLot();
+    }
+  };
 
   window.eliminarPreguntaDeLot = function (idx) {
     if (idx >= 0 && idx < preguntesLotActual.length) {
@@ -956,11 +1114,22 @@ Explicació: L'article 15 de la Constitució Espanyola garanteix el dret fonamen
 
     // Assignem secció / municipi a les que no en tinguin
     const preguntesFinals = valides.map(q => {
+      const cat = q.categoria || (banc === 'act' ? 'Esports' : undefined);
+      const catNomMap = {
+        'Esports': 'Esports i Fites Esportives',
+        'Política': 'Política, Govern i Institucions',
+        'Seguretat': 'Seguretat Pública i Policia',
+        'Premis': 'Premis, Cultura i Ciència',
+        'Repetides': 'Preguntes Clau i Més Repetides',
+        'Societat': 'Societat, Medi Ambient i Efemèrides'
+      };
+      const secDef = (banc === 'act' && cat) ? (catNomMap[cat] || cat) : (banc === 'mossos' ? 'Àmbit A' : 'Comú');
       return {
         ...q,
-        seccio: q.seccio || seccioDefecte || (banc === 'mossos' ? 'Àmbit A' : 'Comú'),
+        categoria: cat,
+        seccio: q.seccio || seccioDefecte || secDef,
         municipi: (banc === 'pl') ? (q.municipi || mun || 'Comú') : undefined,
-        tema: q.seccio || seccioDefecte || undefined
+        tema: q.seccio || seccioDefecte || secDef
       };
     });
 
@@ -994,6 +1163,11 @@ Explicació: L'article 15 de la Constitució Espanyola garanteix el dret fonamen
       const viewMossos = document.getElementById('view-mossos');
       if (viewMossos && viewMossos.classList.contains('view-activa')) {
         window.mostrarTemarioMossos();
+      }
+    } else if (banc === 'act' && typeof window.mostrarTemarioActualitat === 'function') {
+      const viewAct = document.getElementById('view-actualitat');
+      if (viewAct && viewAct.classList.contains('view-activa')) {
+        window.mostrarTemarioActualitat();
       }
     } else if (typeof window.mostrarGestorPreguntes === 'function') {
       const viewEd = document.getElementById('view-editor');

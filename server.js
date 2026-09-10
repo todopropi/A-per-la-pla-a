@@ -585,6 +585,197 @@ Respon ÚNICAMENT amb un array JSON amb aquest format:
   }
 });
 
+// ==========================================
+// SERVEI DE COMUNITAT I MISSATGERIA (MSN MESSENGER)
+// ==========================================
+const COMUNITAT_FILE = path.join(__dirname, 'comunitat_data.json');
+
+const INITIAL_USUARIS_ACTIUS = [
+  {
+    id: 'marc_mossos',
+    nom: 'Marc V. (Mossos 46/26)',
+    cos: 'Mossos',
+    avatar: '👮‍♂️',
+    estat: 'online',
+    estatText: 'Repassant Codi Penal (Homicidi i Lesions) 📖',
+    oposicio: 'Mossos d\'Esquadra 46/26',
+    ultimTest: 'Test Àmbit B: 9.2/10'
+  },
+  {
+    id: 'nuria_gub',
+    nom: 'Núria R. (Guàrdia Urbana)',
+    cos: 'Policia Local',
+    avatar: '👩‍✈️',
+    estat: 'online',
+    estatText: '♫ Fent test d\'ordenances municipals i trànsit ♫',
+    oposicio: 'Guàrdia Urbana de Barcelona',
+    ultimTest: 'Test Trànsit: 8.5/10'
+  },
+  {
+    id: 'jordi_pl',
+    nom: 'Jordi M. (PL Reus / Constantí)',
+    cos: 'Policia Local',
+    avatar: '👨‍✈️',
+    estat: 'online',
+    estatText: 'Algú sap si la Llei 16/1991 entra sencera a Constantí? (8)',
+    oposicio: 'Policia Local Constantí',
+    ultimTest: 'Tema 14 PL: 8.0/10'
+  },
+  {
+    id: 'laura_mosses',
+    nom: 'Laura B. (Àmbit C)',
+    cos: 'Mossos',
+    avatar: '👩‍💼',
+    estat: 'ocupat',
+    estatText: 'Fent Simulacre Oficial 30 minuts... No molestar ⏱️',
+    oposicio: 'Mossos d\'Esquadra',
+    ultimTest: 'Simulacre: 7.8/10'
+  },
+  {
+    id: 'pol_opositor',
+    nom: 'Pol C. (Actualitat 2026)',
+    cos: 'Mossos',
+    avatar: '🧑‍💻',
+    estat: 'online',
+    estatText: 'Les fites d\'actualitat 2026 cauen segur a l\'examen! (Y)',
+    oposicio: 'Mossos i Policia Local',
+    ultimTest: 'Actualitat: 9.5/10'
+  },
+  {
+    id: 'sergi_girona',
+    nom: 'Sergi T. (Policia Municipal)',
+    cos: 'Policia Local',
+    avatar: '👮',
+    estat: 'ocupat',
+    estatText: 'Estudiant tema 15 procediment administratiu ⚖️',
+    oposicio: 'Policia Municipal Girona',
+    ultimTest: 'Tema 15: 7.0/10'
+  }
+];
+
+const INITIAL_XAT_GLOBAL = [
+  {
+    id: 'g-1',
+    usuariId: 'marc_mossos',
+    nom: 'Marc V. (Mossos 46/26)',
+    avatar: '👮‍♂️',
+    cos: 'Mossos',
+    text: 'Hola companys! Com porteu el repàs del Codi Penal per a la convocatòria 46/26?',
+    hora: '10:15'
+  },
+  {
+    id: 'g-2',
+    usuariId: 'nuria_gub',
+    nom: 'Núria R. (Guàrdia Urbana)',
+    avatar: '👩‍✈️',
+    cos: 'Policia Local',
+    text: 'Molt ficada amb ordenances de trànsit! Recomano fer els tests dels temes 23 i 24 de PL!',
+    hora: '10:18'
+  },
+  {
+    id: 'g-3',
+    usuariId: 'pol_opositor',
+    nom: 'Pol C. (Actualitat 2026)',
+    avatar: '🧑‍💻',
+    cos: 'Mossos',
+    text: 'Heu vist les preguntes d\'Actualitat que acaben d\'actualitzar? Molt útils per consolidar política i esports.',
+    hora: '10:22'
+  }
+];
+
+function getComunitatData() {
+  try {
+    if (fs.existsSync(COMUNITAT_FILE)) {
+      const d = JSON.parse(fs.readFileSync(COMUNITAT_FILE, 'utf8'));
+      return {
+        usuaris: d.usuaris || INITIAL_USUARIS_ACTIUS,
+        xatGlobal: d.xatGlobal || INITIAL_XAT_GLOBAL,
+        privats: d.privats || {}
+      };
+    }
+  } catch (e) {
+    console.error('Error reading comunitat data:', e);
+  }
+  return {
+    usuaris: INITIAL_USUARIS_ACTIUS,
+    xatGlobal: INITIAL_XAT_GLOBAL,
+    privats: {}
+  };
+}
+
+function saveComunitatData(data) {
+  try {
+    fs.writeFileSync(COMUNITAT_FILE, JSON.stringify(data, null, 2), 'utf8');
+  } catch (e) {
+    console.error('Error saving comunitat data:', e);
+  }
+}
+
+app.get('/api/comunitat/estat', (req, res) => {
+  const data = getComunitatData();
+  res.json({
+    success: true,
+    usuaris: data.usuaris,
+    xatGlobal: data.xatGlobal,
+    privats: data.privats
+  });
+});
+
+app.post('/api/comunitat/xat-global', (req, res) => {
+  const { nom, avatar, cos, text } = req.body || {};
+  if (!text || !text.trim()) {
+    return res.status(400).json({ success: false, error: 'Text buit' });
+  }
+
+  const data = getComunitatData();
+  const d = new Date();
+  const hora = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  
+  const nouMsg = {
+    id: 'g-' + Date.now(),
+    usuariId: 'me',
+    nom: nom || 'Tu (Opositor/a)',
+    avatar: avatar || '👤',
+    cos: cos || 'Opositor/a',
+    text: text.trim(),
+    hora
+  };
+
+  data.xatGlobal.push(nouMsg);
+  if (data.xatGlobal.length > 80) data.xatGlobal = data.xatGlobal.slice(-80);
+  saveComunitatData(data);
+
+  return res.json({ success: true, missatge: nouMsg, xatGlobal: data.xatGlobal });
+});
+
+app.post('/api/comunitat/privats', (req, res) => {
+  const { destId, text, esZumbit, deNom, deAvatar } = req.body || {};
+  if (!destId) {
+    return res.status(400).json({ success: false, error: 'destId requerit' });
+  }
+
+  const data = getComunitatData();
+  if (!data.privats[destId]) data.privats[destId] = [];
+
+  const d = new Date();
+  const hora = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+
+  const nouMsg = {
+    id: 'p-' + Date.now(),
+    de: 'me',
+    nom: deNom || 'Tu',
+    avatar: deAvatar || '👤',
+    text: esZumbit ? '📳 Has enviat un ZUMBIT!' : (text || '').trim(),
+    esZumbit: !!esZumbit,
+    hora
+  };
+
+  data.privats[destId].push(nouMsg);
+  saveComunitatData(data);
+
+  return res.json({ success: true, missatges: data.privats[destId] });
+});
+
 // Serve static assets from project root
 app.use(express.static(__dirname));
 

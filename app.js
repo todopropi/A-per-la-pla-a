@@ -79,7 +79,9 @@ function tornarAInici(e) {
   if (e) e.preventDefault();
   activeTestContainerId = 'test-container';
   document.querySelectorAll('.view-content').forEach(view => {
-    view.style.display = view.id === 'view-inici' ? 'block' : 'none';
+    const isTarget = view.id === 'view-inici';
+    view.style.display = isTarget ? 'block' : 'none';
+    view.classList.toggle('view-activa', isTarget);
   });
   document.querySelectorAll('[data-tab]').forEach(btn => btn.classList.remove('active'));
   document.querySelectorAll('[data-tab="inici"]').forEach(btn => btn.classList.add('active'));
@@ -93,9 +95,15 @@ window.tornarAInici = tornarAInici;
 
 function obtenirContenidorTest() {
   const preferit = document.getElementById(activeTestContainerId);
-  if (preferit && preferit.offsetParent !== null) return preferit;
-  const visibles = Array.from(document.querySelectorAll('[id="test-container"], [id="repas-errors-container"]'));
-  return visibles.find(el => el.offsetParent !== null) || preferit || visibles[0] || null;
+  if (preferit && (preferit.offsetParent !== null || preferit.style.display !== 'none')) return preferit;
+  const candidats = ['test-container-mossos', 'test-container-pl', 'test-container-actualitat', 'test-container', 'repas-errors-container'];
+  for (const id of candidats) {
+    const el = document.getElementById(id);
+    if (el && (el.offsetParent !== null || el.closest('.view-activa') || window.getComputedStyle(el).display !== 'none')) {
+      return el;
+    }
+  }
+  return preferit || document.getElementById('test-container') || null;
 }
 
 function actualitzarFlashcardsDesErrors() {
@@ -203,19 +211,19 @@ function mostrarPregunta(preguntaObj) {
     if (!contenedor) return;
 
     contenedor.innerHTML = `
-        <div class="pregunta-box" style="background: white; padding: 25px; border-radius: 16px; border: 1px solid #e2e8f0; margin-top: 15px;">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
-                <h3 style="margin: 0; color: #0f172a; font-size: 16px;">${preguntaObj.pregunta}</h3>
+        <div class="pregunta-box" style="background: var(--bg-card, #ffffff); padding: 26px 24px; border-radius: 18px; border: 1.5px solid var(--border-card, #e2e8f0); box-shadow: var(--shadow-card); max-width: 820px; margin: 0 auto;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:12px;">
+                <h3 style="margin: 0; color: var(--text-main, #0f172a); font-size: 17px; line-height: 1.5; font-weight: 800;">${preguntaObj.pregunta}</h3>
                 <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-                    <button type="button" class="btn-ia-dubte-head" title="Preguntar a la IA sobre aquesta pregunta" style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:6px;padding:3px 8px;font-size:11.5px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:4px;">
+                    <button type="button" class="btn-ia-dubte-head" title="Preguntar a la IA sobre aquesta pregunta" style="background:var(--bg-card-subtle,#eff6ff);color:#1d4ed8;border:1px solid #bfdbfe;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:4px;">
                         <span>🤖</span><span>Dubte IA</span>
                     </button>
                     ${etiquetaIdPreguntaHtml(preguntaObj)}
                 </div>
             </div>
-            <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 15px;" id="llista-opcions"></div>
+            <div style="display: flex; flex-direction: column; gap: 11px; margin-top: 15px;" id="llista-opcions"></div>
         </div>
-        <div id="feedback" style="margin-top: 15px;"></div>
+        <div id="feedback" style="margin-top: 15px; max-width: 820px; margin-left: auto; margin-right: auto;"></div>
     `;
 
     const btnDubteHead = contenedor.querySelector('.btn-ia-dubte-head');
@@ -921,13 +929,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const observer = new MutationObserver(netejarXat);
   observer.observe(document.body, { childList: true, subtree: true });
 
-  // Calcular dies restants per a l'examen oficial (17 d'octubre de 2026)
-  const targetDate = new Date('2026-10-17T00:00:00');
-  const today = new Date();
-  const diffTime = targetDate - today;
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  const elDies = document.getElementById('dies-examen');
-  if (elDies) elDies.textContent = diffDays > 0 ? diffDays : 0;
+  // Inicialitzar compte enrere dinàmic de dates d'examen
+  if (typeof renderExamensCountdown === 'function') {
+    renderExamensCountdown();
+  }
 
   // --- NAVEGACIÓ GENERAL PER PESTANYES (data-tab) ---
   const navButtons = document.querySelectorAll('[data-tab]');
@@ -1067,34 +1072,34 @@ document.addEventListener('DOMContentLoaded', () => {
     const actual = dades.find(c => c.id === id) || { id:'', nom:'', url:'', color:'#007aff' };
     const modal = document.createElement('div');
     modal.id = 'modal-convocatoria';
-    modal.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.52);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.62);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;';
     modal.innerHTML = `
-      <div style="background:white;width:min(520px,100%);max-height:90vh;overflow:auto;border-radius:16px;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.25);">
+      <div style="background:var(--bg-card,#ffffff);color:var(--text-main,#0f172a);border:1.5px solid var(--border-card,#e2e8f0);width:min(520px,100%);max-height:90vh;overflow:auto;border-radius:16px;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.35);">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;">
-          <h3 style="margin:0;color:#0f172a;">${id ? '✏️ Editar convocatòria' : '➕ Convocatòries'}</h3>
-          <button type="button" id="conv-close" aria-label="Tancar" style="width:34px;height:34px;border:none;background:#f1f5f9;color:#475569;border-radius:50%;font-size:18px;cursor:pointer;">×</button>
+          <h3 style="margin:0;color:var(--text-main,#0f172a);">${id ? '✏️ Editar convocatòria' : '➕ Convocatòries Actives'}</h3>
+          <button type="button" id="conv-close" aria-label="Tancar" style="width:34px;height:34px;border:none;background:var(--bg-card-subtle,#f1f5f9);color:var(--text-main,#475569);border-radius:50%;font-size:18px;cursor:pointer;">×</button>
         </div>
         ${!id ? `
           <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:18px;">
             ${dades.length ? dades.map(c => `
-              <div style="display:flex;align-items:center;gap:8px;padding:9px 10px;border:1px solid #e2e8f0;border-radius:9px;background:#f8fafc;">
+              <div style="display:flex;align-items:center;gap:8px;padding:9px 10px;border:1px solid var(--border-card,#e2e8f0);border-radius:9px;background:var(--bg-card-subtle,#f8fafc);">
                 <span style="width:13px;height:13px;border-radius:50%;background:${escapeHtml(c.color || '#007aff')};flex:none;"></span>
-                <span style="flex:1;min-width:0;font-size:13px;font-weight:700;color:#334155;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(c.nom)}</span>
-                <button type="button" data-edit-conv="${escapeHtml(c.id)}" title="Editar" style="border:1px solid #cbd5e1;background:white;color:#475569;border-radius:6px;padding:5px 7px;cursor:pointer;">✏️</button>
+                <span style="flex:1;min-width:0;font-size:13px;font-weight:700;color:var(--text-main,#334155);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(c.nom)}</span>
+                <button type="button" data-edit-conv="${escapeHtml(c.id)}" title="Editar" style="border:1px solid var(--border-card,#cbd5e1);background:var(--bg-card,#fff);color:var(--text-main,#475569);border-radius:6px;padding:5px 7px;cursor:pointer;">✏️</button>
                 <button type="button" data-del-conv="${escapeHtml(c.id)}" title="Eliminar" style="border:1px solid #fecaca;background:#fff1f2;color:#b91c1c;border-radius:6px;padding:5px 7px;cursor:pointer;">🗑️</button>
               </div>
-            `).join('') : '<span style="font-size:13px;color:#64748b;">No hi ha convocatòries guardades.</span>'}
+            `).join('') : '<span style="font-size:13px;color:var(--text-muted,#64748b);">No hi ha convocatòries guardades.</span>'}
           </div>` : ''}
-        <form id="form-convocatoria" style="border-top:${id ? '0' : '1px solid #e2e8f0'};padding-top:${id ? '0' : '16px'};">
-          <h4 style="margin:0 0 10px;color:#334155;">${id ? 'Modificar convocatòria' : 'Afegir nova convocatòria'}</h4>
-          <label style="display:block;font-size:13px;font-weight:700;margin:10px 0 5px;">Nom</label>
-          <input id="conv-nom" required value="${escapeHtml(actual.nom)}" placeholder="Ex.: Mossos 47/26" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;">
-          <label style="display:block;font-size:13px;font-weight:700;margin:10px 0 5px;">URL</label>
-          <input id="conv-url" type="url" required value="${escapeHtml(actual.url)}" placeholder="https://..." style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;">
-          <label style="display:block;font-size:13px;font-weight:700;margin:10px 0 5px;">Color</label>
-          <div style="display:flex;align-items:center;gap:10px;"><input id="conv-color" type="color" value="${escapeHtml(actual.color || '#007aff')}" style="width:55px;height:38px;padding:2px;border:1px solid #cbd5e1;border-radius:7px;"><span style="font-size:12px;color:#64748b;">Color del botó</span></div>
+        <form id="form-convocatoria" style="border-top:${id ? '0' : '1px solid var(--border-card,#e2e8f0)'};padding-top:${id ? '0' : '16px'};">
+          <h4 style="margin:0 0 10px;color:var(--text-main,#334155);">${id ? 'Modificar convocatòria' : 'Afegir nova convocatòria'}</h4>
+          <label style="display:block;font-size:13px;font-weight:700;margin:10px 0 5px;color:var(--text-main,#0f172a);">Nom de la convocatòria</label>
+          <input id="conv-nom" required value="${escapeHtml(actual.nom)}" placeholder="Ex.: Mossos 47/26" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid var(--border-card,#cbd5e1);border-radius:8px;background:var(--bg-card,#fff);color:var(--text-main,#0f172a);">
+          <label style="display:block;font-size:13px;font-weight:700;margin:10px 0 5px;color:var(--text-main,#0f172a);">Enllaç oficial (URL)</label>
+          <input id="conv-url" type="url" required value="${escapeHtml(actual.url)}" placeholder="https://..." style="width:100%;box-sizing:border-box;padding:10px;border:1px solid var(--border-card,#cbd5e1);border-radius:8px;background:var(--bg-card,#fff);color:var(--text-main,#0f172a);">
+          <label style="display:block;font-size:13px;font-weight:700;margin:10px 0 5px;color:var(--text-main,#0f172a);">Color identificatiu</label>
+          <div style="display:flex;align-items:center;gap:10px;"><input id="conv-color" type="color" value="${escapeHtml(actual.color || '#007aff')}" style="width:55px;height:38px;padding:2px;border:1px solid var(--border-card,#cbd5e1);border-radius:7px;background:var(--bg-card,#fff);"><span style="font-size:12px;color:var(--text-muted,#64748b);">Color del botó</span></div>
           <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px;">
-            <button type="button" id="conv-cancel" style="padding:10px 15px;border:1px solid #cbd5e1;background:white;border-radius:8px;font-weight:700;cursor:pointer;">${id ? 'Tornar' : 'Cancel·lar'}</button>
+            <button type="button" id="conv-cancel" style="padding:10px 15px;border:1px solid var(--border-card,#cbd5e1);background:var(--bg-card,#fff);color:var(--text-main,#334155);border-radius:8px;font-weight:700;cursor:pointer;">${id ? 'Tornar' : 'Cancel·lar'}</button>
             <button type="submit" style="padding:10px 15px;border:none;background:#007aff;color:white;border-radius:8px;font-weight:700;cursor:pointer;">💾 Guardar</button>
           </div>
         </form>
@@ -1163,15 +1168,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     contenedor.innerHTML = `
       <div style="max-width:1100px;margin:0 auto;display:flex;flex-direction:column;gap:20px;">
-        <div style="background:#eef6ff;border:1px solid #b8daff;padding:15px 20px;border-radius:12px;display:flex;flex-direction:column;gap:12px;">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <span style="font-size:20px;">📜</span>
-            <h4 style="margin:0;font-size:16px;color:#004085;">Convocatòries Actives</h4>
+        <div class="convocatories-box">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:20px;">📜</span>
+              <h4 class="convocatories-box-title">Convocatòries Actives</h4>
+            </div>
+            <button id="btn-afegir-convocatoria" type="button" class="convocatories-box-btn-add">➕ Afegir convocatòria</button>
           </div>
           <div id="llista-convocatories" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;"></div>
-          <div>
-            <button id="btn-afegir-convocatoria" type="button" style="border:1px dashed #94a3b8;background:white;color:#334155;padding:6px 10px;font-weight:700;border-radius:7px;font-size:12px;cursor:pointer;white-space:nowrap;">➕ Afegir</button>
-          </div>
         </div>
 
         <!-- 1. Dials Radials i Mètriques (Inspirat en Sample 1 Radial & Sample 2 Modern de 1234.jpeg) -->
@@ -1304,8 +1309,8 @@ document.addEventListener('DOMContentLoaded', () => {
         <div>
           <div style="display:flex;align-items:end;justify-content:space-between;gap:10px;margin-bottom:10px;">
             <div>
-              <h2 style="margin:0;color:#0f172a;font-size:20px;">📈 Progrés i errors per secció</h2>
-              <p style="margin:4px 0 0;color:#64748b;font-size:13px;">Progrés = preguntes úniques contestades del banc. Els errors baixen quan els corregeixes.</p>
+              <h2 style="margin:0;color:var(--text-main,#0f172a);font-size:20px;">📈 Progrés i errors per secció</h2>
+              <p style="margin:4px 0 0;color:var(--text-muted,#64748b);font-size:13px;">Progrés = preguntes úniques contestades del banc. Els errors baixen quan els corregeixes.</p>
             </div>
             <button onclick="esborrarTotsElsErrors()" style="border:1px solid #fecaca;background:#fff1f2;color:#b91c1c;padding:8px 12px;border-radius:8px;font-weight:800;cursor:pointer;">🗑 Esborrar errors</button>
           </div>
@@ -1316,16 +1321,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div style="display:flex;align-items:center;gap:10px;">
                   <span style="font-size:22px;">${ico}</span>
                   <div style="flex:1;">
-                    <div style="font-weight:800;color:#0f172a;">${title}</div>
-                    <div style="font-size:12px;color:#94a3b8;">${sub}</div>
+                    <div style="font-weight:800;color:var(--text-main,#0f172a);">${title}</div>
+                    <div style="font-size:12px;color:var(--text-muted,#94a3b8);">${sub}</div>
                   </div>
                   <b class="dash-prog-pct" style="color:#007aff;">0%</b>
                 </div>
-                <div style="height:10px;background:#e2e8f0;border-radius:999px;overflow:hidden;margin:12px 0 6px;">
+                <div style="height:10px;background:var(--border-card,#e2e8f0);border-radius:999px;overflow:hidden;margin:12px 0 6px;">
                   <span class="dash-prog-fill" style="display:block;width:0%;height:100%;background:linear-gradient(90deg,#007aff,#5aa9ff);transition:width .25s;"></span>
                 </div>
                 <div style="display:flex;justify-content:space-between;gap:10px;font-size:12px;">
-                  <span class="dash-prog-detail" style="color:#64748b;">0 / 0 preguntes fetes</span>
+                  <span class="dash-prog-detail" style="color:var(--text-muted,#64748b);">0 / 0 preguntes fetes</span>
                   <span class="dash-error" style="font-weight:800;color:#dc2626;">0% errors · 0 fallades</span>
                 </div>
               </div>
@@ -1334,29 +1339,29 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
 
         <div class="dash-fallades-flash">
-          <div class="fallades-block" style="background:white;border:1px solid #e9ecef;padding:20px;border-radius:12px;">
+          <div class="fallades-block" style="background:var(--bg-card,#ffffff);border:1px solid var(--border-card,#e9ecef);padding:20px;border-radius:12px;box-shadow:0 4px 15px rgba(0,0,0,0.04);">
             <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;">
               <div>
-                <h3 style="margin:0;font-size:18px;">✍️ Preguntes més fallades</h3>
-                <p style="margin:4px 0 0;color:#64748b;font-size:12px;">La classificació suma cada vegada que tornes a fallar una pregunta.</p>
+                <h3 style="margin:0;font-size:18px;color:var(--text-main,#0f172a);">✍️ Preguntes més fallades</h3>
+                <p style="margin:4px 0 0;color:var(--text-muted,#64748b);font-size:12px;">La classificació suma cada vegada que tornes a fallar una pregunta.</p>
               </div>
               <button onclick="actualitzarFlashcardsDesErrors();actualitzarFlashcard()" style="background:#eef6ff;color:#0057a8;border:1px solid #bfdbfe;padding:7px 10px;border-radius:8px;font-weight:800;cursor:pointer;">⚡ Flashcards</button>
             </div>
             <div id="ranking-errors"></div>
           </div>
 
-          <div class="flashcard-block" style="background:white;border:1px solid #e9ecef;padding:20px;border-radius:12px;">
+          <div class="flashcard-block" style="background:var(--bg-card,#ffffff);border:1px solid var(--border-card,#e9ecef);padding:20px;border-radius:12px;box-shadow:0 4px 15px rgba(0,0,0,0.04);">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-              <h3 style="margin:0;font-size:18px;">⚡ Flashcards</h3>
-              <span id="flashcard-meta" style="font-size:11px;color:#94a3b8;"></span>
+              <h3 style="margin:0;font-size:18px;color:var(--text-main,#0f172a);">⚡ Flashcards</h3>
+              <span id="flashcard-meta" style="font-size:11px;color:var(--text-muted,#94a3b8);"></span>
             </div>
-            <div id="flashcard-container" onclick="girarFlashcard()" style="background:#fdfdfd;border:2px dashed #007aff;border-radius:10px;padding:25px;text-align:center;cursor:pointer;min-height:170px;display:flex;flex-direction:column;justify-content:center;align-items:center;">
+            <div id="flashcard-container" onclick="girarFlashcard()" style="background:var(--bg-card-subtle,#f8fafc);border:2px dashed #007aff;border-radius:10px;padding:25px;text-align:center;cursor:pointer;min-height:170px;display:flex;flex-direction:column;justify-content:center;align-items:center;">
               <span id="flashcard-badge" style="font-size:11px;text-transform:uppercase;color:#007aff;font-weight:700;margin-bottom:8px;">Clica per girar</span>
-              <p id="flashcard-text" style="font-size:16px;font-weight:600;color:#333;margin:0;"></p>
+              <p id="flashcard-text" style="font-size:16px;font-weight:600;color:var(--text-main,#0f172a);margin:0;"></p>
             </div>
             <div style="display:flex;justify-content:space-between;margin-top:15px;">
-              <button onclick="canviarFlashcard(-1)" style="background:#e9ecef;border:none;padding:8px 15px;border-radius:6px;cursor:pointer;font-weight:600;">Anterior</button>
-              <span id="flashcard-counter" style="font-size:14px;color:#6c757d;align-self:center;">1 / 1</span>
+              <button onclick="canviarFlashcard(-1)" style="background:var(--bg-card-subtle,#e9ecef);border:1px solid var(--border-card,#cbd5e1);color:var(--text-main,#334155);padding:8px 15px;border-radius:6px;cursor:pointer;font-weight:600;">Anterior</button>
+              <span id="flashcard-counter" style="font-size:14px;color:var(--text-muted,#6c757d);align-self:center;">1 / 1</span>
               <button onclick="canviarFlashcard(1)" style="background:#007aff;color:white;border:none;padding:8px 15px;border-radius:6px;cursor:pointer;font-weight:600;">Següent</button>
             </div>
           </div>
@@ -1425,7 +1430,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const estC = obtenirEstadistiquesBanc(preguntesC);
 
     contenedor.innerHTML = `
-      <div class="academy-curriculum-container" style="max-width: 980px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px;">
+      <div style="max-width: 980px; margin: 0 auto; width: 100%;">
+        <!-- ZONA DE TEST ACTIU MOSSOS (A DALT DE TOT) -->
+        <div id="mossos-zona-test" style="display: none; margin-bottom: 24px;">
+          <div style="background: var(--bg-card, #ffffff); border: 1.5px solid var(--border-card, #e2e8f0); border-radius: 16px; padding: 14px 20px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.04);">
+            <button type="button" id="btn-mossos-sortir-test" style="display: inline-flex; align-items: center; gap: 6px; background: var(--bg-card-subtle, #f1f5f9); color: var(--text-main, #1e293b); border: 1px solid var(--border-card, #cbd5e1); padding: 8px 14px; border-radius: 8px; font-weight: 700; font-size: 13px; cursor: pointer;">
+              ← Tornar al temari de Mossos
+            </button>
+            <div id="mossos-test-titol-superior" style="font-weight: 800; font-size: 14.5px; color: var(--text-main, #0f172a);">
+              🔵 Test de Mossos d'Esquadra en curs
+            </div>
+          </div>
+          <div id="test-container-mossos"></div>
+        </div>
+
+        <div id="mossos-contingut-principal" class="academy-curriculum-container" style="display: flex; flex-direction: column; gap: 22px;">
         
         <!-- Capçalera Oficial Mossos -->
         <div class="curriculum-hero-card" style="background: var(--bg-card, #ffffff); border: 1.5px solid var(--border-card, #e2e8f0); border-radius: 18px; padding: 22px 26px; box-shadow: var(--shadow-card); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
@@ -1698,8 +1717,9 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
         </div>
 
+        </div>
       </div>
-      <div id="test-container"></div>
+      <div id="test-container" style="display:none;"></div>
     `;
 
     // Intercanvi de pestanyes internes
@@ -1934,7 +1954,21 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     contenedor.innerHTML = `
-      <div class="teoria-host" style="display:flex;flex-direction:column;gap:18px;">
+      <div style="max-width: 1100px; margin: 0 auto; width: 100%;">
+        <!-- ZONA DE TEST ACTIU PL (A DALT DE TOT) -->
+        <div id="pl-zona-test" style="display: none; margin-bottom: 24px;">
+          <div style="background: var(--bg-card, #ffffff); border: 1.5px solid var(--border-card, #e2e8f0); border-radius: 16px; padding: 14px 20px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.04);">
+            <button type="button" id="btn-pl-sortir-test" style="display: inline-flex; align-items: center; gap: 6px; background: var(--bg-card-subtle, #f1f5f9); color: var(--text-main, #1e293b); border: 1px solid var(--border-card, #cbd5e1); padding: 8px 14px; border-radius: 8px; font-weight: 700; font-size: 13px; cursor: pointer;">
+              ← Tornar al temari de Policia Local
+            </button>
+            <div id="pl-test-titol-superior" style="font-weight: 800; font-size: 14.5px; color: var(--text-main, #0f172a);">
+              🚔 Test de Policia Local en curs
+            </div>
+          </div>
+          <div id="test-container-pl"></div>
+        </div>
+
+        <div id="pl-contingut-principal" class="teoria-host" style="display:flex;flex-direction:column;gap:18px;">
         <!-- Banner d'accions ràpides Policia Local -->
         <div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg-card,#fff);border:1px solid var(--border-card,#e2e8f0);padding:16px 20px;border-radius:14px;box-shadow:var(--shadow-card);flex-wrap:wrap;gap:12px;">
           <div>
@@ -2122,8 +2156,9 @@ document.addEventListener('DOMContentLoaded', () => {
             </span>
           </button>
         </div>
+        </div>
       </div>
-      <div id="test-container"></div>
+      <div id="test-container" style="display:none;"></div>
     `;
 
     // Pestanyes de canvi ràpid de municipi
@@ -2307,100 +2342,256 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // --- VISTA ACTUALITAT ---
+  // --- VISTA ACTUALITAT MODERNA I UNIFORME (ESTIL MOSSOS / POLICIA LOCAL) ---
   function mostrarTemarioActualitat() {
     const contenedor = document.getElementById('view-actualitat');
     if (!contenedor) return;
 
+    const dataset = (typeof window.obtenirBancActiu === 'function') 
+      ? window.obtenirBancActiu('act') 
+      : (Array.isArray(window.bancoActualitat) ? window.bancoActualitat : (Array.isArray(bancoActualitat) ? bancoActualitat : []));
+    const estTotal = obtenirEstadistiquesBanc(dataset);
+
+    // Definició dels blocs temàtics d'Actualitat
+    const blocsDef = [
+      {
+        id: 'politica',
+        nom: '🏛️ Política, Govern i Institucions',
+        desc: 'Estatut d\'Autonomia, Generalitat, Govern d\'Espanya, Unió Europea i tractats internacionals.',
+        keywords: ['polític', 'politica', 'govern', 'parlament', 'generalitat', 'estat', 'constitucio', 'senat', 'congres', 'ue', 'unió europea', 'institucio']
+      },
+      {
+        id: 'seguretat',
+        nom: '⚖️ Seguretat Pública, Policia i Societat',
+        desc: 'Cossos de seguretat, protecció civil, emergències 112, trànsit i normativa ciutadana.',
+        keywords: ['seguretat', 'policia', 'mosso', 'guardia', 'emergenc', 'transit', 'societat', 'delict', 'normativ', 'llei']
+      },
+      {
+        id: 'esports',
+        nom: '⚽ Esports i Fites Esportives',
+        desc: 'Grans campionats, atletes catalans i internacionals, Jocs Olímpics i fites esportives recents.',
+        keywords: ['esport', 'futbol', 'olimp', 'campion', 'atlet', 'piloto', 'motor', 'basquet', 'lliga', 'indycar', 'palou', 'pilota']
+      },
+      {
+        id: 'premis',
+        nom: '🏆 Premis, Cultura i Ciència',
+        desc: 'Premis Nobel, Premis d\'Honor de les Lletres Catalanes, fites científiques i patrimoni.',
+        keywords: ['premi', 'nobel', 'cultur', 'lletres', 'cienc', 'tecnolog', 'art', 'patrimoni', 'escriptor', 'sagrada família', 'gaudí']
+      },
+      {
+        id: 'repetides',
+        nom: '🔥 Preguntes Clau i Més Repetides',
+        desc: 'Preguntes recurrents, conceptes clau i dades indispensables d\'exàmens oficials.',
+        keywords: ['repetid', 'clau', 'frequent', 'examen', 'oficial', 'noticia', 'recent']
+      }
+    ];
+
+    // Assignar preguntes a cada bloc sense duplicitats artificials
+    const blocs = blocsDef.map(b => {
+      const preguntesBloc = dataset.filter(q => {
+        if (!q) return false;
+        const cat = (q.categoria || '').toLowerCase();
+        if (b.id === 'esports' && (cat === 'esports' || cat.includes('esport'))) return true;
+        if (b.id === 'politica' && (cat === 'política' || cat === 'politica' || cat.includes('polític'))) return true;
+        if (b.id === 'seguretat' && (cat === 'seguretat' || cat.includes('seguretat'))) return true;
+        if (b.id === 'premis' && (cat === 'premis' || cat.includes('premi') || cat.includes('cultur'))) return true;
+        if (b.id === 'repetides' && (cat === 'repetides' || cat.includes('repetid') || cat.includes('clau'))) return true;
+        const sec = (q.seccio || '').toLowerCase();
+        const tem = (q.tema || '').toLowerCase();
+        const txt = (q.pregunta || '').toLowerCase();
+        return b.keywords.some(kw => cat.includes(kw) || sec.includes(kw) || tem.includes(kw) || txt.includes(kw));
+      });
+      const estBloc = obtenirEstadistiquesBanc(preguntesBloc);
+      return { ...b, preguntes: preguntesBloc, stats: estBloc };
+    });
+
     contenedor.innerHTML = `
-      <div class="teoria-host" style="display: flex; flex-direction: column; gap: 20px;">
-        <div style="background: linear-gradient(135deg, #0f172a, #1e293b); color: white; padding: 24px; border-radius: 16px;">
-          <h3 style="margin: 0 0 10px 0; font-size: 18px;">📰 Butlletí d'Actualitat i Seguretat</h3>
-          <p style="margin: 0; font-size: 14px; color: #94a3b8;">Actualitzacions clau per a les proves d'oposicions.</p>
+      <div style="max-width:1100px;margin:0 auto;display:flex;flex-direction:column;gap:20px;">
+        
+        <!-- ZONA DE TEST ACTIU (A DALT DE TOT DE LA VISTA QUAN ES FA UN TEST) -->
+        <div id="act-zona-test-container" style="display:none;">
+          <div style="background:var(--bg-card,#ffffff);border:1.5px solid var(--border-card,#e2e8f0);border-radius:16px;padding:14px 20px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;box-shadow:0 4px 15px rgba(0,0,0,0.04);">
+            <button type="button" id="btn-act-sortir-test" style="display:inline-flex;align-items:center;gap:6px;background:var(--bg-card-subtle,#f1f5f9);color:var(--text-main,#1e293b);border:1px solid var(--border-card,#cbd5e1);padding:8px 14px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;transition:all .15s;">
+              ← Tornar als temes d'Actualitat
+            </button>
+            <div id="act-test-titol-superior" style="font-weight:800;font-size:14.5px;color:var(--text-main,#0f172a);">
+              📰 Test d'Actualitat en curs
+            </div>
+          </div>
+          <div id="test-container-actualitat"></div>
         </div>
-        <div class="hub">
-          <div class="startbar">
-            <div class="sb-lab">
-              <span class="sb-k">Si prems Barrejat faràs</span>
-              <span class="sb-lab-row"><span class="sb-t"><span class="mission-copy-wide">🧠 Test d'actualitat barrejat</span></span></span>
+
+        <!-- CONTINGUT PRINCIPAL D'ACTUALITAT -->
+        <div id="act-contingut-principal" style="display:flex;flex-direction:column;gap:20px;">
+          <!-- 1. HERO BANNER UNIFORME -->
+          <div style="background:linear-gradient(135deg, #0f172a 0%, #1e293b 100%);color:#ffffff;border-radius:18px;padding:24px 28px;box-shadow:0 10px 30px rgba(15,23,42,0.25);position:relative;overflow:hidden;">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:16px;">
+              <div style="display:flex;align-items:center;gap:16px;">
+                <div style="width:52px;height:52px;border-radius:14px;background:rgba(255,255,255,0.12);display:flex;align-items:center;justify-content:center;font-size:28px;flex:none;border:1px solid rgba(255,255,255,0.2);">
+                  📰
+                </div>
+                <div>
+                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                    <span style="background:rgba(239,68,68,0.25);color:#fca5a5;border:1px solid rgba(239,68,68,0.4);font-size:11px;font-weight:800;padding:2px 8px;border-radius:6px;letter-spacing:0.04em;">
+                      ACTUALITZAT 2026
+                    </span>
+                    <span style="font-size:12.5px;color:#94a3b8;font-weight:600;">Oposicions Policials</span>
+                  </div>
+                  <h2 style="margin:0;font-size:22px;font-weight:800;letter-spacing:-0.02em;">Actualitat i Seguretat Pública</h2>
+                  <p style="margin:6px 0 0;font-size:13.5px;color:#cbd5e1;max-width:650px;">
+                    Coneixement de l'entorn polític, social, institucional, cultural, esportiu i novetats policials clau.
+                  </p>
+                </div>
+              </div>
+
+              <!-- Botons d'acció ràpida -->
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <button type="button" onclick="window.obrirModalCrearPregunta('act')" style="background:rgba(255,255,255,0.15);color:#ffffff;border:1px solid rgba(255,255,255,0.25);padding:9px 14px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all .15s;">
+                  ➕ Nova Pregunta
+                </button>
+                <button type="button" onclick="window.obrirModalImportarLot('act')" style="background:rgba(255,255,255,0.15);color:#ffffff;border:1px solid rgba(255,255,255,0.25);padding:9px 14px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all .15s;">
+                  ⚡ Importar Lot / IA
+                </button>
+                <button type="button" onclick="window.obrirModalGestorActualitat()" style="background:#fee2e2;color:#b91c1c;border:1.5px solid #fca5a5;padding:9px 14px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all .15s;" title="Revisar o esborrar preguntes que han quedat desactualitzades">
+                  🗑️ Esborrar Desactualitzades
+                </button>
+                <button type="button" id="btn-act-barrejat-hero" style="background:#007aff;color:#ffffff;border:none;padding:9px 16px;border-radius:10px;font-size:13.5px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 4px 14px rgba(0,122,255,0.4);transition:all .15s;">
+                  🔀 Barrejat
+                </button>
+              </div>
             </div>
-            <div class="sb-go">
-              <button class="btn-start btn-start-act">🔀 Barrejat</button>
+          </div>
+
+          <!-- 2. PANELL DE PROGRÉS GLOBAL (FORMAT UNIFORME MOSSOS I PL) -->
+          <div style="background:var(--bg-card,#ffffff);border:1.5px solid var(--border-card,#e2e8f0);border-radius:16px;padding:20px 24px;box-shadow:0 4px 15px rgba(0,0,0,0.03);">
+            <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+              <div>
+                <span style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted,#64748b);">
+                  Progrés General del Banc d'Actualitat
+                </span>
+                <div style="font-size:13.5px;font-weight:700;color:var(--text-main,#1e293b);margin-top:2px;">
+                  ${estTotal.encerts} encertades · ${estTotal.errors} fallades · ${estTotal.maiFetes} que encara no has fet mai
+                </div>
+              </div>
+              <div style="text-align:right;">
+                <span style="font-size:22px;font-weight:900;color:#007aff;">${estTotal.progrés}%</span>
+                <span style="font-size:12.5px;color:var(--text-muted,#64748b);font-weight:600;margin-left:4px;">dominat (${estTotal.contestades} de ${estTotal.total})</span>
+              </div>
+            </div>
+
+            <!-- Barra tricolor de progrés (Verd encertades, Vermell fallades, Gris mai fetes) -->
+            <div style="height:10px;background:var(--bg-card-subtle,#e2e8f0);border-radius:999px;overflow:hidden;display:flex;margin-bottom:16px;">
+              <div style="height:100%;width:${estTotal.total ? (estTotal.encerts / estTotal.total) * 100 : 0}%;background:#10b981;transition:width .4s;" title="Encertades: ${estTotal.encerts}"></div>
+              <div style="height:100%;width:${estTotal.total ? (estTotal.errors / estTotal.total) * 100 : 0}%;background:#ef4444;transition:width .4s;" title="Fallades: ${estTotal.errors}"></div>
+              <div style="height:100%;width:${estTotal.total ? (estTotal.maiFetes / estTotal.total) * 100 : 0}%;background:#cbd5e1;transition:width .4s;" title="Mai fetes: ${estTotal.maiFetes}"></div>
+            </div>
+
+            <!-- 3 Badges d'estat uniformes -->
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              <div style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:8px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25);color:#047857;font-size:12px;font-weight:700;">
+                <span>✅</span> <span><b>${estTotal.encerts}</b> Encertades</span>
+              </div>
+              <div style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:8px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.25);color:#b91c1c;font-size:12px;font-weight:700;">
+                <span>❌</span> <span><b>${estTotal.errors}</b> Fallades</span>
+              </div>
+              <div style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:8px;background:var(--bg-card-subtle,#f1f5f9);border:1px solid var(--border-card,#cbd5e1);color:var(--text-main,#475569);font-size:12px;font-weight:700;">
+                <span>⏳</span> <span><b>${estTotal.maiFetes}</b> Que encara no has fet mai</span>
+              </div>
             </div>
           </div>
-          <div class="hub-ambit2 amb-active" style="margin-top:14px;">
-            <button class="amb-bar amb-bar-pl" data-act-section="repetides">
-              <span class="amb-sq" style="background:#7c3aed;"></span>
-              <span class="amb-name">Preguntes més repetides</span>
-              <span class="amb-chev">▸</span>
-            </button>
-          </div>
-          <div class="hub-ambit2 amb-active">
-            <button class="amb-bar amb-bar-pl act-subsection" data-act-category="Politica">
-              <span class="amb-sq" style="background:#1d4ed8;"></span>
-              <span class="amb-name">🏛️ Política</span>
-              <span class="amb-chev">▸</span>
-            </button>
-          </div>
-          <div class="hub-ambit2 amb-active">
-            <button class="amb-bar amb-bar-pl act-subsection" data-act-category="Esports">
-              <span class="amb-sq" style="background:#16a34a;"></span>
-              <span class="amb-name">⚽ Esports</span>
-              <span class="amb-chev">▸</span>
-            </button>
-          </div>
-          <div class="hub-ambit2 amb-active">
-            <button class="amb-bar amb-bar-pl act-subsection" data-act-category="Premis">
-              <span class="amb-sq" style="background:#f59e0b;"></span>
-              <span class="amb-name">🏆 Premis</span>
-              <span class="amb-chev">▸</span>
-            </button>
-          </div>
-          <div class="hub-ambit2 amb-active">
-            <button class="amb-bar amb-bar-pl act-subsection" data-act-category="Altres">
-              <span class="amb-sq" style="background:#64748b;"></span>
-              <span class="amb-name">📰 Altres</span>
-              <span class="amb-chev">▸</span>
-            </button>
+
+          <!-- 3. BLOCS TEMÀTICS D'ACTUALITAT -->
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+              <h3 style="margin:0;font-size:17px;font-weight:800;color:var(--text-main,#0f172a);">
+                📚 Blocs Temàtics d'Actualitat
+              </h3>
+              <span style="font-size:12.5px;color:var(--text-muted,#64748b);">5 blocs disponibles</span>
+            </div>
+
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;">
+              ${blocs.map(b => `
+                <div style="background:var(--bg-card,#ffffff);border:1.5px solid var(--border-card,#e2e8f0);border-radius:14px;padding:18px;display:flex;flex-direction:column;justify-content:space-between;gap:14px;box-shadow:0 3px 12px rgba(0,0,0,0.03);transition:transform .15s, border-color .15s;">
+                  <div>
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;">
+                      <h4 style="margin:0;font-size:15px;font-weight:800;color:var(--text-main,#0f172a);line-height:1.35;">${escapeHtml(b.nom)}</h4>
+                      <span style="background:var(--bg-card-subtle,#f1f5f9);color:var(--text-main,#475569);border:1px solid var(--border-card,#cbd5e1);font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;white-space:nowrap;">
+                        ${b.preguntes.length} preguntes
+                      </span>
+                    </div>
+                    <p style="margin:0 0 12px;font-size:12.5px;color:var(--text-muted,#64748b);line-height:1.4;">${escapeHtml(b.desc)}</p>
+                    
+                    <!-- Progrés del bloc -->
+                    <div style="display:flex;justify-content:space-between;font-size:11.5px;font-weight:700;color:var(--text-muted,#64748b);margin-bottom:6px;">
+                      <span>Dominat: <b style="color:#007aff;">${b.stats.progrés}%</b></span>
+                      <span>${b.stats.contestades}/${b.stats.total} contestades</span>
+                    </div>
+                    <div style="height:6px;background:var(--bg-card-subtle,#e2e8f0);border-radius:999px;overflow:hidden;display:flex;margin-bottom:10px;">
+                      <div style="height:100%;width:${b.stats.total ? (b.stats.encerts / b.stats.total) * 100 : 0}%;background:#10b981;"></div>
+                      <div style="height:100%;width:${b.stats.total ? (b.stats.errors / b.stats.total) * 100 : 0}%;background:#ef4444;"></div>
+                      <div style="height:100%;width:${b.stats.total ? (b.stats.maiFetes / b.stats.total) * 100 : 0}%;background:#cbd5e1;"></div>
+                    </div>
+
+                    <!-- Mini badges estat -->
+                    <div style="display:flex;gap:6px;font-size:11px;font-weight:700;flex-wrap:wrap;">
+                      <span style="color:#047857;background:rgba(16,185,129,0.1);padding:2px 6px;border-radius:4px;">✅ ${b.stats.encerts}</span>
+                      <span style="color:#b91c1c;background:rgba(239,68,68,0.1);padding:2px 6px;border-radius:4px;">❌ ${b.stats.errors}</span>
+                      <span style="color:var(--text-main,#475569);background:var(--bg-card-subtle,#f1f5f9);padding:2px 6px;border-radius:4px;">⏳ ${b.stats.maiFetes} mai fetes</span>
+                    </div>
+                  </div>
+
+                  <div style="display:flex;gap:8px;margin-top:6px;">
+                    <button type="button" class="btn-act-fer-test" data-bloc-nom="${escapeHtml(b.nom)}" data-bloc-id="${b.id}" style="flex:1;padding:9px 12px;background:#007aff;color:#ffffff;border:none;border-radius:8px;font-weight:800;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .15s;">
+                      ▶️ Fer Test
+                    </button>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
           </div>
         </div>
       </div>
-      <div id="test-container"></div>
     `;
 
-    const btnStartAct = contenedor.querySelector('.btn-start-act');
-    if (btnStartAct) {
-      btnStartAct.addEventListener('click', () => mostrarSelectorPreguntas("Tots els Àmbits (Barrejat - Actualitat)", bancoActualitat, true));
+    // Funció per activar la zona de test a dalt de tot de la pantalla
+    const prepararZonaTestActualitat = (titolTest) => {
+      const zonaTest = document.getElementById('act-zona-test-container');
+      const contingutPrincipal = document.getElementById('act-contingut-principal');
+      const titolEl = document.getElementById('act-test-titol-superior');
+      if (zonaTest) zonaTest.style.display = 'block';
+      if (contingutPrincipal) contingutPrincipal.style.display = 'none';
+      if (titolEl && titolTest) titolEl.innerHTML = `📰 ${escapeHtml(titolTest)}`;
+      activeTestContainerId = 'test-container-actualitat';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    // Botó per sortir del test i tornar als temes
+    const btnSortir = document.getElementById('btn-act-sortir-test');
+    if (btnSortir) {
+      btnSortir.addEventListener('click', () => {
+        mostrarTemarioActualitat();
+      });
     }
 
-    contenedor.querySelectorAll('[data-act-section]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const section = btn.dataset.actSection;
-        if (section === 'actuals') {
-          const list = btn.parentElement.nextElementSibling;
-          if (list) list.style.display = list.style.display === 'none' ? 'block' : 'none';
-          return;
-        }
-        if (section === 'repetides') {
-          alert('Aquest apartat queda preparat per afegir les preguntes més repetides.');
-        }
+    // Botó barrejat a la capçalera
+    const btnBarrejatHero = document.getElementById('btn-act-barrejat-hero');
+    if (btnBarrejatHero) {
+      btnBarrejatHero.addEventListener('click', () => {
+        prepararZonaTestActualitat("Actualitat (Barrejat - Tots els blocs)");
+        mostrarSelectorPreguntas("Actualitat (Barrejat - Tots els blocs)", dataset, true);
       });
-    });
+    }
 
-    contenedor.querySelectorAll('.act-subsection').forEach(btn => {
-      btn.style.cssText = 'display:block;width:100%;margin:5px 0;padding:9px 12px;text-align:left;border:1px solid #e2e8f0;background:#fff;border-radius:8px;cursor:pointer;font-weight:700;color:#334155;';
+    // Botons "Fer Test" de cada bloc
+    contenedor.querySelectorAll('.btn-act-fer-test').forEach(btn => {
       btn.addEventListener('click', () => {
-        const categoria = btn.dataset.actCategory;
-        const filtrades = bancoActualitat.filter(q => {
-          const txt = `${q.categoria || ''} ${q.seccio || ''} ${q.ambit || ''} ${q.tema || ''} ${q.subseccio || ''}`.toLowerCase();
-          return txt.includes(categoria.toLowerCase());
-        });
-        if (!filtrades.length) {
-          alert(`Encara no hi ha preguntes carregades per a «${categoria}». Aquest apartat està preparat per afegir contingut.`);
-          return;
-        }
-        // Igual que a Mossos i Policia Local: selector de seccions per triar
-        // una, vàries o totes les seccions dins d'aquesta categoria.
-        mostrarSelectorSeccions(categoria, filtrades, mostrarTemarioActualitat);
+        const blocId = btn.dataset.blocId;
+        const blocNom = btn.dataset.blocNom || "Bloc d'Actualitat";
+        const blocObj = blocs.find(b => b.id === blocId);
+        const preguntes = (blocObj && blocObj.preguntes.length > 0) ? blocObj.preguntes : dataset;
+        
+        prepararZonaTestActualitat(blocNom);
+        mostrarSelectorPreguntas(blocNom, preguntes, true);
       });
     });
 
@@ -3076,7 +3267,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let quantitatSeleccionada = Math.min(20, totalDisponibles);
 
     modalEl.innerHTML = `
-      <div style="background: #ffffff; max-width: 500px; width: 100%; border-radius: 20px; box-shadow: 0 25px 60px rgba(0,0,0,0.3); border: 1px solid #e2e8f0; overflow: hidden; position: relative; font-family: inherit;">
+      <div style="background: var(--bg-card, #ffffff); max-width: 500px; width: 100%; border-radius: 20px; box-shadow: 0 25px 60px rgba(0,0,0,0.35); border: 1.5px solid var(--border-card, #e2e8f0); overflow: hidden; position: relative; font-family: inherit;">
         <!-- Capçalera blava fosca estil Agent Medina -->
         <div style="background: linear-gradient(135deg, #002B5E 0%, #1e3a8a 100%); padding: 20px 24px; color: #ffffff; position: relative;">
           <button type="button" id="btn-tancar-modal-selector" style="position: absolute; top: 16px; right: 16px; background: rgba(255,255,255,0.18); border: none; color: #ffffff; width: 32px; height: 32px; border-radius: 50%; font-size: 15px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center;">✕</button>
@@ -3091,31 +3282,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
         <!-- Cos amb selector de preguntes accessible -->
         <div style="padding: 22px 24px;">
-          <label style="display: block; font-size: 13.5px; font-weight: 800; color: #0f172a; margin-bottom: 12px;">
+          <label style="display: block; font-size: 13.5px; font-weight: 800; color: var(--text-main, #0f172a); margin-bottom: 12px;">
             Quantes preguntes vols fer?
           </label>
 
           <!-- Pills de quantitat -->
           <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px;" id="modal-selector-pills">
             ${presets.map(n => `
-              <button type="button" class="btn-preset-q-modal" data-cant="${n}" style="flex: 1 1 65px; padding: 11px 6px; background: ${n === quantitatSeleccionada ? '#007aff' : '#f1f5f9'}; color: ${n === quantitatSeleccionada ? '#ffffff' : '#1e293b'}; border: 1.5px solid ${n === quantitatSeleccionada ? '#007aff' : '#cbd5e1'}; border-radius: 10px; font-size: 14.5px; font-weight: 800; cursor: pointer; text-align: center; transition: all 0.15s;">
+              <button type="button" class="btn-preset-q-modal" data-cant="${n}" style="flex: 1 1 65px; padding: 11px 6px; background: ${n === quantitatSeleccionada ? '#007aff' : 'var(--bg-card-subtle, #f1f5f9)'}; color: ${n === quantitatSeleccionada ? '#ffffff' : 'var(--text-main, #1e293b)'}; border: 1.5px solid ${n === quantitatSeleccionada ? '#007aff' : 'var(--border-card, #cbd5e1)'}; border-radius: 10px; font-size: 14px; font-weight: 800; cursor: pointer; text-align: center; transition: all 0.15s;">
                 ${n === totalDisponibles ? `Totes (${n})` : n}
               </button>
             `).join('')}
           </div>
 
           <!-- Selector numèric manual -->
-          <div style="display: flex; align-items: center; justify-content: space-between; background: #f8fafc; padding: 10px 14px; border-radius: 10px; border: 1px solid #e2e8f0; margin-bottom: 20px;">
-            <span style="font-size: 12.5px; font-weight: 700; color: #475569;">Quantitat exacta:</span>
+          <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-card-subtle, #f8fafc); padding: 10px 14px; border-radius: 10px; border: 1px solid var(--border-card, #e2e8f0); margin-bottom: 20px;">
+            <span style="font-size: 12.5px; font-weight: 700; color: var(--text-muted, #475569);">Quantitat exacta:</span>
             <div style="display: flex; align-items: center; gap: 8px;">
-              <button type="button" id="btn-modal-restar-q" style="width: 32px; height: 32px; border-radius: 8px; background: #ffffff; border: 1px solid #cbd5e1; font-weight: 900; cursor: pointer; font-size: 16px;">−</button>
-              <input type="number" id="input-modal-quantitat" value="${quantitatSeleccionada}" min="1" max="${totalDisponibles}" style="width: 60px; text-align: center; font-weight: 800; font-size: 15px; padding: 6px 4px; border: 1px solid #cbd5e1; border-radius: 8px; outline: none; background: #fff;">
-              <button type="button" id="btn-modal-sumar-q" style="width: 32px; height: 32px; border-radius: 8px; background: #ffffff; border: 1px solid #cbd5e1; font-weight: 900; cursor: pointer; font-size: 16px;">+</button>
+              <button type="button" id="btn-modal-restar-q" style="width: 32px; height: 32px; border-radius: 8px; background: var(--bg-card, #ffffff); color: var(--text-main, #0f172a); border: 1px solid var(--border-card, #cbd5e1); font-weight: 900; cursor: pointer; font-size: 16px;">−</button>
+              <input type="number" id="input-modal-quantitat" value="${quantitatSeleccionada}" min="1" max="${totalDisponibles}" style="width: 60px; text-align: center; font-weight: 800; font-size: 15px; padding: 6px 4px; border: 1px solid var(--border-card, #cbd5e1); border-radius: 8px; outline: none; background: var(--bg-card, #fff); color: var(--text-main, #0f172a);">
+              <button type="button" id="btn-modal-sumar-q" style="width: 32px; height: 32px; border-radius: 8px; background: var(--bg-card, #ffffff); color: var(--text-main, #0f172a); border: 1px solid var(--border-card, #cbd5e1); font-weight: 900; cursor: pointer; font-size: 16px;">+</button>
             </div>
           </div>
 
           <!-- Botó d'acció començar test -->
-          <button type="button" id="btn-modal-iniciar-test-actiu" style="width: 100%; padding: 14px; background: #007aff; color: #ffffff; border: none; border-radius: 12px; font-size: 16px; font-weight: 800; cursor: pointer; box-shadow: 0 4px 14px rgba(0,122,255,0.35); display: flex; align-items: center; justify-content: center; gap: 8px;">
+          <button type="button" id="btn-modal-iniciar-test-actiu" style="width: 100%; padding: 14px; background: linear-gradient(135deg, #002B5E, #007aff); color: #ffffff; border: none; border-radius: 12px; font-size: 16px; font-weight: 800; cursor: pointer; box-shadow: 0 4px 14px rgba(0,122,255,0.35); display: flex; align-items: center; justify-content: center; gap: 8px;">
             <span>▶️ Començar Test</span> <span id="label-modal-btn-q">(${quantitatSeleccionada} preguntes)</span>
           </button>
         </div>
@@ -3616,7 +3807,59 @@ function iniciarExamen(quantitatDeseada = 10, esRepasErrors = false, datasetPers
     barrejarArray(dataset);
     const preguntesTest = dataset.slice(0, Math.min(quantitatDeseada, dataset.length));
     window.ultimTestPreguntes = [...preguntesTest];
-    activeTestContainerId = 'test-container';
+
+    const restaurarVistaSenseTest = () => {
+      const actZona = document.getElementById('act-zona-test-container');
+      const actPrincipal = document.getElementById('act-contingut-principal');
+      if (actZona) actZona.style.display = 'none';
+      if (actPrincipal) actPrincipal.style.display = 'flex';
+
+      const mossosZona = document.getElementById('mossos-zona-test');
+      const mossosPrincipal = document.getElementById('mossos-contingut-principal');
+      if (mossosZona) mossosZona.style.display = 'none';
+      if (mossosPrincipal) mossosPrincipal.style.display = 'flex';
+
+      const plZona = document.getElementById('pl-zona-test');
+      const plPrincipal = document.getElementById('pl-contingut-principal');
+      if (plZona) plZona.style.display = 'none';
+      if (plPrincipal) plPrincipal.style.display = 'flex';
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const viewMossos = document.getElementById('view-mossos');
+    const viewPL = document.getElementById('view-pl');
+    const viewAct = document.getElementById('view-actualitat');
+
+    if (viewAct && viewAct.classList.contains('view-activa')) {
+      activeTestContainerId = 'test-container-actualitat';
+      const actZona = document.getElementById('act-zona-test-container');
+      const actPrincipal = document.getElementById('act-contingut-principal');
+      if (actZona) actZona.style.display = 'block';
+      if (actPrincipal) actPrincipal.style.display = 'none';
+      const btnSortir = document.getElementById('btn-act-sortir-test');
+      if (btnSortir) btnSortir.onclick = restaurarVistaSenseTest;
+    } else if (viewPL && viewPL.classList.contains('view-activa')) {
+      activeTestContainerId = 'test-container-pl';
+      const plZona = document.getElementById('pl-zona-test');
+      const plPrincipal = document.getElementById('pl-contingut-principal');
+      if (plZona) plZona.style.display = 'block';
+      if (plPrincipal) plPrincipal.style.display = 'none';
+      const btnSortir = document.getElementById('btn-pl-sortir-test');
+      if (btnSortir) btnSortir.onclick = restaurarVistaSenseTest;
+    } else if (viewMossos && viewMossos.classList.contains('view-activa')) {
+      activeTestContainerId = 'test-container-mossos';
+      const mossosZona = document.getElementById('mossos-zona-test');
+      const mossosPrincipal = document.getElementById('mossos-contingut-principal');
+      if (mossosZona) mossosZona.style.display = 'block';
+      if (mossosPrincipal) mossosPrincipal.style.display = 'none';
+      const btnSortir = document.getElementById('btn-mossos-sortir-test');
+      if (btnSortir) btnSortir.onclick = restaurarVistaSenseTest;
+    } else {
+      activeTestContainerId = 'test-container';
+    }
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 
     let indexActual = 0;
     let encerts = 0;
@@ -3634,17 +3877,32 @@ function iniciarExamen(quantitatDeseada = 10, esRepasErrors = false, datasetPers
           const esApte = notaFinal >= 6.0;
 
           contenedor.innerHTML = `
-            <div style="background:white;padding:30px;border-radius:16px;border:1px solid #e2e8f0;text-align:center;margin-top:20px;">
-              <h2 style="color:#0f172a;">🏆 Test Finalitzat!</h2>
-              <p style="font-size:16px;margin:15px 0;color:#334155;">Encerts: <b>${encerts}</b> | Fallades: <b>${fallades}</b></p>
-              <p style="font-size:24px;font-weight:800;color:#007aff;margin:15px 0;">Nota Final: ${notaFinal} / 10</p>
-              <div style="padding:15px;border-radius:8px;background:${esApte ? '#d1fae5' : '#fee2e2'};color:${esApte ? '#065f46' : '#991b1b'};font-weight:bold;margin-bottom:20px;">
+            <div style="background:var(--bg-card,#ffffff);padding:32px 24px;border-radius:18px;border:1.5px solid var(--border-card,#e2e8f0);text-align:center;margin:10px auto;max-width:650px;box-shadow:var(--shadow-card);">
+              <div style="font-size:42px;margin-bottom:8px;">🏆</div>
+              <h2 style="color:var(--text-main,#0f172a);margin:0 0 10px;font-size:22px;font-weight:900;">Test Finalitzat!</h2>
+              <p style="font-size:15px;margin:10px 0;color:var(--text-muted,#64748b);">Encerts: <b style="color:#10b981;">${encerts}</b> | Fallades: <b style="color:#ef4444;">${fallades}</b></p>
+              <p style="font-size:26px;font-weight:900;color:#007aff;margin:12px 0;">Nota Final: ${notaFinal} / 10</p>
+              <div style="padding:14px;border-radius:10px;background:${esApte ? '#d1fae5' : '#fee2e2'};color:${esApte ? '#065f46' : '#991b1b'};font-weight:800;margin-bottom:22px;">
                 ${esApte ? '✅ APTE (Objectiu 6 superat!)' : '❌ NO APTE (Cal seguir practicant)'}
               </div>
-              <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:10px;"><button id="btn-repas-test-finalitzat" style="background:#16a34a;color:white;border:none;padding:12px 20px;border-radius:8px;font-weight:700;cursor:pointer;">📚 Repasar totes les preguntes</button><button id="btn-tornar-inici-finalitzat" style="background:#007aff;color:white;border:none;padding:12px 20px;border-radius:8px;font-weight:700;cursor:pointer;">🏠 Tornar a Inici</button></div>
+              <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+                <button id="btn-tornar-temari-finalitzat" style="background:#002B5E;color:#fff;border:none;padding:12px 20px;border-radius:10px;font-weight:800;font-size:14px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
+                  <span>←</span> <span>Tornar al Temari</span>
+                </button>
+                <button id="btn-repas-test-finalitzat" style="background:#10b981;color:white;border:none;padding:12px 20px;border-radius:10px;font-weight:800;font-size:14px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
+                  <span>📚</span> <span>Repassar preguntes</span>
+                </button>
+                <button id="btn-tornar-inici-finalitzat" style="background:var(--bg-card-subtle,#f1f5f9);color:var(--text-main,#1e293b);border:1px solid var(--border-card,#cbd5e1);padding:12px 20px;border-radius:10px;font-weight:800;font-size:14px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
+                  <span>🏠</span> <span>Inici</span>
+                </button>
+              </div>
             </div>`;
+          document.getElementById('btn-tornar-temari-finalitzat')?.addEventListener('click', restaurarVistaSenseTest);
           document.getElementById('btn-repas-test-finalitzat')?.addEventListener('click', iniciarRepasUltimTest);
-          document.getElementById('btn-tornar-inici-finalitzat')?.addEventListener('click', tornarAInici);
+          document.getElementById('btn-tornar-inici-finalitzat')?.addEventListener('click', () => {
+            restaurarVistaSenseTest();
+            tornarAInici();
+          });
         }
         return;
       }
@@ -3708,21 +3966,35 @@ function mostrarPreguntaAmbSeguent(preguntaObj, indexActual, totalPreguntes, onS
     const contenedor = obtenirContenidorTest();
     if (!contenedor) return;
 
+    const percentatgeProgres = Math.round(((indexActual + 1) / totalPreguntes) * 100);
+
     contenedor.innerHTML = `
-        <div class="pregunta-box" style="background: white; padding: 25px; border-radius: 16px; border: 1px solid #e2e8f0; margin-top: 15px; max-height: 75vh; overflow-y: auto; box-sizing: border-box;">
-            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px;">
-                <div style="font-size: 12px; color: #64748b; font-weight: 700;">Pregunta ${indexActual + 1} de ${totalPreguntes}</div>
+        <div class="pregunta-box" style="background: var(--bg-card, #ffffff); padding: 26px 24px; border-radius: 18px; border: 1.5px solid var(--border-card, #e2e8f0); box-shadow: var(--shadow-card); max-width: 820px; margin: 0 auto;">
+            <!-- Barra de progrés superior del test -->
+            <div style="margin-bottom: 18px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+                <span style="font-size: 13px; font-weight: 800; color: #007aff; background: rgba(0,122,255,0.08); padding: 4px 10px; border-radius: 999px;">
+                  Pregunta ${indexActual + 1} de ${totalPreguntes}
+                </span>
                 <div style="display:flex;align-items:center;gap:6px;">
-                    <button type="button" class="btn-ia-dubte-head" title="Preguntar a la IA sobre aquesta pregunta" style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:6px;padding:3px 8px;font-size:11.5px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:4px;">
-                        <span>🤖</span><span>Dubte IA</span>
-                    </button>
-                    ${etiquetaIdPreguntaHtml(preguntaObj)}
+                  <button type="button" class="btn-ia-dubte-head" title="Preguntar a la IA sobre aquesta pregunta" style="background:var(--bg-card-subtle,#eff6ff);color:#1d4ed8;border:1px solid #bfdbfe;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:5px;">
+                    <span>🤖</span><span>Dubte IA</span>
+                  </button>
+                  ${etiquetaIdPreguntaHtml(preguntaObj)}
                 </div>
+              </div>
+              <div style="width: 100%; height: 6px; background: var(--bg-card-subtle, #e2e8f0); border-radius: 999px; overflow: hidden;">
+                <div style="width: ${percentatgeProgres}%; height: 100%; background: linear-gradient(90deg, #007aff, #002B5E); border-radius: 999px; transition: width 0.3s ease;"></div>
+              </div>
             </div>
-            <h3 style="margin-top: 0; color: #0f172a; font-size: 16px;">${preguntaObj.pregunta}</h3>
-            <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 15px;" id="llista-opcions"></div>
+
+            <h3 style="margin: 0 0 20px 0; color: var(--text-main, #0f172a); font-size: 17px; line-height: 1.5; font-weight: 800;">
+              ${preguntaObj.pregunta}
+            </h3>
+
+            <div style="display: flex; flex-direction: column; gap: 11px;" id="llista-opcions"></div>
         </div>
-        <div id="feedback" style="margin-top: 15px; padding-bottom: 80px;"></div>
+        <div id="feedback" style="margin-top: 16px; max-width: 820px; margin-left: auto; margin-right: auto;"></div>
     `;
 
     const btnDubteHead = contenedor.querySelector('.btn-ia-dubte-head');
@@ -3736,11 +4008,32 @@ function mostrarPreguntaAmbSeguent(preguntaObj, indexActual, totalPreguntes, onS
     }
 
     const llistaOpcions = contenedor.querySelector('#llista-opcions');
+    const lletres = ['A', 'B', 'C', 'D'];
     
     opcionsBarrejades.forEach((opcio, index) => {
         const btn = document.createElement('button');
-        btn.style.cssText = "padding: 12px 15px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; color: #1e293b;";
-        btn.textContent = opcio;
+        btn.style.cssText = `
+          padding: 14px 16px;
+          background: var(--bg-card-subtle, #f8fafc);
+          border: 1.5px solid var(--border-card, #cbd5e1);
+          border-radius: 12px;
+          text-align: left;
+          cursor: pointer;
+          font-size: 14.5px;
+          font-weight: 600;
+          color: var(--text-main, #1e293b);
+          display: flex;
+          align-items: flex-start;
+          gap: 12px;
+          line-height: 1.45;
+          transition: all 0.15s ease;
+        `;
+        btn.innerHTML = `
+          <span style="flex-shrink:0;width:26px;height:26px;border-radius:50%;background:rgba(0,122,255,0.1);color:#007aff;font-size:12px;font-weight:900;display:flex;align-items:center;justify-content:center;">
+            ${lletres[index] || '•'}
+          </span>
+          <span style="flex:1;">${escapeHtml(opcio)}</span>
+        `;
         
         btn.addEventListener('click', () => {
             const scrollAbans = window.scrollY;
@@ -3757,17 +4050,18 @@ function mostrarPreguntaAmbSeguent(preguntaObj, indexActual, totalPreguntes, onS
             }
 
             if (esCorrecte) {
-                btn.style.background = '#d1fae5';
+                btn.style.background = 'rgba(16,185,129,0.12)';
                 btn.style.borderColor = '#10b981';
                 btn.style.color = '#065f46';
             } else {
-                btn.style.background = '#fee2e2';
+                btn.style.background = 'rgba(239,68,68,0.12)';
                 btn.style.borderColor = '#ef4444';
                 btn.style.color = '#991b1b';
                 llistaOpcions.querySelectorAll('button').forEach((b, idx) => {
                     if (idx === nouIndexCorrecte) {
-                        b.style.background = '#d1fae5';
+                        b.style.background = 'rgba(16,185,129,0.12)';
                         b.style.borderColor = '#10b981';
+                        b.style.color = '#065f46';
                     }
                 });
             }
@@ -3782,12 +4076,14 @@ function mostrarPreguntaAmbSeguent(preguntaObj, indexActual, totalPreguntes, onS
             `;
 
             feedback.innerHTML = `
-                <div style="background: ${esCorrecte ? '#d1fae5' : '#fee2e2'}; border: 1px solid ${esCorrecte ? '#6ee7b7' : '#fca5a5'}; padding: 15px; border-radius: 12px; color: ${esCorrecte ? '#065f46' : '#991b1b'}; margin-bottom: 15px;">
-                    <p style="margin: 0 0 5px 0; font-weight: 700;">${esCorrecte ? '✅ Correcte!' : '❌ Incorrecte.'}</p>
-                    <p style="margin: 0; font-size: 13px;">${preguntaObj.explicacio || ''}</p>
+                <div style="background: ${esCorrecte ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)'}; border: 1.5px solid ${esCorrecte ? '#6ee7b7' : '#fca5a5'}; padding: 18px 20px; border-radius: 14px; color: ${esCorrecte ? '#065f46' : '#991b1b'}; margin-bottom: 16px;">
+                    <p style="margin: 0 0 6px 0; font-weight: 800; font-size: 15px;">${esCorrecte ? '✅ Resposta Correcta!' : '❌ Resposta Incorrecta.'}</p>
+                    <p style="margin: 0; font-size: 13.5px; line-height: 1.5;">${preguntaObj.explicacio || ''}</p>
                     ${feedbackIAPrompt}
                 </div>
-                <button id="btn-seguent-pregunta" style="background: #007aff; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 700; cursor: pointer; width: 100%;">Següent pregunta ➔</button>
+                <button id="btn-seguent-pregunta" style="background: linear-gradient(135deg, #002B5E, #007aff); color: white; border: none; padding: 14px 24px; border-radius: 12px; font-weight: 800; font-size: 15px; cursor: pointer; width: 100%; box-shadow: 0 4px 14px rgba(0,122,255,0.3); display: flex; align-items: center; justify-content: center; gap: 8px;">
+                  <span>${indexActual + 1 === totalPreguntes ? '🏁 Finalitzar Test' : 'Següent Pregunta'}</span> <span>➔</span>
+                </button>
             `;
 
             const btnIA = feedback.querySelector('.btn-ia-feedback-ask');
@@ -3800,7 +4096,7 @@ function mostrarPreguntaAmbSeguent(preguntaObj, indexActual, totalPreguntes, onS
                 });
             }
 
-            // No facis saltar la pàgina després de respondre.
+            // Mantenir la posició de scroll suau
             requestAnimationFrame(() => window.scrollTo({ top: scrollAbans, behavior: 'auto' }));
 
             document.getElementById('btn-seguent-pregunta').addEventListener('click', () => {
@@ -4180,10 +4476,18 @@ window.forcarSincronitzacioManual = forcarSincronitzacioManual;
 window.descarregarProgresDirecte = descarregarProgresDirecte;
 window.restaurarProgresDirecte = restaurarProgresDirecte;
 
-// --- 8.4 Creador de Preguntes Directe al Temari ---
-function obrirModalCrearPregunta(bancPref = 'pl', temaPref = null, municipiPref = null) {
+// --- 8.4 Creador i Modificador de Preguntes Directe al Temari ---
+function obrirModalCrearPregunta(bancPref = 'pl', temaPref = null, municipiPref = null, idEditar = null) {
   const modal = document.getElementById('modal-crear-pregunta');
   if (!modal) return;
+
+  if (idEditar) {
+    modal.classList.add('active');
+    carregarPreguntaPerEditar(bancPref, idEditar);
+    return;
+  }
+
+  netejarFormulariCrearPregunta();
 
   if (typeof window.canviarModeCreacio === 'function') {
     window.canviarModeCreacio('manual');
@@ -4198,7 +4502,6 @@ function obrirModalCrearPregunta(bancPref = 'pl', temaPref = null, municipiPref 
   const munActiu = (typeof window.obtenirMunicipiActiuPL === 'function') ? window.obtenirMunicipiActiuPL() : 'Constantí';
   const targetMun = municipiPref || (munActiu !== 'Compartit' ? munActiu : 'Comú');
   if (munSelect && targetMun) {
-    // Si no existeix com a opció, afegir-la
     let exists = false;
     for (let i = 0; i < munSelect.options.length; i++) {
       if (munSelect.options[i].value.toLowerCase() === targetMun.toLowerCase()) {
@@ -4218,7 +4521,33 @@ function obrirModalCrearPregunta(bancPref = 'pl', temaPref = null, municipiPref 
 
   canviarBancCrearPregunta(bancPref, temaPref, targetMun);
 
-  // Netejar camps
+  modal.classList.add('active');
+}
+
+function tancarModalCrearPregunta() {
+  const modal = document.getElementById('modal-crear-pregunta');
+  if (modal) {
+    modal.classList.remove('active');
+    netejarFormulariCrearPregunta();
+  }
+}
+
+function netejarFormulariCrearPregunta() {
+  const modal = document.getElementById('modal-crear-pregunta');
+  if (modal) {
+    delete modal.dataset.mode;
+    delete modal.dataset.editId;
+    delete modal.dataset.editBanc;
+  }
+  const banner = document.getElementById('cp-banner-mode-edicio');
+  if (banner) banner.style.display = 'none';
+
+  const btnDesar = document.getElementById('btn-guardar-pregunta-modal');
+  if (btnDesar) {
+    btnDesar.innerHTML = '💾 Desar i afegir directament';
+    btnDesar.style.background = 'linear-gradient(135deg,#002B5E,#007aff)';
+  }
+
   const campPregunta = document.getElementById('cp-pregunta') || document.getElementById('cp-text-pregunta');
   if (campPregunta) campPregunta.value = '';
   [0, 1, 2, 3].forEach(i => {
@@ -4227,15 +4556,167 @@ function obrirModalCrearPregunta(bancPref = 'pl', temaPref = null, municipiPref 
   });
   const campExp = document.getElementById('cp-explicacio');
   if (campExp) campExp.value = '';
-
   marcarOpcioCorrecta(0);
-
-  modal.classList.add('active');
 }
 
-function tancarModalCrearPregunta() {
+function carregarPreguntaPerEditar(banc, id) {
+  const dataset = (typeof window.obtenirBancActiu === 'function') ? window.obtenirBancActiu(banc) : [];
+  const q = dataset.find(item => item && String(item.id).trim() === String(id).trim());
+  if (!q) {
+    mostrarToast('❌ No s\'ha trobat la pregunta seleccionada per editar.', 'error');
+    return;
+  }
+
   const modal = document.getElementById('modal-crear-pregunta');
-  if (modal) modal.classList.remove('active');
+  if (!modal) return;
+
+  modal.dataset.mode = 'editar';
+  modal.dataset.editId = q.id;
+  modal.dataset.editBanc = banc;
+
+  if (typeof window.canviarModeCreacio === 'function') {
+    window.canviarModeCreacio('manual');
+  }
+
+  // Marcar ràdio de banc
+  const radioBanc = modal.querySelector(`input[name="banc-pregunta"][value="${banc}"], input[name="cp-banc"][value="${banc}"]`);
+  if (radioBanc) radioBanc.checked = true;
+
+  // Actualitzar selector de temes per a aquest banc
+  canviarBancCrearPregunta(banc, q.seccio || q.tema || q.categoria || q.ambit);
+
+  // Omplir formulari
+  const campPregunta = document.getElementById('cp-pregunta') || document.getElementById('cp-text-pregunta');
+  if (campPregunta) campPregunta.value = q.pregunta || '';
+
+  [0, 1, 2, 3].forEach(i => {
+    const inputOp = document.getElementById(`cp-op-${i}`);
+    if (inputOp) inputOp.value = (Array.isArray(q.opcions) && q.opcions[i] !== undefined) ? q.opcions[i] : '';
+  });
+
+  const respIndex = (typeof q.resposta === 'number' && q.resposta >= 0 && q.resposta <= 3) ? q.resposta : 0;
+  marcarOpcioCorrecta(respIndex);
+
+  const campExp = document.getElementById('cp-explicacio');
+  if (campExp) campExp.value = q.explicacio || '';
+
+  // Banner d'edició
+  const banner = document.getElementById('cp-banner-mode-edicio');
+  const bannerText = document.getElementById('cp-text-mode-edicio');
+  if (banner) banner.style.display = 'flex';
+  if (bannerText) {
+    const nomCos = banc === 'pl' ? 'Policia Local' : (banc === 'mossos' ? 'Mossos d\'Esquadra' : 'Actualitat');
+    bannerText.innerHTML = `Editant pregunta existent <b>${escapeHtml(String(q.id))}</b> (${nomCos})`;
+  }
+
+  // Botó guardar
+  const btnDesar = document.getElementById('btn-guardar-pregunta-modal');
+  if (btnDesar) {
+    btnDesar.innerHTML = '💾 Desar canvis directament al banc';
+    btnDesar.style.background = 'linear-gradient(135deg, #b45309, #f59e0b)';
+  }
+
+  mostrarToast(`✏️ Editant la pregunta ${q.id}. Pots canviar l'enunciat, opcions o explicació.`, 'info');
+}
+
+function renderLlistaModificarPreguntes(banc, query = '') {
+  const targetBanc = banc || document.querySelector('input[name="cp-mod-banc"]:checked')?.value || 'pl';
+  const llistaEl = document.getElementById('llista-cerca-preguntes-modificar');
+  const comptadorEl = document.getElementById('cp-mod-comptador');
+  if (!llistaEl) return;
+
+  const dataset = (typeof window.obtenirBancActiu === 'function') ? window.obtenirBancActiu(targetBanc) : [];
+  const qClean = (query || '').trim().toLowerCase();
+
+  let filtrades = dataset;
+  if (qClean) {
+    filtrades = dataset.filter(item => {
+      if (!item) return false;
+      const strId = String(item.id || '').toLowerCase();
+      const strPreg = String(item.pregunta || '').toLowerCase();
+      const strTema = String(item.seccio || item.tema || item.categoria || '').toLowerCase();
+      const strOps = Array.isArray(item.opcions) ? item.opcions.join(' ').toLowerCase() : '';
+      return strId.includes(qClean) || strPreg.includes(qClean) || strTema.includes(qClean) || strOps.includes(qClean);
+    });
+  }
+
+  const nomBanc = targetBanc === 'pl' ? 'Policia Local' : (targetBanc === 'mossos' ? 'Mossos d\'Esquadra' : 'Actualitat');
+  if (comptadorEl) {
+    comptadorEl.innerHTML = `Mostrant <b>${Math.min(filtrades.length, 60)}</b> de <b>${filtrades.length}</b> preguntes trobades (${nomBanc})`;
+  }
+
+  if (filtrades.length === 0) {
+    llistaEl.innerHTML = `
+      <div style="padding:28px 16px;text-align:center;background:var(--bg-card-subtle,#f8fafc);border:1px dashed var(--border-card,#cbd5e1);border-radius:12px;color:var(--text-muted,#64748b);">
+        <span style="font-size:24px;display:block;margin-bottom:6px;">🔎</span>
+        <p style="margin:0;font-size:13.5px;font-weight:700;">No s'han trobat preguntes amb aquest filtre de cerca.</p>
+        <p style="margin:4px 0 0;font-size:12px;">Prova d'escriure un terme més genèric o una paraula clau de l'enunciat.</p>
+      </div>
+    `;
+    return;
+  }
+
+  // Renderitzem fins a 60 resultats per màxima velocitat
+  const mostrar = filtrades.slice(0, 60);
+  llistaEl.innerHTML = mostrar.map(q => {
+    const respIndex = (typeof q.resposta === 'number' && q.resposta >= 0 && q.resposta <= 3) ? q.resposta : 0;
+    const respText = (Array.isArray(q.opcions) && q.opcions[respIndex] !== undefined) ? q.opcions[respIndex] : '';
+    const tema = q.seccio || q.tema || q.categoria || 'General';
+    return `
+      <div style="background:var(--bg-card,#ffffff);border:1px solid var(--border-card,#e2e8f0);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;box-shadow:0 2px 6px rgba(0,0,0,0.02);">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            <span style="background:var(--bg-card-subtle,#f1f5f9);color:var(--text-main,#334155);border:1px solid var(--border-card,#cbd5e1);font-size:11px;font-weight:800;padding:2px 6px;border-radius:4px;">
+              ID: ${escapeHtml(String(q.id))}
+            </span>
+            <span style="font-size:12px;color:var(--text-muted,#64748b);font-weight:600;">
+              📁 ${escapeHtml(tema)}
+            </span>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <button type="button" onclick="window.carregarPreguntaPerEditar('${targetBanc}', '${escapeHtml(String(q.id))}')" style="background:#007aff;color:#fff;border:none;padding:5px 12px;border-radius:6px;font-size:12px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:4px;box-shadow:0 2px 6px rgba(0,122,255,0.25);">
+              ✏️ Modificar
+            </button>
+            <button type="button" onclick="window.eliminarPreguntaDirecta('${targetBanc}', '${escapeHtml(String(q.id))}')" style="background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;padding:5px 9px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;" title="Eliminar pregunta">
+              🗑️
+            </button>
+          </div>
+        </div>
+        <div style="font-size:13.5px;font-weight:700;color:var(--text-main,#0f172a);line-height:1.4;">
+          ${escapeHtml(q.pregunta || '')}
+        </div>
+        <div style="font-size:12px;color:#047857;background:rgba(16,185,129,0.08);padding:4px 8px;border-radius:6px;display:inline-flex;align-items:center;gap:4px;">
+          <span>✅ Correcta:</span> <b>${escapeHtml(respText)}</b>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function canviarBancModificar(banc) {
+  const inputCerca = document.getElementById('cp-mod-cerca-input');
+  const query = inputCerca ? inputCerca.value : '';
+  renderLlistaModificarPreguntes(banc, query);
+}
+
+function filtrarPreguntesModificar(cerca) {
+  const targetBanc = document.querySelector('input[name="cp-mod-banc"]:checked')?.value || 'pl';
+  renderLlistaModificarPreguntes(targetBanc, cerca);
+}
+
+function eliminarPreguntaDirecta(banc, id) {
+  if (!confirm(`Segur que vols eliminar la pregunta ${id} del banc de ${banc}?`)) return;
+  if (typeof window.eliminarPreguntaCustom === 'function') {
+    window.eliminarPreguntaCustom(banc, id);
+  } else {
+    const arrayViu = (typeof window.obtenirBancActiu === 'function') ? window.obtenirBancActiu(banc) : [];
+    if (Array.isArray(arrayViu)) {
+      const idx = arrayViu.findIndex(q => q && String(q.id).trim() === String(id).trim());
+      if (idx !== -1) arrayViu.splice(idx, 1);
+    }
+  }
+  mostrarToast(`🗑️ Pregunta ${id} eliminada.`, 'info');
+  renderLlistaModificarPreguntes(banc);
 }
 
 function canviarBancCrearPregunta(banc, temaPref = null, municipiPref = null) {
@@ -4277,6 +4758,24 @@ function canviarBancCrearPregunta(banc, temaPref = null, municipiPref = null) {
       const count = seccionsMap.get(nomComplet) || seccionsMap.get(t.nom) || 0;
       const isSel = (temaPref && (temaPref === nomComplet || temaPref === t.nom || temaPref.includes(`Tema ${t.id}`))) ? 'selected' : '';
       html += `<option value="${escapeHtml(nomComplet)}" ${isSel}>${escapeHtml(nomComplet)} (${count} preguntes)</option>`;
+    });
+    html += `</optgroup>`;
+  }
+
+  if (banc === 'act') {
+    html += `<optgroup label="Categories Oficials d'Actualitat">`;
+    const catsAct = [
+      '⚽ Esports i Fites Esportives',
+      '🏛️ Política, Govern i Institucions',
+      '⚖️ Seguretat Pública i Policia',
+      '🏆 Premis, Cultura i Ciència',
+      '🔥 Preguntes Clau i Més Repetides',
+      '🌍 Societat, Medi Ambient i Efemèrides'
+    ];
+    catsAct.forEach(catNom => {
+      const count = seccionsMap.get(catNom) || 0;
+      const isSel = (temaPref && (temaPref === catNom || catNom.toLowerCase().includes(temaPref.toLowerCase()))) ? 'selected' : '';
+      html += `<option value="${escapeHtml(catNom)}" ${isSel}>${escapeHtml(catNom)} (${count} preguntes)</option>`;
     });
     html += `</optgroup>`;
   }
@@ -4363,8 +4862,12 @@ function desarPreguntaDirecta(event) {
   const modal = document.getElementById('modal-crear-pregunta');
   if (!modal) return;
 
+  const isEditing = modal.dataset.mode === 'editar' && modal.dataset.editId;
+  const editId = modal.dataset.editId;
+  const editBanc = modal.dataset.editBanc;
+
   const bancRadio = modal.querySelector('input[name="banc-pregunta"]:checked') || modal.querySelector('input[name="cp-banc"]:checked');
-  const banc = bancRadio ? bancRadio.value : 'pl';
+  const banc = (isEditing && editBanc) ? editBanc : (bancRadio ? bancRadio.value : 'pl');
 
   const selectTema = document.getElementById('cp-select-tema');
   const nouTemaInput = document.getElementById('cp-nou-tema-input');
@@ -4375,7 +4878,7 @@ function desarPreguntaDirecta(event) {
   }
 
   if (!seccioFinal) {
-    mostrarToast('❌ Si us plau, tria o escriu el tema/secció on vols afegir la pregunta.', 'error');
+    mostrarToast('❌ Si us plau, tria o escriu el tema/secció.', 'error');
     if (selectTema) selectTema.focus();
     return;
   }
@@ -4400,11 +4903,74 @@ function desarPreguntaDirecta(event) {
     return;
   }
 
-  const radioCorrecta = modal.querySelector('input[name="cp-resposta-correcta"]:checked');
+  const radioCorrecta = modal.querySelector('input[name="cp-resposta-correcta"]:checked') || modal.querySelector('input[name="cp-correcta-radio"]:checked');
   const respostaIndex = radioCorrecta ? parseInt(radioCorrecta.value, 10) : parseInt(document.getElementById('cp-resposta-index')?.value || '0', 10);
   const explicacio = document.getElementById('cp-explicacio')?.value.trim() || '';
 
-  // Construir l'objecte pregunta compatible amb tots els temaris
+  if (isEditing) {
+    // MODIFICAR PREGUNTA EXISTENT
+    const preguntaActualitzada = {
+      id: editId,
+      pregunta: textPregunta,
+      opcions: opcions,
+      resposta: respostaIndex,
+      explicacio: explicacio,
+      seccio: seccioFinal,
+      tema: seccioFinal,
+      categoria: seccioFinal,
+      actualitzatEl: new Date().toISOString()
+    };
+
+    if (banc === 'mossos') {
+      if (seccioFinal.includes('Àmbit B') || seccioFinal.includes('Ambit B')) preguntaActualitzada.ambit = 'Àmbit B';
+      else if (seccioFinal.includes('Àmbit C') || seccioFinal.includes('Ambit C')) preguntaActualitzada.ambit = 'Àmbit C';
+      else preguntaActualitzada.ambit = 'Àmbit A';
+    }
+
+    // Actualitzar array en memòria viva
+    const viu = (typeof window.obtenirBancActiu === 'function') ? window.obtenirBancActiu(banc) : [];
+    if (Array.isArray(viu)) {
+      const idx = viu.findIndex(q => q && String(q.id).trim() === String(editId).trim());
+      if (idx !== -1) {
+        viu[idx] = { ...viu[idx], ...preguntaActualitzada };
+      }
+    }
+
+    // Desar localment
+    if (typeof desarPreguntaEditada === 'function') {
+      desarPreguntaEditada(banc, editId, preguntaActualitzada);
+    }
+
+    // Persistir al servidor
+    if (typeof enviarPreguntaAlFitxerServidor === 'function') {
+      enviarPreguntaAlFitxerServidor(banc, preguntaActualitzada, false);
+    }
+    fetch('/api/custom-questions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ banc, pregunta: preguntaActualitzada })
+    }).catch(() => {});
+
+    mostrarToast(`✅ Pregunta ${editId} modificada i desada correctament al banc!`, 'success');
+    tancarModalCrearPregunta();
+
+    // Actualitzar la vista activa
+    const viewPL = document.getElementById('view-pl');
+    const viewMossos = document.getElementById('view-mossos');
+    const viewAct = document.getElementById('view-actualitat');
+    if (viewPL && viewPL.classList.contains('view-activa') && typeof window.mostrarTemarioPL === 'function') {
+      window.mostrarTemarioPL();
+    } else if (viewMossos && viewMossos.classList.contains('view-activa') && typeof window.mostrarTemarioMossos === 'function') {
+      window.mostrarTemarioMossos();
+    } else if (viewAct && viewAct.classList.contains('view-activa') && typeof window.mostrarTemarioActualitat === 'function') {
+      window.mostrarTemarioActualitat();
+    } else if (typeof actualizarEstadisticasTop === 'function') {
+      actualizarEstadisticasTop();
+    }
+    return;
+  }
+
+  // CREAR NOVA PREGUNTA
   const novaPregunta = {
     id: `${banc}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
     pregunta: textPregunta,
@@ -4418,7 +4984,6 @@ function desarPreguntaDirecta(event) {
   };
 
   if (banc === 'mossos') {
-    // Si és Mossos, assignar àmbit A, B o C si està present
     if (seccioFinal.includes('Àmbit B') || seccioFinal.includes('Ambit B')) novaPregunta.ambit = 'Àmbit B';
     else if (seccioFinal.includes('Àmbit C') || seccioFinal.includes('Ambit C')) novaPregunta.ambit = 'Àmbit C';
     else novaPregunta.ambit = 'Àmbit A';
@@ -4429,7 +4994,10 @@ function desarPreguntaDirecta(event) {
     window.afegirPreguntesCustom(banc, [novaPregunta]);
   }
 
-  // 2. Persistir al servidor (/api/custom-questions) perquè quedi guardada permanentment
+  // 2. Persistir al fitxer i servidor
+  if (typeof enviarPreguntaAlFitxerServidor === 'function') {
+    enviarPreguntaAlFitxerServidor(banc, novaPregunta, true);
+  }
   fetch('/api/custom-questions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -4443,10 +5011,15 @@ function desarPreguntaDirecta(event) {
   mostrarToast(`✅ Pregunta afegida amb èxit a «${seccioFinal}»!`, 'success');
   tancarModalCrearPregunta();
 
-  // Si som a la vista de Policia Local o Inici, refresquem la vista per veure la nova pregunta
   const viewPL = document.getElementById('view-pl');
+  const viewMossos = document.getElementById('view-mossos');
+  const viewAct = document.getElementById('view-actualitat');
   if (viewPL && viewPL.classList.contains('view-activa') && typeof window.mostrarTemarioPL === 'function') {
     window.mostrarTemarioPL();
+  } else if (viewMossos && viewMossos.classList.contains('view-activa') && typeof window.mostrarTemarioMossos === 'function') {
+    window.mostrarTemarioMossos();
+  } else if (viewAct && viewAct.classList.contains('view-activa') && typeof window.mostrarTemarioActualitat === 'function') {
+    window.mostrarTemarioActualitat();
   } else if (typeof actualizarEstadisticasTop === 'function') {
     actualizarEstadisticasTop();
   }
@@ -4458,6 +5031,12 @@ window.canviarBancCrearPregunta = canviarBancCrearPregunta;
 window.onCanviSelectTema = onCanviSelectTema;
 window.marcarOpcioCorrecta = marcarOpcioCorrecta;
 window.desarPreguntaDirecta = desarPreguntaDirecta;
+window.carregarPreguntaPerEditar = carregarPreguntaPerEditar;
+window.renderLlistaModificarPreguntes = renderLlistaModificarPreguntes;
+window.canviarBancModificar = canviarBancModificar;
+window.filtrarPreguntesModificar = filtrarPreguntesModificar;
+window.eliminarPreguntaDirecta = eliminarPreguntaDirecta;
+window.netejarFormulariCrearPregunta = netejarFormulariCrearPregunta;
 
 // Carregar preguntes del servidor a l'arrencada per tenir sincronització total
 function carregarPreguntesServidor() {
@@ -4480,13 +5059,910 @@ function carregarPreguntesServidor() {
     .catch(() => { /* No hi ha connexió al servidor: mode estàtic resilient */ });
 }
 
+// ==========================================================================
+// ⏱️ GESTIÓ DE DATES D'EXAMEN I COMPTE ENRERE DINÀMIC
+// ==========================================================================
+const STORAGE_EXAM_DATES = 'agentmedina_exam_dates';
+
+function obtenirExamensCountdown() {
+  try {
+    const raw = localStorage.getItem(STORAGE_EXAM_DATES);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr) && arr.length > 0) return arr;
+    }
+  } catch (e) {
+    console.warn('Error llegint exam_dates de localStorage:', e);
+  }
+  // Valors per defecte inicials
+  const defaults = [
+    {
+      id: 'mossos_46_26',
+      nom: 'Mossos',
+      data: '2026-10-17',
+      ico: '🔵',
+      link: 'https://mossos.gencat.cat/ca/els_mossos_desquadra/acces_al_cos/Mosso_a/mosso-a-convocatoria-46-26/'
+    },
+    {
+      id: 'pl_general',
+      nom: 'P. Local',
+      data: '2026-11-20',
+      ico: '🚔',
+      link: 'https://mollerussa.convoca.online/processDetail.html?id=190266bf-4c8b-49eb-4520-08de7dbdb6c7&type=0'
+    }
+  ];
+  try {
+    localStorage.setItem(STORAGE_EXAM_DATES, JSON.stringify(defaults));
+  } catch (e) {}
+  return defaults;
+}
+
+function desarExamensCountdown(llista) {
+  try {
+    localStorage.setItem(STORAGE_EXAM_DATES, JSON.stringify(llista));
+  } catch (e) {}
+  renderExamensCountdown();
+}
+
+function calcularDiesRestants(dataStr) {
+  if (!dataStr) return null;
+  const target = new Date(dataStr + 'T00:00:00');
+  const today = new Date();
+  // Comparar inici del dia actual
+  today.setHours(0, 0, 0, 0);
+  const diffTime = target - today;
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+}
+
+function renderExamensCountdown() {
+  const container = document.getElementById('topbar-examens-countdown');
+  if (!container) return;
+
+  const examens = obtenirExamensCountdown();
+  let html = '';
+
+  examens.forEach(e => {
+    const dies = calcularDiesRestants(e.data);
+    let badgeClass = 'exam-badge-blue';
+    let textDies = '';
+
+    if (dies === null) {
+      textDies = '--';
+    } else if (dies > 30) {
+      badgeClass = 'exam-badge-blue';
+      textDies = `${dies} dies`;
+    } else if (dies > 7) {
+      badgeClass = 'exam-badge-gold';
+      textDies = `${dies} dies`;
+    } else if (dies >= 0) {
+      badgeClass = 'exam-badge-red';
+      textDies = dies === 0 ? 'Avui! 🎉' : `${dies} dies! ⚠️`;
+    } else {
+      badgeClass = 'exam-badge-green';
+      textDies = 'Finalitzat';
+    }
+
+    if (e.link) {
+      html += `
+        <a href="${escapeHtml(e.link)}" target="_blank" rel="noopener noreferrer" class="exam-pill" title="${escapeHtml(e.nom)} · Data: ${e.data} (Clica per obrir la convocatòria oficial)">
+          <span>${e.ico || '📜'}</span>
+          <span>${escapeHtml(e.nom)}:</span>
+          <span class="exam-badge-days ${badgeClass}">${textDies}</span>
+        </a>
+      `;
+    } else {
+      html += `
+        <div class="exam-pill" onclick="window.obrirModalGestioExamens()" title="${escapeHtml(e.nom)} · Data: ${e.data}">
+          <span>${e.ico || '📜'}</span>
+          <span>${escapeHtml(e.nom)}:</span>
+          <span class="exam-badge-days ${badgeClass}">${textDies}</span>
+        </div>
+      `;
+    }
+  });
+
+  // Botó per afegir data
+  html += `
+    <button type="button" class="exam-pill-add" onclick="window.obrirModalGestioExamens()" title="Afegir o configurar dates d'examen">
+      <span>➕</span> <span>Afegir</span>
+    </button>
+  `;
+
+  container.innerHTML = html;
+}
+
+function obrirModalGestioExamens() {
+  const modal = document.getElementById('modal-gestio-examens');
+  if (!modal) return;
+  modal.classList.add('active');
+  renderLlistaExamensGestio();
+}
+
+function tancarModalGestioExamens() {
+  const modal = document.getElementById('modal-gestio-examens');
+  if (modal) modal.classList.remove('active');
+}
+
+function renderLlistaExamensGestio() {
+  const container = document.getElementById('llista-examens-gestio');
+  if (!container) return;
+  const examens = obtenirExamensCountdown();
+
+  if (examens.length === 0) {
+    container.innerHTML = `<div style="font-size:13px;color:var(--text-muted);padding:10px 0;">No hi ha dates d'examen configurades. Afegeix-ne una a dalt.</div>`;
+    return;
+  }
+
+  container.innerHTML = examens.map(e => {
+    const dies = calcularDiesRestants(e.data);
+    let badgeText = dies !== null ? (dies >= 0 ? `${dies} dies restants` : 'Examen passat') : '';
+    return `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--bg-card);border:1px solid var(--border-card);border-radius:10px;">
+        <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+          <span style="font-size:18px;">${e.ico || '📜'}</span>
+          <div style="min-width:0;">
+            <div style="font-weight:700;font-size:13px;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+              ${escapeHtml(e.nom)}
+            </div>
+            <div style="font-size:11.5px;color:var(--text-muted);display:flex;gap:6px;align-items:center;">
+              <span>📅 ${e.data}</span>
+              <span>·</span>
+              <span style="color:#007aff;font-weight:700;">${badgeText}</span>
+              ${e.link ? `<span>·</span> <a href="${escapeHtml(e.link)}" target="_blank" rel="noopener noreferrer" style="color:#007aff;text-decoration:none;">Enllaç ↗</a>` : ''}
+            </div>
+          </div>
+        </div>
+        <button type="button" onclick="window.eliminarDataExamen('${escapeHtml(e.id)}')" style="background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;padding:5px 9px;border-radius:6px;font-size:12px;cursor:pointer;" title="Eliminar aquesta data">
+          🗑️
+        </button>
+      </div>
+    `;
+  }).join('');
+}
+
+function desarDataExamen(event) {
+  if (event && event.preventDefault) event.preventDefault();
+  const nomInput = document.getElementById('input-examen-nom');
+  const dataInput = document.getElementById('input-examen-data');
+  const icoSelect = document.getElementById('input-examen-ico');
+  const linkInput = document.getElementById('input-examen-link');
+
+  if (!nomInput || !dataInput || !nomInput.value.trim() || !dataInput.value) {
+    mostrarToast('Si us plau, omple el nom i la data de l\'examen.', 'error');
+    return;
+  }
+
+  const examens = obtenirExamensCountdown();
+  const nouExamen = {
+    id: `exam_${Date.now()}`,
+    nom: nomInput.value.trim(),
+    data: dataInput.value,
+    ico: icoSelect ? icoSelect.value : '📜',
+    link: linkInput ? linkInput.value.trim() : ''
+  };
+
+  examens.push(nouExamen);
+  desarExamensCountdown(examens);
+
+  nomInput.value = '';
+  dataInput.value = '';
+  if (linkInput) linkInput.value = '';
+
+  renderLlistaExamensGestio();
+  mostrarToast(`⏱️ Data d'examen per a «${nouExamen.nom}» desada amb èxit!`, 'success');
+}
+
+function eliminarDataExamen(id) {
+  if (!confirm('Segur que vols eliminar aquesta data d\'examen del compte enrere?')) return;
+  let examens = obtenirExamensCountdown();
+  examens = examens.filter(e => e && String(e.id) !== String(id));
+  desarExamensCountdown(examens);
+  renderLlistaExamensGestio();
+  mostrarToast('🗑️ Data eliminada del compte enrere.', 'info');
+}
+
+window.obtenirExamensCountdown = obtenirExamensCountdown;
+window.renderExamensCountdown = renderExamensCountdown;
+window.obrirModalGestioExamens = obrirModalGestioExamens;
+window.tancarModalGestioExamens = tancarModalGestioExamens;
+window.desarDataExamen = desarDataExamen;
+window.eliminarDataExamen = eliminarDataExamen;
+
+// ==========================================================================
+// 📰 GESTOR DE PREGUNTES D'ACTUALITAT (ESBORRAR DESACTUALITZADES)
+// ==========================================================================
+let filtreCategoriaActualitatActiu = 'totes';
+
+function obrirModalGestorActualitat(filtreInicial = 'totes') {
+  const modal = document.getElementById('modal-gestor-actualitat');
+  if (!modal) return;
+  modal.classList.add('active');
+
+  filtreCategoriaActualitatActiu = filtreInicial || 'totes';
+  const btns = document.querySelectorAll('.btn-filtre-act');
+  btns.forEach(b => {
+    if (b.dataset.cat === filtreCategoriaActualitatActiu) b.classList.add('active');
+    else b.classList.remove('active');
+  });
+
+  const cercaInput = document.getElementById('cerca-gestor-actualitat');
+  if (cercaInput) cercaInput.value = '';
+
+  renderLlistaGestorActualitat();
+}
+
+function tancarModalGestorActualitat() {
+  const modal = document.getElementById('modal-gestor-actualitat');
+  if (modal) modal.classList.remove('active');
+}
+
+function canviarFiltreCategoriaActualitat(cat, btn) {
+  filtreCategoriaActualitatActiu = cat;
+  document.querySelectorAll('.btn-filtre-act').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderLlistaGestorActualitat();
+}
+
+function filtrarGestorActualitat() {
+  renderLlistaGestorActualitat();
+}
+
+function renderLlistaGestorActualitat() {
+  const container = document.getElementById('llista-preguntes-gestor-actualitat');
+  const comptador = document.getElementById('comptador-gestor-actualitat');
+  if (!container) return;
+
+  const dataset = (typeof window.obtenirBancActiu === 'function')
+    ? window.obtenirBancActiu('act')
+    : (Array.isArray(window.bancoActualitat) ? window.bancoActualitat : (Array.isArray(bancoActualitat) ? bancoActualitat : []));
+
+  const cerca = (document.getElementById('cerca-gestor-actualitat')?.value || '').toLowerCase().trim();
+  const catFiltre = filtreCategoriaActualitatActiu || 'totes';
+
+  const mapKeywordsCat = {
+    esports: ['esport', 'futbol', 'olimp', 'campion', 'atlet', 'piloto', 'motor', 'basquet', 'lliga', 'indycar', 'palou', 'pilota'],
+    politica: ['polític', 'politica', 'govern', 'parlament', 'generalitat', 'estat', 'constitucio', 'senat', 'congres', 'ue', 'unió europea', 'institucio'],
+    seguretat: ['seguretat', 'policia', 'mosso', 'guardia', 'emergenc', 'transit', 'societat', 'delict', 'normativ', 'llei'],
+    cultura: ['premi', 'nobel', 'cultur', 'lletres', 'cienc', 'tecnolog', 'art', 'patrimoni', 'escriptor', 'sagrada família', 'gaudí'],
+    repetides: ['repetid', 'clau', 'frequent', 'examen', 'oficial', 'noticia', 'recent']
+  };
+
+  const filtrades = dataset.filter(q => {
+    if (!q) return false;
+    const cat = (q.categoria || '').toLowerCase();
+    const sec = (q.seccio || '').toLowerCase();
+    const tem = (q.tema || '').toLowerCase();
+    const txt = (q.pregunta || '').toLowerCase();
+
+    // Filtre de cerca de text
+    if (cerca && !txt.includes(cerca) && !cat.includes(cerca) && !sec.includes(cerca) && !String(q.id || '').toLowerCase().includes(cerca)) {
+      return false;
+    }
+
+    // Filtre de categoria
+    if (catFiltre !== 'totes') {
+      const kws = mapKeywordsCat[catFiltre] || [catFiltre];
+      const match = kws.some(kw => cat.includes(kw) || sec.includes(kw) || tem.includes(kw) || txt.includes(kw));
+      if (!match) return false;
+    }
+
+    return true;
+  });
+
+  if (comptador) {
+    comptador.textContent = `Mostrant ${filtrades.length} de ${dataset.length} preguntes d'Actualitat`;
+  }
+
+  if (filtrades.length === 0) {
+    container.innerHTML = `
+      <div style="text-align:center;padding:30px 20px;color:var(--text-muted);background:var(--bg-card-subtle);border-radius:12px;border:1px dashed var(--border-card);">
+        <span style="font-size:28px;display:block;margin-bottom:8px;">🔍</span>
+        <b>No s'ha trobat cap pregunta amb aquest filtre.</b>
+        <p style="margin:4px 0 0;font-size:12.5px;">Pots crear-ne una de nova amb el botó «➕ Nova Pregunta».</p>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = filtrades.map(q => {
+    const respIndex = (typeof q.resposta === 'number') ? q.resposta : 0;
+    const respText = (Array.isArray(q.opcions) && q.opcions[respIndex]) ? q.opcions[respIndex] : 'Opció correcta';
+    const categoria = q.seccio || q.categoria || q.tema || 'General';
+
+    return `
+      <div style="background:var(--bg-card);border:1.5px solid var(--border-card);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;box-shadow:0 2px 8px rgba(0,0,0,0.03);">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <span style="background:rgba(0,122,255,0.1);color:#007aff;font-size:11px;font-weight:800;padding:2px 7px;border-radius:6px;font-family:monospace;">
+              ${escapeHtml(String(q.id))}
+            </span>
+            <span style="font-size:12px;color:var(--text-muted);font-weight:700;">
+              📁 ${escapeHtml(categoria)}
+            </span>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <button type="button" onclick="window.tancarModalGestorActualitat();window.carregarPreguntaPerEditar('act', '${escapeHtml(String(q.id))}')" style="background:#007aff;color:#fff;border:none;padding:5px 12px;border-radius:6px;font-size:12px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:4px;">
+              ✏️ Modificar
+            </button>
+            <button type="button" onclick="window.eliminarPreguntaActualitat('${escapeHtml(String(q.id))}')" style="background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;padding:5px 10px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;" title="Esborrar pregunta desactualitzada">
+              🗑️ Esborrar
+            </button>
+          </div>
+        </div>
+
+        <div style="font-size:13.5px;font-weight:700;color:var(--text-main);line-height:1.4;">
+          ${escapeHtml(q.pregunta || '')}
+        </div>
+
+        <div style="display:flex;flex-wrap:wrap;gap:6px;font-size:12px;">
+          <span style="color:#047857;background:rgba(16,185,129,0.1);padding:4px 8px;border-radius:6px;font-weight:700;">
+            ✅ Correcta: ${escapeHtml(respText)}
+          </span>
+          ${q.explicacio ? `
+            <span style="color:var(--text-muted);background:var(--bg-card-subtle);padding:4px 8px;border-radius:6px;font-size:11.5px;max-width:450px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(q.explicacio)}">
+              💡 ${escapeHtml(q.explicacio)}
+            </span>
+          ` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function eliminarPreguntaActualitat(id) {
+  if (!confirm(`Segur que vols eliminar la pregunta ${id} del banc d'Actualitat? Aquesta acció esborrarà permanentment la pregunta del fitxer.`)) {
+    return;
+  }
+
+  // 1. Eliminar de la memòria viva
+  if (Array.isArray(window.bancoActualitat)) {
+    const idx = window.bancoActualitat.findIndex(q => q && String(q.id).trim() === String(id).trim());
+    if (idx !== -1) window.bancoActualitat.splice(idx, 1);
+  }
+  if (typeof bancoActualitat !== 'undefined' && Array.isArray(bancoActualitat)) {
+    const idx = bancoActualitat.findIndex(q => q && String(q.id).trim() === String(id).trim());
+    if (idx !== -1) bancoActualitat.splice(idx, 1);
+  }
+
+  // 2. Persistir eliminació al fitxer del servidor
+  fetch('/api/eliminar-pregunta-fitxer', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ banc: 'act', id })
+  }).then(r => r.json()).then(res => {
+    console.log('Pregunta d\'actualitat eliminada del fitxer:', res);
+  }).catch(err => {
+    console.warn('Avís eliminant del servidor:', err);
+  });
+
+  // 3. Eliminar també de custom_questions.json si hi és
+  fetch(`/api/custom-questions/act/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
+
+  mostrarToast(`🗑️ Pregunta ${id} eliminada d'Actualitat.`, 'info');
+  renderLlistaGestorActualitat();
+
+  // Actualitzar vistes si cal
+  const viewAct = document.getElementById('view-actualitat');
+  if (viewAct && viewAct.classList.contains('view-activa') && typeof window.mostrarTemarioActualitat === 'function') {
+    window.mostrarTemarioActualitat();
+  }
+  const viewInici = document.getElementById('view-inici');
+  if (viewInici && viewInici.classList.contains('view-activa') && typeof window.mostrarInici === 'function') {
+    window.mostrarInici();
+  }
+}
+
+window.obrirModalGestorActualitat = obrirModalGestorActualitat;
+window.tancarModalGestorActualitat = tancarModalGestorActualitat;
+window.canviarFiltreCategoriaActualitat = canviarFiltreCategoriaActualitat;
+window.filtrarGestorActualitat = filtrarGestorActualitat;
+window.renderLlistaGestorActualitat = renderLlistaGestorActualitat;
+window.eliminarPreguntaActualitat = eliminarPreguntaActualitat;
+
+// ==========================================================================
+// ⚡ IMPORTACIÓ I GESTIÓ EN LOT AMB DETECCIO D'ACTUALITAT I SELECCIÓ
+// ==========================================================================
+let preguntesLotTemporals = [];
+
+function canviarModeCreacio(mode) {
+  const btnManual = document.getElementById('btn-mode-crear-manual');
+  const btnModificar = document.getElementById('btn-mode-crear-modificar');
+  const btnLot = document.getElementById('btn-mode-crear-lot');
+
+  const panellManual = document.getElementById('form-crear-pregunta-directa');
+  const panellModificar = document.getElementById('panell-modificar-preguntes');
+  const panellLot = document.getElementById('panell-crear-preguntes-lot');
+
+  [btnManual, btnModificar, btnLot].forEach(b => {
+    if (!b) return;
+    b.style.background = 'transparent';
+    b.style.color = 'var(--text-main)';
+  });
+
+  if (panellManual) panellManual.style.display = 'none';
+  if (panellModificar) panellModificar.style.display = 'none';
+  if (panellLot) panellLot.style.display = 'none';
+
+  if (mode === 'editar') {
+    if (btnModificar) {
+      btnModificar.style.background = 'linear-gradient(135deg,#002B5E,#007aff)';
+      btnModificar.style.color = '#fff';
+    }
+    if (panellModificar) panellModificar.style.display = 'block';
+    const bancActiu = document.querySelector('input[name="cp-mod-banc"]:checked')?.value || 'pl';
+    renderLlistaModificarPreguntes(bancActiu);
+  } else if (mode === 'lot') {
+    if (btnLot) {
+      btnLot.style.background = 'linear-gradient(135deg,#002B5E,#007aff)';
+      btnLot.style.color = '#fff';
+    }
+    if (panellLot) panellLot.style.display = 'block';
+    recarregarTemesLot();
+  } else {
+    if (btnManual) {
+      btnManual.style.background = 'linear-gradient(135deg,#002B5E,#007aff)';
+      btnManual.style.color = '#fff';
+    }
+    if (panellManual) panellManual.style.display = 'block';
+  }
+}
+
+function obrirModalImportarLot(banc = 'act') {
+  obrirModalCrearPregunta(banc);
+  canviarModeCreacio('lot');
+  const radio = document.querySelector(`input[name="cp-lot-banc"][value="${banc}"]`);
+  if (radio) {
+    radio.checked = true;
+    canviarBancLot(banc);
+  }
+}
+
+function canviarBancLot(banc) {
+  const blocMun = document.getElementById('cp-lot-bloc-municipi');
+  if (blocMun) {
+    blocMun.style.display = (banc === 'pl') ? 'block' : 'none';
+  }
+  recarregarTemesLot();
+}
+
+function recarregarTemesLot() {
+  const select = document.getElementById('cp-lot-select-tema');
+  if (!select) return;
+  const banc = document.querySelector('input[name="cp-lot-banc"]:checked')?.value || 'pl';
+
+  let html = `<option value="DETECTAR_AUTO">🎯 Detectar automàticament per contingut de la pregunta</option>`;
+
+  if (banc === 'act') {
+    html += `<optgroup label="Categories d'Actualitat">`;
+    html += `<option value="⚽ Esports i Fites Esportives">⚽ Esports i Fites Esportives</option>`;
+    html += `<option value="🏛️ Política, Govern i Institucions">🏛️ Política, Govern i Institucions</option>`;
+    html += `<option value="⚖️ Seguretat Pública i Policia">⚖️ Seguretat Pública i Policia</option>`;
+    html += `<option value="🏆 Premis, Cultura i Ciència">🏆 Premis, Cultura i Ciència</option>`;
+    html += `<option value="🔥 Preguntes Clau i Més Repetides">🔥 Preguntes Clau i Més Repetides</option>`;
+    html += `<option value="🌍 Societat, Medi Ambient i Efemèrides">🌍 Societat, Medi Ambient i Efemèrides</option>`;
+    html += `</optgroup>`;
+  } else if (banc === 'mossos') {
+    html += `<optgroup label="Àmbits Mossos d'Esquadra">`;
+    html += `<option value="Àmbit A - Coneixements de l'entorn">🔵 Àmbit A - Coneixements de l'entorn</option>`;
+    html += `<option value="Àmbit B - Institucional">🔴 Àmbit B - Institucional</option>`;
+    html += `<option value="Àmbit C - Seguretat i policia">🟢 Àmbit C - Seguretat i policia</option>`;
+    html += `</optgroup>`;
+  } else {
+    html += `<optgroup label="Temari Policia Local">`;
+    for (let i = 1; i <= 40; i++) {
+      html += `<option value="Tema ${i}">Tema ${i}</option>`;
+    }
+    html += `</optgroup>`;
+  }
+
+  select.innerHTML = html;
+}
+
+function detectarCategoriaActualitat(text) {
+  const t = (text || '').toLowerCase();
+  if (t.includes('esport') || t.includes('futbol') || t.includes('olimp') || t.includes('campion') || t.includes('atlet') || t.includes('pilot') || t.includes('motor') || t.includes('indycar') || t.includes('palou') || t.includes('pilota')) {
+    return '⚽ Esports i Fites Esportives';
+  }
+  if (t.includes('govern') || t.includes('parlament') || t.includes('generalitat') || t.includes('estatut') || t.includes('constituc') || t.includes('senat') || t.includes('congres') || t.includes('ue') || t.includes('europeu') || t.includes('president') || t.includes('consell')) {
+    return '🏛️ Política, Govern i Institucions';
+  }
+  if (t.includes('policia') || t.includes('mosso') || t.includes('guardia') || t.includes('112') || t.includes('emergenc') || t.includes('transit') || t.includes('sct') || t.includes('delicte') || t.includes('seguretat') || t.includes('penal')) {
+    return '⚖️ Seguretat Pública i Policia';
+  }
+  if (t.includes('premi') || t.includes('nobel') || t.includes('lletres') || t.includes('cultur') || t.includes('cienc') || t.includes('art') || t.includes('patrimoni') || t.includes('gaudí') || t.includes('sagrada família')) {
+    return '🏆 Premis, Cultura i Ciència';
+  }
+  return '🔥 Preguntes Clau i Més Repetides';
+}
+
+function processarTextLot() {
+  const textarea = document.getElementById('cp-lot-textarea');
+  if (!textarea || !textarea.value.trim()) {
+    mostrarToast('Si us plau, enganxa el text o les preguntes abans d\'analitzar.', 'error');
+    return;
+  }
+
+  const raw = textarea.value.trim();
+  const banc = document.querySelector('input[name="cp-lot-banc"]:checked')?.value || 'act';
+  const temaSelectVal = document.getElementById('cp-lot-select-tema')?.value || 'DETECTAR_AUTO';
+
+  let llista = [];
+
+  // 1. Provar si és format JSON directe
+  if (raw.startsWith('[') && raw.endsWith(']')) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        llista = parsed.map((item, idx) => {
+          let seccio = item.seccio || item.categoria || item.tema;
+          if (!seccio || seccio === 'DETECTAR_AUTO' || temaSelectVal !== 'DETECTAR_AUTO') {
+            seccio = (temaSelectVal !== 'DETECTAR_AUTO') ? temaSelectVal : (banc === 'act' ? detectarCategoriaActualitat(item.pregunta) : (banc === 'mossos' ? 'Àmbit A' : 'Tema 1'));
+          }
+          return {
+            id: item.id || `${banc.toUpperCase()}_LOT_${Date.now()}_${idx}`,
+            pregunta: item.pregunta || '',
+            opcions: Array.isArray(item.opcions) ? item.opcions : ['Opció A', 'Opció B', 'Opció C', 'Opció D'],
+            resposta: typeof item.resposta === 'number' ? item.resposta : 0,
+            explicacio: item.explicacio || '',
+            seccio: seccio,
+            categoria: seccio,
+            tema: seccio
+          };
+        });
+      }
+    } catch (e) {}
+  }
+
+  // 2. Parser robust de format text natural (1. Enunciat... a)... b)... c)... d)... Resposta: c)
+  if (llista.length === 0) {
+    const blocs = raw.split(/\n\s*(?=\d+[\.\)]\s+)/g);
+    blocs.forEach((bloc, idx) => {
+      const bText = bloc.trim();
+      if (!bText) return;
+
+      const linies = bText.split('\n').map(l => l.trim()).filter(Boolean);
+      if (linies.length < 3) return;
+
+      const primera = linies[0].replace(/^\d+[\.\)]\s*/, '').trim();
+      const opcions = [];
+      let respostaIdx = 0;
+      let explicacio = '';
+
+      linies.slice(1).forEach(linia => {
+        const matchOpcio = linia.match(/^([a-dA-D])[\.\)]\s*(.+)$/);
+        if (matchOpcio) {
+          opcions.push(matchOpcio[2].trim());
+          return;
+        }
+
+        const matchResp = linia.match(/(?:Resposta|Correcta|Solució|Solucio)[\s:]*([a-dA-D])/i);
+        if (matchResp) {
+          const lletra = matchResp[1].toUpperCase();
+          respostaIdx = (lletra === 'A') ? 0 : (lletra === 'B') ? 1 : (lletra === 'C') ? 2 : 3;
+          return;
+        }
+
+        const matchExpl = linia.match(/(?:Explicació|Explicacio|Motiu)[\s:]*(.+)$/i);
+        if (matchExpl) {
+          explicacio = matchExpl[1].trim();
+        }
+      });
+
+      if (primera && opcions.length >= 2) {
+        while (opcions.length < 4) opcions.push(`Opció complementària ${opcions.length + 1}`);
+
+        let seccio = (temaSelectVal !== 'DETECTAR_AUTO')
+          ? temaSelectVal
+          : (banc === 'act' ? detectarCategoriaActualitat(primera) : (banc === 'mossos' ? 'Àmbit A' : 'Tema 1'));
+
+        llista.push({
+          id: `${banc.toUpperCase()}_LOT_${Date.now()}_${idx}`,
+          pregunta: primera,
+          opcions: opcions.slice(0, 4),
+          resposta: respostaIdx,
+          explicacio: explicacio,
+          seccio: seccio,
+          categoria: seccio,
+          tema: seccio
+        });
+      }
+    });
+  }
+
+  if (llista.length === 0) {
+    mostrarToast('No s\'ha pogut reconèixer cap pregunta vàlida. Fes clic a «📄 Veure exemple».', 'error');
+    return;
+  }
+
+  preguntesLotTemporals = llista;
+
+  // Render de la previsualització i notificació de categories
+  const blocResum = document.getElementById('cp-lot-resum-bloc');
+  const badgeRecompte = document.getElementById('cp-lot-badge-recompte');
+  const containerPreview = document.getElementById('cp-lot-preview-container');
+  const btnConfirmar = document.getElementById('btn-confirmar-lot');
+
+  if (blocResum) blocResum.style.display = 'block';
+
+  // Mostrar notificació clara del destí i permetre escollir
+  if (badgeRecompte) {
+    const catDestiPredominant = llista[0]?.seccio || 'General';
+    badgeRecompte.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;width:100%;flex-wrap:wrap;gap:8px;">
+        <span>🎯 <b>Trobades ${llista.length} preguntes</b> ${banc === 'act' ? `i assignades a <b>«${escapeHtml(catDestiPredominant)}»</b>` : ''}</span>
+        ${banc === 'act' ? `
+          <div style="display:flex;align-items:center;gap:6px;">
+            <label style="font-size:12px;font-weight:700;color:var(--text-main);">Canviar destí de totes:</label>
+            <select onchange="window.reassignarCategoriaTotesLot(this.value)" style="padding:4px 8px;border-radius:6px;font-size:12px;font-weight:700;border:1px solid #cbd5e1;background:#fff;color:#0f172a;">
+              <option value="">-- Mantenir assignació automàtica --</option>
+              <option value="⚽ Esports i Fites Esportives">⚽ Esports</option>
+              <option value="🏛️ Política, Govern i Institucions">🏛️ Política</option>
+              <option value="⚖️ Seguretat Pública i Policia">⚖️ Seguretat</option>
+              <option value="🏆 Premis, Cultura i Ciència">🏆 Premis / Cultura</option>
+              <option value="🔥 Preguntes Clau i Més Repetides">🔥 Preguntes Clau</option>
+              <option value="🌍 Societat, Medi Ambient i Efemèrides">🌍 Societat / Efemèrides</option>
+            </select>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
+
+  renderPreviewLotCards();
+
+  if (btnConfirmar) {
+    btnConfirmar.disabled = false;
+    btnConfirmar.style.opacity = '1';
+    btnConfirmar.innerHTML = `💾 Confirmar i Desar (${llista.length} preguntes)`;
+  }
+
+  mostrarToast(`✨ Trobades ${llista.length} preguntes! Revisa-les a sota abans de desar.`, 'success');
+}
+
+function renderPreviewLotCards() {
+  const containerPreview = document.getElementById('cp-lot-preview-container');
+  if (!containerPreview) return;
+  const banc = document.querySelector('input[name="cp-lot-banc"]:checked')?.value || 'act';
+
+  containerPreview.innerHTML = preguntesLotTemporals.map((q, i) => {
+    const respIndex = q.resposta || 0;
+    const respText = q.opcions[respIndex] || 'Opció correcta';
+
+    return `
+      <div style="background:var(--bg-card);border:1px solid var(--border-card);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span style="font-weight:800;font-size:12px;color:var(--text-muted);">#${i + 1}</span>
+          ${banc === 'act' ? `
+            <div style="display:flex;align-items:center;gap:6px;">
+              <label style="font-size:11.5px;font-weight:700;color:var(--text-muted);">Categoria:</label>
+              <select onchange="window.canviarCategoriaPreguntaLot(${i}, this.value)" style="padding:3px 8px;border-radius:6px;font-size:11.5px;font-weight:700;border:1px solid var(--border-card);background:var(--bg-card-subtle);color:var(--text-main);">
+                <option value="⚽ Esports i Fites Esportives" ${q.seccio.includes('Esport') ? 'selected' : ''}>⚽ Esports</option>
+                <option value="🏛️ Política, Govern i Institucions" ${q.seccio.includes('Polític') || q.seccio.includes('Govern') ? 'selected' : ''}>🏛️ Política</option>
+                <option value="⚖️ Seguretat Pública i Policia" ${q.seccio.includes('Seguretat') ? 'selected' : ''}>⚖️ Seguretat</option>
+                <option value="🏆 Premis, Cultura i Ciència" ${q.seccio.includes('Premi') || q.seccio.includes('Cultur') ? 'selected' : ''}>🏆 Premis / Cultura</option>
+                <option value="🔥 Preguntes Clau i Més Repetides" ${q.seccio.includes('Clau') || q.seccio.includes('Repetid') ? 'selected' : ''}>🔥 Preguntes Clau</option>
+              </select>
+            </div>
+          ` : `
+            <span style="font-size:11.5px;font-weight:700;color:#007aff;background:rgba(0,122,255,0.1);padding:2px 6px;border-radius:4px;">
+              📁 ${escapeHtml(q.seccio)}
+            </span>
+          `}
+        </div>
+        <div style="font-size:13px;font-weight:700;color:var(--text-main);line-height:1.35;">
+          ${escapeHtml(q.pregunta)}
+        </div>
+        <div style="font-size:12px;color:#047857;background:rgba(16,185,129,0.08);padding:3px 8px;border-radius:6px;display:inline-flex;align-items:center;gap:4px;">
+          <span>✅ Correcta:</span> <b>${escapeHtml(respText)}</b>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function reassignarCategoriaTotesLot(novaCat) {
+  if (!novaCat) return;
+  preguntesLotTemporals.forEach(q => {
+    q.seccio = novaCat;
+    q.categoria = novaCat;
+    q.tema = novaCat;
+  });
+  renderPreviewLotCards();
+  mostrarToast(`📁 Totes les preguntes s'assignaran a: ${novaCat}`, 'info');
+}
+
+function canviarCategoriaPreguntaLot(idx, novaCat) {
+  if (preguntesLotTemporals[idx]) {
+    preguntesLotTemporals[idx].seccio = novaCat;
+    preguntesLotTemporals[idx].categoria = novaCat;
+    preguntesLotTemporals[idx].tema = novaCat;
+  }
+}
+
+function desarLotPreguntesDirecte() {
+  if (!preguntesLotTemporals || preguntesLotTemporals.length === 0) {
+    mostrarToast('No hi ha preguntes per desar.', 'error');
+    return;
+  }
+
+  const banc = document.querySelector('input[name="cp-lot-banc"]:checked')?.value || 'act';
+  const llistaDesar = [...preguntesLotTemporals];
+
+  // 1. Desar en memòria viva local
+  const viu = (typeof window.obtenirBancActiu === 'function') ? window.obtenirBancActiu(banc) : [];
+  if (Array.isArray(viu)) {
+    llistaDesar.forEach(q => {
+      if (!viu.some(item => item && String(item.id).trim() === String(q.id).trim())) {
+        viu.push(q);
+      }
+    });
+  }
+
+  // 2. Persistir directament al fitxer corresponent (Actualidad_preguntas.js, etc.)
+  fetch('/api/modificar-preguntes-fitxer-lot', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ banc, preguntes: llistaDesar })
+  }).then(r => r.json()).then(res => {
+    console.log('Lot desat al fitxer .js:', res);
+  }).catch(err => {
+    console.warn('Avís desant lot al servidor:', err);
+  });
+
+  // 3. Persistir a custom_questions.json com a còpia de seguretat
+  llistaDesar.forEach(q => {
+    fetch('/api/custom-questions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ banc, pregunta: q })
+    }).catch(() => {});
+  });
+
+  mostrarToast(`💾 ${llistaDesar.length} preguntes afegides amb èxit al banc de ${banc.toUpperCase()}!`, 'success');
+  tancarModalCrearPregunta();
+
+  // Netejar temporals
+  preguntesLotTemporals = [];
+  const textarea = document.getElementById('cp-lot-textarea');
+  if (textarea) textarea.value = '';
+
+  // Actualitzar vistes
+  const viewAct = document.getElementById('view-actualitat');
+  const viewPL = document.getElementById('view-pl');
+  const viewMossos = document.getElementById('view-mossos');
+  if (viewAct && viewAct.classList.contains('view-activa') && typeof window.mostrarTemarioActualitat === 'function') {
+    window.mostrarTemarioActualitat();
+  } else if (viewPL && viewPL.classList.contains('view-activa') && typeof window.mostrarTemarioPL === 'function') {
+    window.mostrarTemarioPL();
+  } else if (viewMossos && viewMossos.classList.contains('view-activa') && typeof window.mostrarTemarioMossos === 'function') {
+    window.mostrarTemarioMossos();
+  } else if (typeof actualizarEstadisticasTop === 'function') {
+    actualizarEstadisticasTop();
+  }
+}
+
+function carregarExempleLot() {
+  const textarea = document.getElementById('cp-lot-textarea');
+  if (!textarea) return;
+  textarea.value = `1. Qui ha guanyat el darrer Gran Premi de Fórmula 1 a Montmeló?
+a) Carlos Sainz
+b) Max Verstappen
+c) Fernando Alonso
+d) Lewis Hamilton
+Resposta: b
+Explicació: El pilot neerlandès ha guanyat la cursa al Circuit de Barcelona-Catalunya.
+
+2. Quin organisme ostenta la competència exclusiva en matèria de protecció civil a Catalunya segons l'Estatut?
+a) La Generalitat de Catalunya
+b) El Ministeri de l'Interior
+c) La Delegació del Govern
+d) La Diputació Provincial
+Resposta: a
+Explicació: L'article 132 de l'Estatut d'Autonomia atribueix la competència exclusiva a la Generalitat.
+
+3. Quin esportista català és considerat un dels millors jugadors d'hoquei patins de la història?
+a) Jordi Bargalló
+b) Marc Gual
+c) Pau Bargalló
+d) Aitor Egurrola
+Resposta: d
+Explicació: Aitor Egurrola és el porter més llorejat de la història de l'hoquei sobre patins català.`;
+  mostrarToast('📄 Exemple d\'Actualitat carregat. Fes clic a «Analitzar i previsualitzar».', 'info');
+}
+
+function netejarTextareaLot() {
+  const textarea = document.getElementById('cp-lot-textarea');
+  if (textarea) textarea.value = '';
+  preguntesLotTemporals = [];
+  const blocResum = document.getElementById('cp-lot-resum-bloc');
+  if (blocResum) blocResum.style.display = 'none';
+  const btnConfirmar = document.getElementById('btn-confirmar-lot');
+  if (btnConfirmar) {
+    btnConfirmar.disabled = true;
+    btnConfirmar.style.opacity = '0.5';
+    btnConfirmar.innerHTML = '💾 Confirmar i Desar (0 preguntes)';
+  }
+}
+
+function copiarPromptIA() {
+  const banc = document.querySelector('input[name="cp-lot-banc"]:checked')?.value || 'act';
+  let promptText = '';
+  if (banc === 'act') {
+    promptText = `Ets un preparador expert d'oposicions de Mossos d'Esquadra i Policia Local a Catalunya.
+Genera 10 preguntes tipus test d'ACTUALITAT de màxima vigència per a aquest any sobre política, institucions catalanes, seguretat pública, societat, cultura o esports catalans.
+Cada pregunta ha de tenir 4 opcions (a, b, c, d), indicar clarament la resposta correcta i una explicació breu amb la font o norma.
+Format estricte requerit:
+
+1. [Enunciat de la pregunta]
+a) [Opció A]
+b) [Opció B]
+c) [Opció C]
+d) [Opció D]
+Resposta: [lletra correcta: a, b, c o d]
+Explicació: [Motiu jurídic o font oficial]`;
+  } else {
+    promptText = `Ets un preparador d'oposicions policials a Catalunya. Genera 10 preguntes tipus test oficials de nivell d'examen.
+Format estricte requerit:
+
+1. [Enunciat de la pregunta]
+a) [Opció A]
+b) [Opció B]
+c) [Opció C]
+d) [Opció D]
+Resposta: [lletra correcta: a, b, c o d]
+Explicació: [Article de la llei vigent]`;
+  }
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(promptText).then(() => {
+      mostrarToast('📋 Prompt copiat al portapapers! Enganxa\'l a ChatGPT o Gemini.', 'success');
+    }).catch(() => {
+      alert(promptText);
+    });
+  } else {
+    alert(promptText);
+  }
+}
+
+function enganxarPortapapersLot() {
+  if (navigator.clipboard && navigator.clipboard.readText) {
+    navigator.clipboard.readText().then(text => {
+      const textarea = document.getElementById('cp-lot-textarea');
+      if (textarea && text) {
+        textarea.value = text;
+        mostrarToast('📋 Text enganxat del portapapers! Ara fes clic a Analitzar.', 'info');
+      }
+    }).catch(() => {
+      mostrarToast('Pots fer Ctrl+V directament dins del quadre de text.', 'info');
+    });
+  } else {
+    mostrarToast('Pots fer Ctrl+V directament dins del quadre de text.', 'info');
+  }
+}
+
+window.canviarModeCreacio = canviarModeCreacio;
+window.obrirModalImportarLot = obrirModalImportarLot;
+window.canviarBancLot = canviarBancLot;
+window.recarregarTemesLot = recarregarTemesLot;
+window.processarTextLot = processarTextLot;
+window.renderPreviewLotCards = renderPreviewLotCards;
+window.reassignarCategoriaTotesLot = reassignarCategoriaTotesLot;
+window.canviarCategoriaPreguntaLot = canviarCategoriaPreguntaLot;
+window.desarLotPreguntesDirecte = desarLotPreguntesDirecte;
+window.carregarExempleLot = carregarExempleLot;
+window.netejarTextareaLot = netejarTextareaLot;
+window.copiarPromptIA = copiarPromptIA;
+window.enganxarPortapapersLot = enganxarPortapapersLot;
+
 // Inicialització en carregar la pàgina
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
     inicialitzarTema();
     carregarPreguntesServidor();
+    renderExamensCountdown();
   });
 } else {
   inicialitzarTema();
   carregarPreguntesServidor();
+  renderExamensCountdown();
 }
