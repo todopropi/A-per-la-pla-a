@@ -395,17 +395,14 @@ function registrarRespuestaGlobal(idPregunta, esCorrecta, preguntaObj = null) {
   if (!stats.respondidas) stats.respondidas = {};
   if (!stats.descobertes) stats.descobertes = {};
 
-  const font = detectarFontPregunta(preguntaObj) || 'Mossos';
+  const font = (preguntaObj && preguntaObj._font) ? preguntaObj._font : (detectarFontPregunta(preguntaObj) || 'Mossos');
   const clau = `${font}::${idPregunta}`;
+  const idStr = String(idPregunta);
 
-  // "descobertes" només marca que aquesta pregunta s'ha vist alguna vegada.
-  // Per tant, repetir-la 2, 10 o 100 vegades NO augmenta el progrés.
   stats.descobertes[clau] = true;
+  stats.descobertes[idStr] = true;
 
-  // Les respostes es guarden amb clau "Font::id" per evitar col·lisions quan
-  // dues preguntes de bancs diferents (Mossos / Policia Local / Actualitat)
-  // comparteixen el mateix identificador numèric.
-  stats.respondidas[clau] = {
+  const registre = {
     correcta: !!esCorrecta,
     font,
     ambit: preguntaObj?.ambit || '',
@@ -413,12 +410,8 @@ function registrarRespuestaGlobal(idPregunta, esCorrecta, preguntaObj = null) {
     updatedAt: Date.now()
   };
 
-  // Compatibilitat amb dades antigues que encara consulten per id "nu":
-  // si ja no hi ha cap altra pregunta amb aquest mateix id en un altre banc,
-  // mantenim també l'entrada antiga sincronitzada.
-  if (stats.respondidas[idPregunta] && stats.respondidas[idPregunta].font === font) {
-    delete stats.respondidas[idPregunta];
-  }
+  stats.respondidas[clau] = registre;
+  stats.respondidas[idStr] = registre;
 
   localStorage.setItem('mossos_stats_db', JSON.stringify(stats));
 
@@ -523,10 +516,23 @@ function detectarFontPregunta(pregunta) {
   if (pregunta._font) return pregunta._font;
 
   const id = String(pregunta.id || '').toUpperCase();
-  const text = `${pregunta.font || ''} ${pregunta.origen || ''} ${pregunta.categoria || ''} ${pregunta.ambit || ''}`.toLowerCase();
+  const text = `${pregunta.font || ''} ${pregunta.origen || ''} ${pregunta.categoria || ''} ${pregunta.ambit || ''} ${pregunta.seccio || ''} ${pregunta.tema || ''}`.toLowerCase();
+
+  // Comprovar si pertany expressament a un dels bancs en memòria
+  if (Array.isArray(window.bancoPoliciaLocal) && window.bancoPoliciaLocal.some(q => q && q.id === pregunta.id)) {
+    return 'Policia Local';
+  }
+  if (Array.isArray(window.bancoActualitat) && window.bancoActualitat.some(q => q && q.id === pregunta.id)) {
+    return 'Actualitat';
+  }
+  if (Array.isArray(window.bancoPreguntes) && window.bancoPreguntes.some(q => q && q.id === pregunta.id)) {
+    return 'Mossos';
+  }
 
   if (id.startsWith('MOSSOS') || String(pregunta.ambit || '').toUpperCase().startsWith('ÀMBIT')) return 'Mossos';
-  if (id.startsWith('PL') || text.includes('policia local') || text.includes('municipi')) return 'Policia Local';
+  if (id.startsWith('PL') || id.startsWith('GUB') || id.startsWith('CON') || id.startsWith('CUB') || id.startsWith('CUN') || id.startsWith('LOCAL') || pregunta.municipi || text.includes('policia local') || text.includes('municipi')) {
+    return 'Policia Local';
+  }
   if (id.startsWith('ACT') || text.includes('actualitat')) return 'Actualitat';
   return '';
 }
@@ -692,8 +698,17 @@ function calcularProgresPreguntes(dataset) {
     const font = (typeof detectarFontPregunta === 'function' ? detectarFontPregunta(q) : '') || 'Mossos';
     const clau = `${font}::${qidStr}`;
 
-    const registre = respostes[clau] || respostes[qidStr] || respostes[q.id];
+    const registre = respostes[clau] ||
+      respostes[`Policia Local::${qidStr}`] ||
+      respostes[`Mossos::${qidStr}`] ||
+      respostes[`Actualitat::${qidStr}`] ||
+      respostes[qidStr] ||
+      respostes[q.id];
+
     const haEstatVista = Object.prototype.hasOwnProperty.call(descobertes, clau) ||
+      Object.prototype.hasOwnProperty.call(descobertes, `Policia Local::${qidStr}`) ||
+      Object.prototype.hasOwnProperty.call(descobertes, `Mossos::${qidStr}`) ||
+      Object.prototype.hasOwnProperty.call(descobertes, `Actualitat::${qidStr}`) ||
       Object.prototype.hasOwnProperty.call(descobertes, qidStr) ||
       Object.prototype.hasOwnProperty.call(descobertes, q.id) ||
       !!registre;
@@ -2540,6 +2555,22 @@ document.addEventListener('DOMContentLoaded', () => {
       return { ...b, preguntes: preguntesBloc, stats: estBloc };
     });
 
+    // Detectar preguntes que no han coincidit amb cap dels 5 blocs predefinits
+    const assignadesSet = new Set();
+    blocs.forEach(b => b.preguntes.forEach(q => assignadesSet.add(String(q.id))));
+    const noAssignades = dataset.filter(q => q && !assignadesSet.has(String(q.id)));
+    if (noAssignades.length > 0) {
+      const estNoAssignades = obtenirEstadistiquesBanc(noAssignades);
+      blocs.push({
+        id: 'altres',
+        nom: '🌍 Altres Categories i Noves Preguntes',
+        desc: 'Preguntes creades manualment, per lot o temes complementaris d\'actualitat.',
+        keywords: [],
+        preguntes: noAssignades,
+        stats: estNoAssignades
+      });
+    }
+
     contenedor.innerHTML = `
       <div style="max-width:1100px;margin:0 auto;display:flex;flex-direction:column;gap:20px;">
         
@@ -3656,7 +3687,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (inputFiltre) {
       inputFiltre.addEventListener('input', () => {
         const query = inputFiltre.value.toLowerCase().trim();
-        const items = activeView.querySelectorAll('.item-seccio-label');
+        const items = targetView.querySelectorAll('.item-seccio-label');
         items.forEach(item => {
           const txt = item.getAttribute('data-text') || '';
           item.style.display = (!query || txt.includes(query)) ? 'flex' : 'none';
@@ -3664,7 +3695,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    const checkboxes = activeView.querySelectorAll('.chk-seccio');
+    const checkboxes = targetView.querySelectorAll('.chk-seccio');
     const btnContinuar = document.getElementById('btn-continuar-seccions');
 
     function actualitzarBotoContinuar() {
@@ -3710,7 +3741,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (onTornar) {
       const btnTornar = document.getElementById('btn-tornar-seccions');
-      if (btnTornar) btnTornar.addEventListener('click', onTornar);
+      if (btnTornar) {
+        btnTornar.addEventListener('click', () => {
+          document.querySelectorAll('.hub').forEach(h => { h.style.display = ''; });
+          onTornar();
+        });
+      }
     }
   }
 
@@ -3916,6 +3952,22 @@ function iniciarExamen(quantitatDeseada = 10, esRepasErrors = false, datasetPers
     const preguntesTest = dataset.slice(0, Math.min(quantitatDeseada, dataset.length));
     window.ultimTestPreguntes = [...preguntesTest];
 
+    const primeraQ = preguntesTest[0] || {};
+    const fontDetectada = primeraQ._font || (typeof detectarFontPregunta === 'function' ? detectarFontPregunta(primeraQ) : '') || '';
+
+    const vistaActiva = (typeof obtenirVistaActiva === 'function' ? obtenirVistaActiva() : null);
+    const vistaActivaId = vistaActiva ? vistaActiva.id : '';
+
+    let esAct = vistaActivaId === 'view-actualitat' || fontDetectada === 'Actualitat';
+    let esPL = vistaActivaId === 'view-policia-local' || vistaActivaId === 'view-pl' || fontDetectada === 'Policia Local';
+    let esMossos = vistaActivaId === 'view-mossos' || fontDetectada === 'Mossos';
+
+    if (!esAct && !esPL && !esMossos) {
+      if (viewPL && (viewPL.classList.contains('view-activa') || viewPL.style.display !== 'none')) esPL = true;
+      else if (viewAct && (viewAct.classList.contains('view-activa') || viewAct.style.display !== 'none')) esAct = true;
+      else esMossos = true;
+    }
+
     const restaurarVistaSenseTest = () => {
       const actZona = document.getElementById('act-zona-test-container');
       const actPrincipal = document.getElementById('act-contingut-principal');
@@ -3933,18 +3985,20 @@ function iniciarExamen(quantitatDeseada = 10, esRepasErrors = false, datasetPers
       if (plPrincipal) plPrincipal.style.display = 'flex';
 
       window.scrollTo({ top: 0, behavior: 'smooth' });
+
+      // Actualitzem les vistes perquè els percentatges i comptadors de progrés s'actualitzin a l'instant
+      if (esPL && typeof window.mostrarTemarioPL === 'function') {
+        window.mostrarTemarioPL();
+      } else if (esMossos && typeof window.mostrarTemarioMossos === 'function') {
+        window.mostrarTemarioMossos();
+      } else if (esAct && typeof window.mostrarTemarioActualitat === 'function') {
+        window.mostrarTemarioActualitat();
+      }
     };
 
     const viewMossos = document.getElementById('view-mossos');
     const viewPL = document.getElementById('view-policia-local') || document.getElementById('view-pl');
     const viewAct = document.getElementById('view-actualitat');
-
-    const primeraQ = preguntesTest[0] || {};
-    const fontDetectada = primeraQ._font || (typeof detectarFontPregunta === 'function' ? detectarFontPregunta(primeraQ) : '') || '';
-
-    const esAct = (viewAct && (viewAct.style.display !== 'none' || viewAct.classList.contains('view-activa'))) || fontDetectada === 'Actualitat';
-    const esPL = (viewPL && (viewPL.style.display !== 'none' || viewPL.classList.contains('view-activa'))) || fontDetectada === 'Policia Local';
-    const esMossos = (viewMossos && (viewMossos.style.display !== 'none' || viewMossos.classList.contains('view-activa'))) || fontDetectada === 'Mossos' || (!esAct && !esPL);
 
     if (esAct && document.getElementById('act-zona-test-container')) {
       activeTestContainerId = 'test-container-actualitat';
@@ -5071,6 +5125,18 @@ function desarPreguntaDirecta(event) {
     if (seccioFinal.includes('Àmbit B') || seccioFinal.includes('Ambit B')) novaPregunta.ambit = 'Àmbit B';
     else if (seccioFinal.includes('Àmbit C') || seccioFinal.includes('Ambit C')) novaPregunta.ambit = 'Àmbit C';
     else novaPregunta.ambit = 'Àmbit A';
+  } else if (banc === 'act') {
+    let catNeta = 'General';
+    const sLower = seccioFinal.toLowerCase();
+    if (sLower.includes('esport')) catNeta = 'Esports';
+    else if (sLower.includes('polític') || sLower.includes('politica') || sLower.includes('govern') || sLower.includes('instituc')) catNeta = 'Política';
+    else if (sLower.includes('seguretat') || sLower.includes('policia')) catNeta = 'Seguretat';
+    else if (sLower.includes('premi') || sLower.includes('cultur') || sLower.includes('ciènci')) catNeta = 'Premis';
+    else if (sLower.includes('clau') || sLower.includes('repetid')) catNeta = 'Preguntes Clau';
+    else catNeta = seccioFinal.replace(/^[\p{Emoji}\s]+/u, '').trim() || 'General';
+
+    novaPregunta.categoria = catNeta;
+    novaPregunta.seccio = seccioFinal;
   }
 
   // 1. Desar a la memòria local de l'aplicació
@@ -5554,7 +5620,7 @@ function canviarModeCreacio(mode) {
   const btnLot = document.getElementById('btn-mode-crear-lot');
 
   const panellManual = document.getElementById('form-crear-pregunta-directa');
-  const panellModificar = document.getElementById('panell-modificar-preguntes');
+  const panellModificar = document.getElementById('panell-modificar-preguntes-existent') || document.getElementById('panell-modificar-preguntes');
   const panellLot = document.getElementById('panell-crear-preguntes-lot');
 
   [btnManual, btnModificar, btnLot].forEach(b => {
