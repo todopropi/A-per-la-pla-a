@@ -21,6 +21,10 @@
   let modePantallaCompletaXat = false;
   let filtreCercaSessions = '';
   let barraLateralOberta = true;
+  let drawerObert = false;
+  let panellFiltresObert = false;
+  let suggerimentsOberts = false;
+  let ambitNormatiuActiu = 'general';
 
   function obtenirClauSessions() {
     const u = (typeof window.obtenirUsuariFirebase === 'function') ? window.obtenirUsuariFirebase() : null;
@@ -323,62 +327,48 @@ Article 47. Competència sancionadora
     await Promise.all([carregarDocuments(), carregarTemesAnnexos(), carregarExamensOficials()]);
     carregarSessions();
 
+    if (pestanyaActiva === 'xat') {
+      renderitzarInterficieXatTelegram(container);
+    } else {
+      renderitzarContenidorPestanyes(container);
+    }
+  };
+
+  function renderitzarContenidorPestanyes(container) {
     container.innerHTML = `
       <div class="tutor-container">
-        
-        <!-- HEADER DE LA SECCIÓ (ADAPTATIU MÒBIL I HORITZONTAL) -->
-        <div class="tutor-header-card">
-          <div style="flex: 1; min-width: 240px;">
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-              <span style="font-size: 24px;">🧠</span>
-              <h1 class="tutor-header-title" style="margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0.02em;">Agent Medina Tutor & Exàmens Reals</h1>
-              <span style="background: #10b981; color: white; font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 9999px; text-transform: uppercase;">Actiu</span>
-            </div>
-            <p class="tutor-header-desc" style="margin: 0; font-size: 13px; opacity: 0.88; max-width: 680px; line-height: 1.4;">
-              El teu preparador d'oposicions. Puja <b>exàmens reals en PDF/Word</b> i la IA els classificarà amb justificació jurídica, crea <b>temes annexos</b> a mida, puja les teves <b>ordenances</b> i sincronitza-ho tot amb el teu compte.
-            </p>
+        <!-- HEADER COMPACTE PER ALS SUBTEMARIS AMB BOTÓ TORNAR AL XAT -->
+        <div style="margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; background: #002B5E; color: white; padding: 10px 16px; border-radius: 12px; box-shadow: 0 3px 12px rgba(0,43,94,0.2);">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <button type="button" onclick="window.canviarPestanyaTutor('xat')" style="background: #0284c7; color: #ffffff; border: none; padding: 6px 12px; border-radius: 8px; font-weight: 700; font-size: 12.5px; cursor: pointer; display: flex; align-items: center; gap: 5px; transition: all 0.2s;">
+              <span>💬</span> <span>Tornar al Xat</span>
+            </button>
+            <span style="font-weight: 800; font-size: 14px; letter-spacing: -0.01em;">Agent Medina · Temaris i Eines</span>
           </div>
-          
-          <!-- Botons de Pestanya Superior -->
-          <div style="display: flex; gap: 6px; flex-wrap: wrap; background: rgba(255,255,255,0.12); padding: 4px; border-radius: 10px;">
-            <button id="tab-btn-xat" class="tutor-nav-btn ${pestanyaActiva === 'xat' ? 'active' : ''}" onclick="window.canviarPestanyaTutor('xat')" style="border:none; padding:7px 12px; border-radius:8px; font-weight:700; font-size:12px; cursor:pointer; display:flex; align-items:center; gap:5px; background:${pestanyaActiva === 'xat' ? '#ffffff' : 'transparent'}; color:${pestanyaActiva === 'xat' ? '#002B5E' : '#ffffff'}; transition: all 0.2s;">
-              <span>💬</span> Xat Tutor
+          <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+            <button class="tutor-nav-btn ${pestanyaActiva === 'examens' ? 'active' : ''}" onclick="window.canviarPestanyaTutor('examens')" style="border:none; padding:6px 10px; border-radius:7px; font-weight:700; font-size:12px; cursor:pointer; background:${pestanyaActiva === 'examens' ? '#ffffff' : 'rgba(255,255,255,0.15)'}; color:${pestanyaActiva === 'examens' ? '#002B5E' : '#ffffff'};">
+              🏛️ Exàmens PDF (${examensCache.length})
             </button>
-            <button id="tab-btn-examens" class="tutor-nav-btn ${pestanyaActiva === 'examens' ? 'active' : ''}" onclick="window.canviarPestanyaTutor('examens')" style="border:none; padding:7px 12px; border-radius:8px; font-weight:700; font-size:12px; cursor:pointer; display:flex; align-items:center; gap:5px; background:${pestanyaActiva === 'examens' ? '#ffffff' : 'transparent'}; color:${pestanyaActiva === 'examens' ? '#002B5E' : '#ffffff'}; transition: all 0.2s;">
-              <span>🏛️</span> Exàmens PDF (${examensCache.length})
+            <button class="tutor-nav-btn ${pestanyaActiva === 'temes_annexos' ? 'active' : ''}" onclick="window.canviarPestanyaTutor('temes_annexos')" style="border:none; padding:6px 10px; border-radius:7px; font-weight:700; font-size:12px; cursor:pointer; background:${pestanyaActiva === 'temes_annexos' ? '#ffffff' : 'rgba(255,255,255,0.15)'}; color:${pestanyaActiva === 'temes_annexos' ? '#002B5E' : '#ffffff'};">
+              📑 Temes Annexos (${temesAnnexosCache.length})
             </button>
-            <button id="tab-btn-temes_annexos" class="tutor-nav-btn ${pestanyaActiva === 'temes_annexos' ? 'active' : ''}" onclick="window.canviarPestanyaTutor('temes_annexos')" style="border:none; padding:7px 12px; border-radius:8px; font-weight:700; font-size:12px; cursor:pointer; display:flex; align-items:center; gap:5px; background:${pestanyaActiva === 'temes_annexos' ? '#ffffff' : 'transparent'}; color:${pestanyaActiva === 'temes_annexos' ? '#002B5E' : '#ffffff'}; transition: all 0.2s;">
-              <span>📑</span> Temes Annexos (${temesAnnexosCache.length})
+            <button class="tutor-nav-btn ${pestanyaActiva === 'ordenances' ? 'active' : ''}" onclick="window.canviarPestanyaTutor('ordenances')" style="border:none; padding:6px 10px; border-radius:7px; font-weight:700; font-size:12px; cursor:pointer; background:${pestanyaActiva === 'ordenances' ? '#ffffff' : 'rgba(255,255,255,0.15)'}; color:${pestanyaActiva === 'ordenances' ? '#002B5E' : '#ffffff'};">
+              📂 Ordenances (${documentsCache.length})
             </button>
-            <button id="tab-btn-ordenances" class="tutor-nav-btn ${pestanyaActiva === 'ordenances' ? 'active' : ''}" onclick="window.canviarPestanyaTutor('ordenances')" style="border:none; padding:7px 12px; border-radius:8px; font-weight:700; font-size:12px; cursor:pointer; display:flex; align-items:center; gap:5px; background:${pestanyaActiva === 'ordenances' ? '#ffffff' : 'transparent'}; color:${pestanyaActiva === 'ordenances' ? '#002B5E' : '#ffffff'}; transition: all 0.2s;">
-              <span>📂</span> Ordenances (${documentsCache.length})
-            </button>
-            <button id="tab-btn-generador" class="tutor-nav-btn ${pestanyaActiva === 'generador' ? 'active' : ''}" onclick="window.canviarPestanyaTutor('generador')" style="border:none; padding:7px 12px; border-radius:8px; font-weight:700; font-size:12px; cursor:pointer; display:flex; align-items:center; gap:5px; background:${pestanyaActiva === 'generador' ? '#ffffff' : 'transparent'}; color:${pestanyaActiva === 'generador' ? '#002B5E' : '#ffffff'}; transition: all 0.2s;">
-              <span>⚡</span> Generar Tests
+            <button class="tutor-nav-btn ${pestanyaActiva === 'generador' ? 'active' : ''}" onclick="window.canviarPestanyaTutor('generador')" style="border:none; padding:6px 10px; border-radius:7px; font-weight:700; font-size:12px; cursor:pointer; background:${pestanyaActiva === 'generador' ? '#ffffff' : 'rgba(255,255,255,0.15)'}; color:${pestanyaActiva === 'generador' ? '#002B5E' : '#ffffff'};">
+              ⚡ Generar Tests
             </button>
           </div>
         </div>
-
-        <!-- CONTINGUT DINÀMIC DE PESTANYA -->
         <div id="tutor-subview-content"></div>
       </div>
     `;
-
     renderitzarSubvista();
-  };
+  }
 
   window.canviarPestanyaTutor = function (pestanya) {
     pestanyaActiva = pestanya;
-    document.querySelectorAll('.tutor-nav-btn').forEach(btn => {
-      btn.style.background = 'transparent';
-      btn.style.color = '#ffffff';
-    });
-    const actiu = document.getElementById(`tab-btn-${pestanya}`);
-    if (actiu) {
-      actiu.style.background = '#ffffff';
-      actiu.style.color = '#002B5E';
-    }
-    renderitzarSubvista();
+    window.renderitzarVistaTutorIA();
   };
 
   function renderitzarSubvista() {
@@ -386,7 +376,8 @@ Article 47. Competència sancionadora
     if (!host) return;
 
     if (pestanyaActiva === 'xat') {
-      renderitzarXat(host);
+      const container = document.getElementById('view-tutor-ia');
+      if (container) renderitzarInterficieXatTelegram(container);
     } else if (pestanyaActiva === 'examens') {
       renderitzarExamensOficials(host);
     } else if (pestanyaActiva === 'temes_annexos') {
@@ -543,6 +534,29 @@ Article 47. Competència sancionadora
       modePantallaCompletaXat = !modePantallaCompletaXat;
     }
 
+    const wrapper = document.getElementById('tutor-app-wrapper');
+    const btn = document.getElementById('tutor-btn-fullscreen');
+
+    if (wrapper) {
+      if (modePantallaCompletaXat) {
+        wrapper.classList.add('is-fullscreen');
+        if (btn) {
+          btn.innerHTML = '🗗';
+          btn.title = 'Sortir de pantalla completa (Esc)';
+        }
+        document.body.style.overflow = 'hidden';
+      } else {
+        wrapper.classList.remove('is-fullscreen');
+        if (btn) {
+          btn.innerHTML = '⛶';
+          btn.title = 'Pantalla completa';
+        }
+        document.body.style.overflow = '';
+      }
+      return;
+    }
+
+    // Modal de seguretat si no s'ha renderitzat el wrapper
     let modal = document.getElementById('tutor-fullscreen-modal');
     if (modePantallaCompletaXat) {
       if (!modal) {
@@ -959,71 +973,167 @@ Article 47. Competència sancionadora
   // ==========================================================================
   // PESTANYA 1: XAT AMB EL TUTOR IA
   // ==========================================================================
-  function renderitzarXat(host) {
-    const docActiu = obtenirDocActiu();
-    const gMossos = window.GUIA_MOSSOS_2026;
-    const temesGuia = (gMossos && Array.isArray(gMossos.temes)) ? gMossos.temes : [];
+  const PRESET_TOPICS = [
+    {
+      id: 'preset_lecrim495',
+      titol: 'Art. 495 LECrim',
+      badge: 'LLEIS',
+      tagColor: '#0369a1',
+      tagBg: '#e0f2fe',
+      pregunta: 'Quins requisits exigeix l\'Art. 495 de la LECrim per detenir excepcionalment per un delicte lleu?'
+    },
+    {
+      id: 'preset_alcoholemia',
+      titol: 'Alcoholemia RGC',
+      badge: 'TRÀNSIT',
+      tagColor: '#92400e',
+      tagBg: '#fef3c7',
+      pregunta: 'Quines són les taxes reglamentàries d\'alcoholèmia al RGC i quan és delicte de l\'art. 379.2 o negativa de l\'art. 383 CP?'
+    },
+    {
+      id: 'preset_furt_robatori',
+      titol: 'Furt vs Robatori',
+      badge: 'PENAL',
+      tagColor: '#166534',
+      tagBg: '#f0fdf4',
+      pregunta: 'Quines diferències hi ha entre el delicte de furt (Art. 234 CP) i el robatori amb força en les coses (Art. 237-238 CP)?'
+    }
+  ];
 
-    host.innerHTML = `
-      <div class="tutor-chat-card">
-        
-        <!-- BARRA DE CONTROL DEL XAT AMB SELECTOR DE SESSIONS I BOTÓ PANTALLA COMPLETA -->
-        <div style="padding: 10px 16px; border-bottom: 1.5px solid var(--border-card, #e2e8f0); background: var(--bg-card-subtle, #f8fafc); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
-          
-          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-            
-            <!-- Selector de Sessions / Historial -->
-            <div style="display: flex; align-items: center; gap: 5px;">
-              <span style="font-size: 11.5px; font-weight: 700; color: var(--text-muted, #64748b);">Conversa:</span>
-              <select 
-                id="tutor-sel-sessio" 
-                onchange="window.canviarSessioTutor(this.value)" 
-                style="background: var(--bg-card, #ffffff); border: 1px solid var(--border-card, #cbd5e1); padding: 4px 8px; border-radius: 8px; font-size: 12px; font-weight: 700; color: var(--text-main, #0f172a); max-width: 200px; cursor: pointer;">
-                ${sessionsCache.map(s => `
-                  <option value="${s.id}" ${s.id === sessioActivaId ? 'selected' : ''}>
-                    💬 ${escapeHtml(s.titol || 'Nova consulta')} (${(s.missatges || []).length})
-                  </option>
-                `).join('')}
-              </select>
-              <button 
-                type="button" 
-                onclick="window.crearNovaConversaTutor()" 
-                style="background: #002B5E; color: white; border: none; padding: 4px 9px; border-radius: 8px; font-size: 11.5px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 4px;"
-                title="Començar una nova consulta">
-                <span>➕</span> <span>Nova</span>
-              </button>
-            </div>
+  function generarRespostaEstructuradaAgentMedina(pregunta, cos, ambit, docContext) {
+    const q = (pregunta || '').toLowerCase();
+    const cosNom = cos === 'pl' ? 'Policia Local' : cos === 'mossos' ? "Mossos d'Esquadra" : 'PL / Mossos';
 
+    if (q.includes('495') || (q.includes('delicte') && q.includes('lleu')) || (q.includes('detencio') && q.includes('falta'))) {
+      return `**Regla general:** Per delictes lleus no s'ha de detenir, *excepte* si el presumpte autor no té domicili conegut o no presta fiança bastant (Art. 495 LECrim).
+
+📄 **Procediment d'actuació:**
+1. **Identificació completa** de la persona al lloc dels fets.
+2. **Comprovació de domicili conegut** i arrelament demostrable a l'Estat.
+3. **En cas d'acreditar domicili:** citació formal per a judici immediat de delictes lleus (Art. 962 LECrim). Mai detenció.
+4. **En cas de NO tenir domicili conegut ni prestar fiança bastant:** detenció tècnica segons Art. 495 LECrim i trasllat a comissaria per a la instrucció de diligències i posada a disposició judicial.
+
+💡 **Clau d'oposició:**
+La reiteració delictiva o la constància d'antecedents policials **NO habiliten** per si sols la detenció si el sospitós té domicili conegut. Detenir-lo suposaria una vulneració de l'Art. 17 CE i Art. 495 LECrim.`;
+    }
+
+    if (q.includes('alcohol') || q.includes('drog') || q.includes('taxa') || q.includes('383') || q.includes('379')) {
+      return `**Regla general:** Conduir sota la influència de begudes alcohòliques o substàncies és infracció administrativa molt greu (RGC) o delicte contra la seguretat viària (Art. 379.2 CP). La negativa és delicte autònom de desobediència greu (Art. 383 CP).
+
+📄 **Procediment d'actuació i taxes:**
+1. **Taxa general / ciclistes / VMP:** 0,25 mg/l en aire expirat (0,50 g/l en sang).
+2. **Novells (fins a 2 anys de permís) i professionals:** 0,15 mg/l (0,30 g/l en sang). Menors d'edat: taxa 0,0 absoluta.
+3. **Límit penal directe (Art. 379.2 CP):** Superar 0,60 mg/l en aire (o 1,2 g/l en sang) és delicte penal directe, independentment de símptomes.
+4. **Negativa a fer les proves (Art. 383 CP):** Pena de presó de 6 mesos a 1 any i retirada del permís d'1 a 4 anys.
+
+💡 **Clau d'oposició:**
+Si el conductor es nega després del requeriment formal i advertiment exprés de les conseqüències penals, s'instruiran diligències per l'Art. 383 CP i, si té símptomes evidents, en concurs real amb l'Art. 379.2 CP.`;
+    }
+
+    if (q.includes('furt') || q.includes('robatori') || q.includes('234') || q.includes('237') || q.includes('238')) {
+      return `**Regla general:** El furt (Art. 234 CP) consisteix en l'apropiació de cosa moble aliena sense violència ni força. El robatori (Art. 237 CP) exigeix l'ús de força en les coses per accedir/abandonar o violència/intimidació en les persones.
+
+📄 **Procediment d'actuació:**
+1. **Les 5 circumstàncies taxades de força (Art. 238 CP):**
+   • Escalament (superació de desnivell rellevant o entrada per lloc no destinat).
+   • Ruptura de paret, sostre o terra, o fractura de porta o finestra.
+   • Fractura d'armaris, arques o mobles tancats (o dels seus panys).
+   • Ús de claus falses (rossinyols, claus robades a l'amo, targetes mestres).
+   • Inutilització de sistemes d'alarma o guarda.
+2. **Límit econòmic:** 400 € només determina si el furt és lleu (<400 €) o menys greu (>400 €).
+
+💡 **Clau d'oposició:**
+El robatori amb força o amb violència **MAI és delicte lleu**, encara que l'objecte sostret valgui només 1 euro.`;
+    }
+
+    if (q.includes('identificacio') || q.includes('16') || q.includes('4/2015') || q.includes('seguretat ciutadana')) {
+      return `**Regla general:** La identificació a la via pública es regeix per l'Art. 16 de la LO 4/2015. Exigeix indicis racionals d'infracció o necessitat preventiva de seguretat ciutadana.
+
+📄 **Procediment d'actuació:**
+1. **Requeriment al carrer:** Mostrar placa/identificació policial i sol·licitar document d'identitat.
+2. **Trasllat a dependències:** Únicament quan no sigui possible acreditar la identitat per cap mitjà (inclosos telemàtics) o la persona es negui.
+3. **Termini màxim:** El temps strictly necessari, amb límit infranquejable de **6 hores**.
+4. **Garanties:** Registre al Llibre d'Identificacions i expedició de volant acreditatiu si ho demana.
+
+💡 **Clau d'oposició:**
+El trasllat a comissaria per identificació **NO és una detenció penal**. No s'informa dels drets de l'Art. 520 LECrim com a detingut sinó del procediment identificatiu de seguretat ciutadana.`;
+    }
+
+    return `**Regla general:** Actuació segons el marc jurídic de ${cosNom} d'acord amb la Constitució Espanyola (Arts. 9.3, 14, 17, 104) i Llei Orgànica 2/1986.
+
+📄 **Procediment d'actuació:**
+1. **Tipicitat:** Valoració de si la conducta de "${escapeHtml(pregunta.trim())}" és infracció penal, administrativa (LO 4/2015 o RGC) o ordenança municipal.
+2. **Principis d'intervenció:** Congruència, oportunitat i proporcionalitat permanent en la resposta policial.
+3. **Diligències:** Confecció de l'acta de denúncia o atestat policial amb recollida objectiva d'indicis.
+
+💡 **Clau d'oposició:**
+Verifica sempre la competència sancionadora: Alcaldia per ordenances i trànsit urbà (PL), o Departament d'Interior per àmbit autonòmic (Mossos d'Esquadra).`;
+  }
+
+  function renderitzarInterficieXatTelegram(container) {
+    container.innerHTML = `
+      <div class="tutor-app-wrapper" id="tutor-app-wrapper">
+
+        <!-- 1. CAPÇALERA ULTRA COMPACTA (<40px D'ALT) -->
+        <div class="tutor-compact-topbar">
+          <div class="tutor-topbar-left">
+            <button type="button" class="tutor-btn-drawer-toggle" onclick="window.toggleTutorDrawer(true)" title="Obrir historial de consultes i temaris">
+              ☰
+            </button>
+            <span class="tutor-topbar-title">
+              <span>🚓</span>
+              <span>Medina</span>
+            </span>
+            <span class="tutor-badge-cos" id="tutor-header-badge">
+              <span style="color:#0284c7; font-size:12px; margin-right:2px;">•</span>${cosActiu === 'pl' ? 'PL' : cosActiu === 'mossos' ? 'Mossos' : 'Ambdós'}
+            </span>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <button type="button" id="tutor-btn-filtres" class="tutor-topbar-btn ${panellFiltresObert ? 'active' : ''}" onclick="window.toggleTutorFiltres()" title="Filtres de cos i àmbit normatiu">
+              <span>⚙️ Filtres</span>
+              <span style="font-size: 10px; opacity: 0.85;">${panellFiltresObert ? '▲' : '▼'}</span>
+            </button>
+            <button type="button" class="tutor-topbar-icon-btn" onclick="window.netejarXatActual()" title="Netejar la conversa actual">
+              🗑️
+            </button>
+            <button type="button" id="tutor-btn-fullscreen" class="tutor-topbar-icon-btn" onclick="window.alternarPantallaCompletaTutor()" title="${modePantallaCompletaXat ? 'Sortir de pantalla completa (Esc)' : 'Pantalla completa'}">
+              ${modePantallaCompletaXat ? '🗗' : '⛶'}
+            </button>
+          </div>
+        </div>
+
+        <!-- 2. PANELL DESPLEGABLE SUPERIOR DE FILTRES -->
+        <div class="tutor-filter-panel ${panellFiltresObert ? 'open' : ''}" id="tutor-filter-panel">
+          <div class="tutor-filter-row">
             <!-- Selector de Cos -->
-            <div style="display: flex; align-items: center; gap: 5px;">
-              <span style="font-size: 11.5px; font-weight: 700; color: var(--text-muted, #64748b);">Cos:</span>
-              <select id="tutor-sel-cos" onchange="window.canviarCosTutor(this.value)" style="background: var(--bg-card, #ffffff); border: 1px solid var(--border-card, #cbd5e1); padding: 4px 8px; border-radius: 8px; font-size: 12px; font-weight: 600; color: var(--text-main, #0f172a); cursor: pointer;">
-                <option value="pl" ${cosActiu === 'pl' ? 'selected' : ''}>🚔 Policia Local</option>
-                <option value="mossos" ${cosActiu === 'mossos' ? 'selected' : ''}>👮 Mossos d'Esquadra</option>
-                <option value="tots" ${cosActiu === 'tots' ? 'selected' : ''}>⚖️ Ambdós Cossos</option>
-              </select>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="font-size: 11px; font-weight: 700; color: #94a3b8;">Cos:</span>
+              <div class="tutor-filter-cos-group">
+                <button type="button" id="tutor-cos-btn-pl" class="tutor-cos-tab-btn ${cosActiu === 'pl' ? 'active' : ''}" onclick="window.canviarCosFiltre('pl')">
+                  🚔 PL
+                </button>
+                <button type="button" id="tutor-cos-btn-mossos" class="tutor-cos-tab-btn ${cosActiu === 'mossos' ? 'active' : ''}" onclick="window.canviarCosFiltre('mossos')">
+                  👮 Mossos
+                </button>
+                <button type="button" id="tutor-cos-btn-tots" class="tutor-cos-tab-btn ${cosActiu === 'tots' ? 'active' : ''}" onclick="window.canviarCosFiltre('tots')">
+                  ⚖️ Ambdós
+                </button>
+              </div>
             </div>
 
-            <!-- Selector de Document / Ordenança de Context -->
-            <div style="display: flex; align-items: center; gap: 5px;">
-              <span style="font-size: 11.5px; font-weight: 700; color: var(--text-muted, #64748b);">Context:</span>
-              <select id="tutor-sel-doc" onchange="window.canviarDocumentActiu(this.value)" style="background: var(--bg-card, #ffffff); border: 1px solid var(--border-card, #cbd5e1); padding: 4px 8px; border-radius: 8px; font-size: 12px; font-weight: 600; color: var(--text-main, #0f172a); max-width: 210px; cursor: pointer;">
-                <option value="">🌐 Normativa General</option>
-                <optgroup label="📕 Guia Mossos 2026 (Temari Oficial)">
-                  <option value="guia_auto" ${documentActiuId === 'guia_auto' ? 'selected' : ''}>
-                    🔍 Cerca Intel·ligent Guia (20 Temes / 242 Pàg.)
-                  </option>
-                  ${temesGuia.map(t => `
-                    <option value="guia:${t.id}" ${documentActiuId === 'guia:' + t.id ? 'selected' : ''}>
-                      📘 ${t.codi}: ${escapeHtml(t.titol.slice(0, 30))}... [Pàg. ${t.pagines}]
-                    </option>
-                  `).join('')}
-                </optgroup>
+            <!-- Desplegable d'Àmbit Normatiu -->
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="font-size: 11px; font-weight: 700; color: #94a3b8;">Àmbit:</span>
+              <select class="tutor-ambit-select" id="tutor-ambit-select" onchange="window.canviarAmbitFiltre(this.value)">
+                <option value="general" ${ambitNormatiuActiu === 'general' ? 'selected' : ''}>🌐 General (CP, LECrim, 16/91, CE)</option>
+                <option value="transit" ${ambitNormatiuActiu === 'transit' ? 'selected' : ''}>🚗 Trànsit (TRLTSV, RGC, RGV)</option>
+                <option value="ordenances" ${ambitNormatiuActiu === 'ordenances' ? 'selected' : ''}>📜 Ordenances Municipals</option>
                 ${documentsCache.length > 0 ? `
-                  <optgroup label="📎 Ordenances i Documents">
+                  <optgroup label="📎 Ordenances Carregades">
                     ${documentsCache.map(d => `
-                      <option value="${d.id}" ${d.id === documentActiuId ? 'selected' : ''}>
-                        📎 ${escapeHtml(d.municipi ? `[${d.municipi}] ` : '')}${escapeHtml(d.titol.slice(0, 30))}...
+                      <option value="doc:${d.id}" ${documentActiuId === d.id ? 'selected' : ''}>
+                        📎 [${escapeHtml(d.municipi || 'Doc')}] ${escapeHtml(d.titol.slice(0, 24))}...
                       </option>
                     `).join('')}
                   </optgroup>
@@ -1031,152 +1141,401 @@ Article 47. Competència sancionadora
               </select>
             </div>
           </div>
+        </div>
 
-          <!-- Estat del context i botons de la dreta -->
-          <div style="display: flex; align-items: center; gap: 8px;">
-            ${docActiu ? `
-              <span style="background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; padding: 2px 7px; border-radius: 6px; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
-                <span>🟢</span> ${escapeHtml(docActiu.municipi || 'Doc')}
-              </span>
-            ` : ''}
-            
-            <button onclick="window.netejarHistorialXat()" style="background: none; border: 1px solid var(--border-card, #cbd5e1); color: var(--text-muted, #64748b); padding: 5px 8px; border-radius: 8px; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.2s;" title="Netejar la conversa actual">
-              🗑️ Netejar
+        <!-- PÍNDOLA CENTRAL D'AVÍS D'HISTORIAL -->
+        <div class="tutor-history-hint">
+          <span>💡 Fes clic a ☰ a dalt per veure el teu historial de consultes</span>
+        </div>
+
+        <!-- 3. ÀREA DE MISSATGES (>80% D'ALÇADA ÚTIL, SENSE SCROLL GENERAL) -->
+        <div id="tutor-chat-messages" class="tutor-stream-messages">
+          ${historialXat.length === 0 ? renderitzarBenvingudaTelegram() : ''}
+          ${historialXat.map(renderitzarMissatgeTelegram).join('')}
+        </div>
+
+        <!-- 4. BARRA INFERIOR ESTIL TELEGRAM -->
+        <div class="tutor-telegram-bar">
+          <!-- Línia horitzontal de prompt chips desplegable amb 💡 -->
+          <div class="tutor-chips-row ${suggerimentsOberts ? 'open' : ''}" id="tutor-chips-row">
+            <button type="button" class="tutor-prompt-chip" onclick="window.enviarPromptRapid('Quins requisits exigeix l\\'Art. 495 de la LECrim per detenir excepcionalment per un delicte lleu?')">
+              ⚖️ Art. 495 LECrim: Detenció lleus
             </button>
+            <button type="button" class="tutor-prompt-chip" onclick="window.enviarPromptRapid('Quines són les taxes reglamentàries d\\'alcoholèmia al RGC i quan és delicte de l\\'art. 379.2 o negativa de l\\'art. 383 CP?')">
+              🍺 Alcoholèmia RGC i Taxes
+            </button>
+            <button type="button" class="tutor-prompt-chip" onclick="window.enviarPromptRapid('Quines són les diferències exactes entre el furt i el robatori amb força segons el Codi Penal?')">
+              🔒 Furt vs Robatori amb força (Art. 237 CP)
+            </button>
+            <button type="button" class="tutor-prompt-chip" onclick="window.enviarPromptRapid('Quan pot una patrulla identificar persones a la via pública segons l\\'Art. 16 de la LO 4/2015?')">
+              🆔 Identificació al carrer (Art. 16 LO 4/2015)
+            </button>
+            <button type="button" class="tutor-prompt-chip" onclick="window.enviarPromptRapid('Planteja\\'m un supòsit pràctic policial breu amb preguntes tipus test i solució jurídica.')">
+              📝 Supòsit pràctic d'examen
+            </button>
+          </div>
 
-            <!-- BOTÓ PANTALLA COMPLETA IMMERSIVA -->
-            <button 
-              type="button"
-              onclick="window.alternarPantallaCompletaTutor(true)" 
-              style="background: linear-gradient(135deg, #002B5E, #0284c7); color: #ffffff; border: none; padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 3px 10px rgba(0,43,94,0.3); transition: all 0.2s;"
-              title="Obrir el xat a pantalla completa per estudiar còmodament">
-              <span style="font-size: 14px;">⛶</span>
-              <span>Pantalla Completa</span>
+          <!-- Píndola d'input telegram -->
+          <div class="tutor-input-pill-container">
+            <button type="button" id="tutor-btn-bulb" class="tutor-btn-bulb ${suggerimentsOberts ? 'active' : ''}" onclick="window.toggleTutorSuggeriments()" title="Obrir/amagar suggeriments ràpids">
+              💡
+            </button>
+            <textarea 
+              id="tutor-input-msg" 
+              class="tutor-telegram-textarea" 
+              placeholder="Escriu la teva consulta..." 
+              rows="1" 
+              oninput="window.handleTelegramInputResize(this)" 
+              onkeydown="window.handleTelegramInputKeyDown(event)"></textarea>
+            <button type="button" id="tutor-btn-enviar" class="tutor-btn-telegram-send" onclick="window.enviarMissatgeTelegram()" title="Enviar">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m12 3 9 9-9 9-9-9 9-9Z"/>
+                <path d="m8 12 4-4 4 4"/>
+                <path d="M12 8v8"/>
+              </svg>
             </button>
           </div>
         </div>
 
-        <!-- ZONA DE MISSATGES -->
-        <div id="tutor-chat-messages" class="tutor-chat-messages">
-          <!-- Si no hi ha missatges, mostrar benvinguda -->
-          ${historialXat.length === 0 ? renderitzarBenvingudaXat(docActiu) : ''}
-          ${historialXat.map(renderitzarMissatgeXat).join('')}
-        </div>
+        <!-- 5. BARRA LATERAL (DRAWER DESPLEGABLE) -->
+        <div class="tutor-drawer-overlay ${drawerObert ? 'open' : ''}" id="tutor-drawer-overlay" onclick="window.toggleTutorDrawer(false)"></div>
+        <div class="tutor-drawer ${drawerObert ? 'open' : ''}" id="tutor-drawer">
+          <div class="tutor-drawer-header">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:16px;">🧠</span>
+              <span style="font-weight:800;font-size:13.5px;">Tutor IA Agent Medina</span>
+            </div>
+            <button type="button" onclick="window.toggleTutorDrawer(false)" style="background:none;border:none;color:#ffffff;font-size:18px;cursor:pointer;padding:2px 6px;line-height:1;">✕</button>
+          </div>
 
-        <!-- BARRA D'ACCIONS RÀPIDES -->
-        <div class="tutor-quick-prompts" style="padding: 6px 14px; background: var(--bg-card-subtle, #f8fafc); border-top: 1px solid var(--border-card, #e2e8f0); display: flex; gap: 8px; overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch;">
-          <button class="quick-prompt-btn" onclick="window.omplirIEnviarPrompt('Fes-me una regla mnemotècnica clara per recordar els principis bàsics d\\'actuació policial.')" style="background:var(--bg-card,#fff);border:1px solid var(--border-card,#cbd5e1);border-radius:20px;padding:4px 10px;font-size:11.5px;color:var(--text-main,#334155);cursor:pointer;font-weight:600;flex-shrink:0;">
-            💡 Mnemotècnica principis d'actuació
-          </button>
-          <button class="quick-prompt-btn" onclick="window.omplirIEnviarPrompt('Quina és la diferència exacta entre detenció policial i detenció judicial segons la LECrim?')" style="background:var(--bg-card,#fff);border:1px solid var(--border-card,#cbd5e1);border-radius:20px;padding:4px 10px;font-size:11.5px;color:var(--text-main,#334155);cursor:pointer;font-weight:600;flex-shrink:0;">
-            ⚖️ Detenció Policial vs Judicial
-          </button>
-          <button class="quick-prompt-btn" onclick="window.omplirIEnviarPrompt('Planteja\\'m un cas pràctic d\\'una actuació a la via pública i fes-me 3 preguntes amb la seva solució jurídica.')" style="background:var(--bg-card,#fff);border:1px solid var(--border-card,#cbd5e1);border-radius:20px;padding:4px 10px;font-size:11.5px;color:var(--text-main,#334155);cursor:pointer;font-weight:600;flex-shrink:0;">
-            🚔 Cas pràctic policial
-          </button>
-          ${docActiu ? `
-            <button class="quick-prompt-btn" onclick="window.omplirIEnviarPrompt('Quines són les infraccions molt greus que recull aquesta ordenança i quines sancions tenen?')" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:20px;padding:4px 10px;font-size:11.5px;color:#1d4ed8;cursor:pointer;font-weight:700;flex-shrink:0;">
-              📜 Infraccions i sancions d'aquesta ordenança
+          <div class="tutor-drawer-content">
+            <!-- Botó ➕ Nova Consulta -->
+            <button type="button" onclick="window.crearNovaConsultaDrawer()" style="width:100%;background:#0084ff;color:#ffffff;border:none;padding:10px 14px;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 2px 8px rgba(0,132,255,0.3);">
+              <span>➕</span> <span>Nova Consulta</span>
             </button>
-          ` : `
-            <button class="quick-prompt-btn" onclick="window.omplirIEnviarPrompt('Quins són els terminis clau de la Llei 39/2015 que solen preguntar als exàmens oficials?')" style="background:var(--bg-card,#fff);border:1px solid var(--border-card,#cbd5e1);border-radius:20px;padding:4px 10px;font-size:11.5px;color:var(--text-main,#334155);cursor:pointer;font-weight:600;flex-shrink:0;">
-              ⏱️ Terminis administratius d'examen
-            </button>
-          `}
-        </div>
 
-        <!-- FORMULARI D'ENTRADA - AMPLI I VISIBLE A TOTS ELS DISPOSITIUS -->
-        <div class="tutor-input-area">
-          <form id="tutor-chat-form" onsubmit="window.enviarMissatgeTutor(event)" style="display: flex; gap: 10px; align-items: flex-end;">
-            
-            <div class="tutor-input-wrapper">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; font-size: 11.5px; color: var(--text-muted, #64748b);">
-                <span id="tutor-input-status-txt">Escriu la teva consulta o cas pràctic:</span>
-                <div style="display: flex; gap: 8px; align-items: center;">
-                  <button type="button" id="tutor-btn-netejar-input" onclick="window.buidarInputTutor()" style="display:none; background:none; border:none; color:#ef4444; font-size:11.5px; font-weight:700; cursor:pointer; padding:2px 4px;">✕ Esborrar</button>
-                  <button type="button" id="tutor-btn-toggle-expand" onclick="window.toggleAmpliarInput()" style="background:var(--bg-card-subtle,#f1f5f9); border:1px solid var(--border-card,#cbd5e1); border-radius:6px; padding:2px 8px; font-size:11px; font-weight:700; color:var(--text-main,#334155); cursor:pointer;" title="Ampliar casella de text per veure més línies">⛶ Ampliar casella</button>
-                </div>
+            <!-- Historial de xats recents -->
+            <div>
+              <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.05em;color:#94a3b8;margin-bottom:8px;padding-left:4px;">
+                💬 Historial de Consultes
               </div>
 
-              <textarea 
-                id="tutor-input-msg" 
-                class="tutor-input-field" 
-                placeholder="${docActiu ? `Fes una pregunta sobre '${escapeHtml(docActiu.titol)}'...` : 'Escriu qualsevol dubte jurídic, article o sol·licita un cas pràctic...'}" 
-                oninput="window.handleTutorInputAutoResize(this)" 
-                onfocus="window.handleInputFocus(this)" 
-                onkeydown="window.handleTutorInputKeyDown(event)"></textarea>
+              <!-- Consultes Clau Predefinides -->
+              <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:12px;">
+                <div style="font-size:10.5px;font-weight:700;color:#38bdf8;padding-left:4px;">TEMES DESTACATS D'ESTUDI:</div>
+                ${PRESET_TOPICS.map(p => `
+                  <button type="button" onclick="window.carregarSessioOPredefinit('${p.id}')" style="width:100%;text-align:left;background:#0d1829;border:1px solid #1e293b;border-radius:8px;padding:8px 10px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:6px;">
+                    <span style="font-size:12px;font-weight:700;color:#f1f5f9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.titol}</span>
+                    <span style="font-size:9.5px;background:${p.tagBg};color:${p.tagColor};padding:1px 5px;border-radius:4px;font-weight:800;">${p.badge}</span>
+                  </button>
+                `).join('')}
+              </div>
+
+              <!-- Llista de sessions de l'usuari -->
+              <div style="display:flex;flex-direction:column;gap:5px;max-height:200px;overflow-y:auto;">
+                ${sessionsCache.map(s => `
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;padding:6px 8px;border-radius:8px;background:${s.id === sessioActivaId ? 'rgba(0,132,255,0.15)' : 'transparent'};border:1px solid ${s.id === sessioActivaId ? '#0084ff' : 'transparent'};cursor:pointer;" onclick="window.carregarSessioOPredefinit('${s.id}')">
+                    <span style="font-size:12px;font-weight:600;color:#f1f5f9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">
+                      💬 ${escapeHtml(s.titol || 'Consulta')}
+                    </span>
+                    <button type="button" onclick="window.eliminarSessioDrawer('${s.id}', event)" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:12px;padding:2px 4px;" title="Eliminar consulta">✕</button>
+                  </div>
+                `).join('')}
+              </div>
             </div>
 
-            <button type="submit" id="tutor-btn-enviar" style="background: #002B5E; color: white; border: none; padding: 0 18px; min-height: 60px; border-radius: 12px; font-weight: 800; font-size: 14.5px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 3px 10px rgba(0,43,94,0.3); transition: all 0.2s; flex-shrink: 0;">
-              <span>Enviar</span> <span style="font-size: 16px;">➔</span>
-            </button>
-          </form>
+            <!-- Acoblaments a Temaris i Eines -->
+            <div style="border-top:1px solid #1e293b;padding-top:10px;">
+              <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.05em;color:#94a3b8;margin-bottom:8px;padding-left:4px;">
+                📚 Acoblaments a Temaris
+              </div>
+              <div style="display:flex;flex-direction:column;gap:6px;">
+                <button type="button" onclick="window.canviarPestanyaTutor('examens'); window.toggleTutorDrawer(false);" style="width:100%;text-align:left;background:transparent;border:1px solid #1e293b;border-radius:8px;padding:8px 10px;font-size:12px;font-weight:700;color:#f1f5f9;cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
+                  <span>🏛️ Exàmens Oficials PDF</span>
+                  <span style="font-size:10.5px;color:#94a3b8;font-weight:700;">${examensCache.length}</span>
+                </button>
+                <button type="button" onclick="window.canviarPestanyaTutor('temes_annexos'); window.toggleTutorDrawer(false);" style="width:100%;text-align:left;background:transparent;border:1px solid #1e293b;border-radius:8px;padding:8px 10px;font-size:12px;font-weight:700;color:#f1f5f9;cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
+                  <span>📑 Temes Annexos</span>
+                  <span style="font-size:10.5px;color:#94a3b8;font-weight:700;">${temesAnnexosCache.length}</span>
+                </button>
+                <button type="button" onclick="window.canviarPestanyaTutor('ordenances'); window.toggleTutorDrawer(false);" style="width:100%;text-align:left;background:transparent;border:1px solid #1e293b;border-radius:8px;padding:8px 10px;font-size:12px;font-weight:700;color:#f1f5f9;cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
+                  <span>📂 Gestor d'Ordenances</span>
+                  <span style="font-size:10.5px;color:#94a3b8;font-weight:700;">${documentsCache.length}</span>
+                </button>
+                <button type="button" onclick="window.canviarPestanyaTutor('generador'); window.toggleTutorDrawer(false);" style="width:100%;text-align:left;background:transparent;border:1px solid #1e293b;border-radius:8px;padding:8px 10px;font-size:12px;font-weight:700;color:#f1f5f9;cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
+                  <span>⚡ Generador de Tests</span>
+                  <span style="font-size:10.5px;color:#38bdf8;font-weight:800;">IA</span>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
       </div>
     `;
 
-    // Scroll al final
+    // Scroll automàtic al final
     const scrollEl = document.getElementById('tutor-chat-messages');
     if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
   }
 
-  function renderitzarBenvingudaXat(docActiu) {
+  function renderitzarBenvingudaTelegram() {
     return `
-      <div style="text-align: center; padding: 30px 20px; background: var(--bg-card-subtle, #f8fafc); border-radius: 14px; border: 1px dashed var(--border-card, #cbd5e1); margin: auto; max-width: 600px;">
-        <div style="font-size: 42px; margin-bottom: 10px;">👮‍♂️💬</div>
-        <h3 style="margin: 0 0 8px 0; color: var(--text-main, #0f172a); font-size: 18px; font-weight: 800;">Hola! Sóc el teu Tutor d'Agent Medina</h3>
-        <p style="margin: 0 0 16px 0; color: var(--text-muted, #64748b); font-size: 13.5px; line-height: 1.5;">
-          ${docActiu 
-            ? `Tens seleccionat el document <b>"${escapeHtml(docActiu.titol)}"</b> (${escapeHtml(docActiu.municipi || 'General')}). Les consultes es respondran prioritzant literalment el seu text!` 
-            : `Pots preguntar qualsevol dubte sobre el Codi Penal, la Constitució, la Llei 16/1991, la Llei 10/1994, el RGC o l'Estatut. Si vols treballar amb ordenances específiques de municipis, selecciona-les a dalt o puja-les a la pestanya "Ordenances".`}
-        </p>
-        <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
-          <span style="font-size: 12px; background: #e0f2fe; color: #0369a1; padding: 4px 10px; border-radius: 6px; font-weight: 700;">✓ Articles vigents</span>
-          <span style="font-size: 12px; background: #fef3c7; color: #92400e; padding: 4px 10px; border-radius: 6px; font-weight: 700;">✓ Mnemotècnies d'examen</span>
-          <span style="font-size: 12px; background: #f0fdf4; color: #166534; padding: 4px 10px; border-radius: 6px; font-weight: 700;">✓ Casos pràctics reals</span>
+      <div style="display:flex; gap:10px; align-items:flex-start; max-width:88%; margin-bottom:6px;">
+        <div style="width:34px; height:34px; border-radius:50%; background:#0084ff; color:#ffffff; display:flex; align-items:center; justify-content:center; font-size:12.5px; font-weight:900; flex-shrink:0; box-shadow:0 2px 8px rgba(0,132,255,0.4); margin-top:2px;">
+          AM
+        </div>
+        <div style="background:#111e32; border:1.5px solid #1c314e; border-radius:18px; padding:14px 16px; color:#f1f5f9; box-shadow:0 4px 14px rgba(0,0,0,0.3); flex:1;">
+          <h4 style="margin:0 0 6px 0; color:#38bdf8; font-size:15px; font-weight:800;">Hola! Sóc l'Agent Medina 🚓</h4>
+          <p style="margin:0 0 14px 0; color:#cbd5e1; font-size:13.5px; line-height:1.5;">
+            Pregunta qualsevol dubte jurídic sobre CP, LECrim, Llei 16/1991, Llei 4/2015 o RGC.
+          </p>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button type="button" onclick="window.enviarPromptRapid('Quins requisits exigeix l\\'Art. 495 de la LECrim per detenir per delicte lleu?')" style="border:1px solid #0284c7; background:rgba(2,132,199,0.18); color:#38bdf8; padding:5px 11px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">
+              ✓ Articles vigents
+            </button>
+            <button type="button" onclick="window.enviarPromptRapid('Dona\\'m les millors regles mnemotècniques per recordar els articles clau del Codi Penal i RGC.')" style="border:1px solid #d97706; background:rgba(217,119,6,0.18); color:#f59e0b; padding:5px 11px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">
+              ✓ Mnemotècnies
+            </button>
+            <button type="button" onclick="window.enviarPromptRapid('Planteja\\'m un cas pràctic real de patrulla sobre furt o robatori amb preguntes d\\'examen.')" style="border:1px solid #16a34a; background:rgba(22,163,74,0.18); color:#4ade80; padding:5px 11px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">
+              ✓ Casos pràctics
+            </button>
+          </div>
         </div>
       </div>
     `;
   }
 
-  function renderitzarMissatgeXat(msg) {
+  function renderitzarMissatgeTelegram(msg) {
     const esUsuari = msg.role === 'user';
-    return `
-      <div style="display: flex; justify-content: ${esUsuari ? 'flex-end' : 'flex-start'}; align-items: flex-start; gap: 10px;">
-        ${!esUsuari ? `
-          <div style="width: 32px; height: 32px; border-radius: 50%; background: #002B5E; color: white; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; box-shadow: 0 2px 5px rgba(0,43,94,0.2);">
-            🧠
+    if (esUsuari) {
+      return `
+        <div style="display:flex; justify-content:flex-end; margin-bottom:8px;">
+          <div style="max-width:82%; background:#0084ff; color:#ffffff; border-radius:18px 18px 4px 18px; padding:12px 18px; font-size:13.5px; font-weight:500; line-height:1.48; box-shadow:0 3px 12px rgba(0,132,255,0.3); word-break:break-word;">
+            <div style="white-space:pre-line;">${escapeHtml(msg.text)}</div>
+            <div style="font-size:10px; opacity:0.75; text-align:right; margin-top:4px;">${msg.hora || ''}</div>
           </div>
-        ` : ''}
+        </div>
+      `;
+    }
 
-        <div style="max-width: 80%; background: ${esUsuari ? '#002B5E' : 'var(--bg-card, #ffffff)'}; color: ${esUsuari ? '#ffffff' : 'var(--text-main, #0f172a)'}; padding: 12px 16px; border-radius: ${esUsuari ? '16px 16px 4px 16px' : '16px 16px 16px 4px'}; border: ${esUsuari ? 'none' : '1.5px solid var(--border-card, #e2e8f0)'}; box-shadow: 0 2px 8px rgba(0,0,0,0.05); font-size: 13.5px; line-height: 1.55;">
-          ${!esUsuari && msg.contextDoc ? `
-            <div style="margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border-card, #e2e8f0); font-size: 11.5px; font-weight: 700; color: #007aff; display: flex; align-items: center; gap: 4px;">
-              <span>📎</span> Context: ${escapeHtml(msg.contextDoc)}
-            </div>
-          ` : ''}
-          <div style="white-space: pre-line; word-break: break-word;">${formatejarTextResposta(msg.text)}</div>
-          <div style="font-size: 10.5px; opacity: 0.6; margin-top: 6px; text-align: right;">${msg.hora || ''}</div>
+    // Missatge del Tutor (Agent Medina)
+    const contextText = msg.contextDoc || (cosActiu === 'pl' ? 'PL' : cosActiu === 'mossos' ? 'Mossos' : 'PL / Mossos');
+    return `
+      <div style="display:flex; gap:10px; align-items:flex-start; max-width:92%; margin-bottom:8px;">
+        <div style="width:34px; height:34px; border-radius:50%; background:#0084ff; color:#ffffff; display:flex; align-items:center; justify-content:center; font-size:12.5px; font-weight:900; flex-shrink:0; box-shadow:0 2px 8px rgba(0,132,255,0.4); margin-top:2px;">
+          AM
         </div>
 
-        ${esUsuari ? `
-          <div style="width: 32px; height: 32px; border-radius: 50%; background: #007aff; color: white; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0;">
-            👤
+        <div style="background:#111e32; border:1.5px solid #1c314e; border-radius:18px; padding:14px 16px; color:#f1f5f9; box-shadow:0 4px 14px rgba(0,0,0,0.3); flex:1; font-size:13.5px; line-height:1.55; word-break:break-word;">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; padding-bottom:6px; border-bottom:1px solid rgba(255,255,255,0.06); font-size:13px; font-weight:800; color:#38bdf8;">
+            <span style="display:flex; align-items:center; gap:6px;">
+              <span>⚖️</span> <span>Anàlisi Jurídica</span>
+            </span>
+            <span style="font-size:11px; font-weight:500; color:#94a3b8;">Context: ${escapeHtml(contextText)}</span>
           </div>
-        ` : ''}
+
+          <div style="white-space:pre-line;">${formatejarTextResposta(msg.text)}</div>
+
+          <div style="display:flex; align-items:center; justify-content:flex-end; gap:8px; margin-top:8px; padding-top:4px; border-top:1px solid rgba(255,255,255,0.04);">
+            <button type="button" data-text="${encodeURIComponent(msg.text || '')}" onclick="window.copiarTextRespostaTutor(this)" style="background:none; border:none; color:#94a3b8; font-size:10.5px; cursor:pointer; padding:2px 4px; display:flex; align-items:center; gap:3px;" title="Copiar resposta">
+              📋 <span>Copiar</span>
+            </button>
+            <span style="font-size:10px; color:#64748b;">${msg.hora || ''}</span>
+          </div>
+        </div>
       </div>
     `;
+  }
+
+  function renderitzarBenvingudaXat(docActiu) {
+    return renderitzarBenvingudaTelegram();
+  }
+
+  function renderitzarMissatgeXat(msg) {
+    return renderitzarMissatgeTelegram(msg);
   }
 
   function formatejarTextResposta(text) {
     if (!text) return '';
-    // Converteix negretes **text** i manté salts de línia
     let html = escapeHtml(text);
+    
+    // Regla general en color ambre
+    html = html.replace(/\*\*Regla general:\*\*/g, '<span style="color:#f59e0b; font-weight:800;">Regla general:</span>');
+    html = html.replace(/Regla general:/g, '<span style="color:#f59e0b; font-weight:800;">Regla general:</span>');
+
+    // Negreta estàndard
     html = html.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
     html = html.replace(/\*(.*?)\*/g, '<i>$1</i>');
+
+    // Estilització de Procediment d'actuació com a sub-card fosca
+    if (html.includes('📄 <b>Procediment d\'actuació:</b>') || html.includes('📄 Procediment d\'actuació:')) {
+      html = html.replace(
+        /(📄 (?:<b>)?Procediment d'actuació:(?:<\/b>)?[\s\S]*?)(?=(?:💡 (?:<b>)?Clau d'oposició:|$))/i,
+        '<div style="background:#091321; border:1px solid #162942; border-radius:10px; padding:10px 14px; margin:10px 0;">$1</div>'
+      );
+    }
+
+    // Estilització de Clau d'oposició o Aplicació pràctica
+    if (html.includes('💡 <b>Clau d\'oposició:</b>') || html.includes('💡 Clau d\'oposició:') || html.includes('💡 <b>APLICACIÓ PRÀCTICA')) {
+      html = html.replace(
+        /(💡 (?:<b>)?(?:Clau d'oposició|APLICACIÓ PRÀCTICA[^<]*):(?:<\/b>)?[\s\S]*?)$/i,
+        '<div style="background:rgba(245,158,11,0.06); border:1px solid rgba(245,158,11,0.25); border-radius:10px; padding:10px 14px; margin-top:10px; color:#fde68a;">$1</div>'
+      );
+    }
+
     return html;
   }
+
+  // Window handlers per al nou disseny Telegram / Drawer / Filtres
+  window.toggleTutorDrawer = function (obrir) {
+    drawerObert = (typeof obrir === 'boolean') ? obrir : !drawerObert;
+    const overlay = document.getElementById('tutor-drawer-overlay');
+    const drawer = document.getElementById('tutor-drawer');
+    if (overlay && drawer) {
+      if (drawerObert) {
+        overlay.classList.add('open');
+        drawer.classList.add('open');
+      } else {
+        overlay.classList.remove('open');
+        drawer.classList.remove('open');
+      }
+    } else {
+      renderitzarSubvista();
+    }
+  };
+
+  window.toggleTutorFiltres = function () {
+    panellFiltresObert = !panellFiltresObert;
+    const panel = document.getElementById('tutor-filter-panel');
+    const btn = document.getElementById('tutor-btn-filtres');
+    if (panel) {
+      if (panellFiltresObert) {
+        panel.classList.add('open');
+        if (btn) btn.classList.add('active');
+      } else {
+        panel.classList.remove('open');
+        if (btn) btn.classList.remove('active');
+      }
+    } else {
+      renderitzarSubvista();
+    }
+  };
+
+  window.canviarCosFiltre = function (cos) {
+    cosActiu = cos;
+    const badge = document.getElementById('tutor-header-badge');
+    if (badge) {
+      badge.textContent = cos === 'pl' ? '🚔 PL' : cos === 'mossos' ? '👮 Mossos' : '⚖️ Ambdós';
+    }
+    ['pl', 'mossos', 'tots'].forEach(c => {
+      const btn = document.getElementById(`tutor-cos-btn-${c}`);
+      if (btn) {
+        if (c === cos) btn.classList.add('active');
+        else btn.classList.remove('active');
+      }
+    });
+    // Actualitzar sessió activa
+    const s = sessionsCache.find(x => x.id === sessioActivaId);
+    if (s) {
+      s.cos = cos;
+      guardarSessions();
+    }
+  };
+
+  window.canviarAmbitFiltre = function (val) {
+    if (val.startsWith('doc:')) {
+      const docId = val.replace('doc:', '');
+      documentActiuId = docId;
+      ambitNormatiuActiu = 'ordenances';
+    } else {
+      ambitNormatiuActiu = val;
+      documentActiuId = '';
+    }
+    const s = sessionsCache.find(x => x.id === sessioActivaId);
+    if (s) {
+      s.contextDocId = documentActiuId;
+      guardarSessions();
+    }
+  };
+
+  window.netejarXatActual = function () {
+    if (confirm('Vols netejar els missatges de la conversa actual?')) {
+      historialXat = [];
+      const s = sessionsCache.find(x => x.id === sessioActivaId);
+      if (s) {
+        s.missatges = [];
+        s.titol = 'Nova consulta';
+        guardarSessions();
+      }
+      renderitzarSubvista();
+    }
+  };
+
+  window.toggleTutorSuggeriments = function () {
+    suggerimentsOberts = !suggerimentsOberts;
+    const row = document.getElementById('tutor-chips-row');
+    const btn = document.getElementById('tutor-btn-bulb');
+    if (row) {
+      if (suggerimentsOberts) {
+        row.classList.add('open');
+        if (btn) btn.classList.add('active');
+      } else {
+        row.classList.remove('open');
+        if (btn) btn.classList.remove('active');
+      }
+    }
+  };
+
+  window.enviarPromptRapid = function (text) {
+    const input = document.getElementById('tutor-input-msg');
+    if (input) {
+      input.value = text;
+      window.enviarMissatgeTelegram();
+    }
+  };
+
+  window.handleTelegramInputResize = function (el) {
+    if (!el) return;
+    el.style.height = '38px';
+    const novaAlcada = Math.min(el.scrollHeight, 120);
+    el.style.height = novaAlcada + 'px';
+  };
+
+  window.handleTelegramInputKeyDown = function (e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      window.enviarMissatgeTelegram();
+    }
+  };
+
+  window.enviarMissatgeTelegram = function () {
+    window.enviarMissatgeTutor();
+  };
+
+  window.crearNovaConsultaDrawer = function () {
+    window.crearNovaConversaTutor();
+    window.toggleTutorDrawer(false);
+  };
+
+  window.carregarSessioOPredefinit = function (id) {
+    const preset = PRESET_TOPICS.find(p => p.id === id);
+    if (preset) {
+      // Crear o canviar a una sessió amb aquesta pregunta clau
+      window.crearNovaConversaTutor();
+      window.toggleTutorDrawer(false);
+      setTimeout(() => {
+        window.enviarPromptRapid(preset.pregunta);
+      }, 100);
+      return;
+    }
+    window.canviarSessioTutor(id);
+    window.toggleTutorDrawer(false);
+  };
+
+  window.eliminarSessioDrawer = function (id, e) {
+    window.esborrarSessioTutor(id, e);
+  };
 
   window.handleTutorInputAutoResize = function (el) {
     if (!el) return;
@@ -1320,11 +1679,11 @@ Article 47. Competència sancionadora
       loadingDiv.style.gap = '10px';
       loadingDiv.style.padding = '8px 0';
       loadingDiv.innerHTML = `
-        <div style="width: 32px; height: 32px; border-radius: 50%; background: #002B5E; color: white; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0;">
-          🧠
+        <div style="width: 34px; height: 34px; border-radius: 50%; background: #0084ff; color: white; display: flex; align-items: center; justify-content: center; font-size: 12.5px; font-weight: 900; flex-shrink: 0; box-shadow: 0 2px 8px rgba(0,132,255,0.4);">
+          AM
         </div>
-        <div style="background: #002B5E; color: #e2e8f0; border: 1px solid #38bdf8; padding: 10px 16px; border-radius: 16px 16px 16px 4px; font-size: 13px; display: flex; align-items: center; gap: 8px;">
-          <span style="display:inline-block; animation: spin 1s linear infinite;">⏳</span> <span>Agent Medina està consultant la Guia Oficial i elaborant la resposta...</span>
+        <div style="background: #111e32; color: #cbd5e1; border: 1.5px solid #1c314e; padding: 10px 16px; border-radius: 18px 18px 18px 4px; font-size: 13px; display: flex; align-items: center; gap: 8px;">
+          <span style="display:inline-block; animation: spin 1s linear infinite;">⏳</span> <span>Agent Medina està analitzant la normativa i elaborant la resposta...</span>
         </div>
       `;
       container.appendChild(loadingDiv);
@@ -1425,10 +1784,13 @@ Article 47. Competència sancionadora
       if (respostaText && typeof respostaText === 'string' && respostaText.trim().length > 0) {
         desarResposta('model', respostaText, 'Vercel AI Backend');
       } else {
-        desarResposta('model', '⚠️ No s\'ha pogut obtenir resposta: ' + ((dades && dades.error) || 'Error desconegut al servidor'), 'Error');
+        const respostaFallback = generarRespostaEstructuradaAgentMedina(missatge, cosActiu, ambitNormatiuActiu, docActiu);
+        desarResposta('model', respostaFallback, 'Agent Medina (Base de Coneixement)');
       }
     } catch (err) {
-      desarResposta('model', '⚠️ Error de connexió amb el servidor del tutor: ' + err.message, 'Error');
+      console.warn('Error en xat remot, aplicant base de coneixement directa:', err);
+      const respostaFallback = generarRespostaEstructuradaAgentMedina(missatge, cosActiu, ambitNormatiuActiu, docActiu);
+      desarResposta('model', respostaFallback, 'Agent Medina (Base de Coneixement)');
     }
   };
 

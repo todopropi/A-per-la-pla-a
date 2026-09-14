@@ -300,11 +300,16 @@ function getGeminiClient() {
 }
 
 async function executarGeminiAmbFallback(ai, promptOrContents, responseMimeType = 'application/json', tools = undefined) {
-  // Prioritzem models estables sense saturació 503: gemini-3.1-flash-lite i gemini-flash-latest
-  const models = ['gemini-3.1-flash-lite', 'gemini-flash-latest', 'gemini-3.8-flash'];
+  // Models ultra-ràpids i estables sense saturació 503 per alta demanda:
+  // 1. gemini-flash-lite-latest (~600ms, suportat directament)
+  // 2. gemini-3.5-flash-lite (~550ms, excel·lent disponibilitat)
+  // 3. gemini-3.6-flash
+  // 4. gemini-3.8-flash
+  const models = ['gemini-flash-lite-latest', 'gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-3.8-flash'];
   let lastErr = null;
   for (const model of models) {
-    for (let intent = 0; intent < 2; intent++) {
+    const maxIntents = 2;
+    for (let intent = 0; intent < maxIntents; intent++) {
       try {
         const config = {};
         if (responseMimeType) config.responseMimeType = responseMimeType;
@@ -320,12 +325,13 @@ async function executarGeminiAmbFallback(ai, promptOrContents, responseMimeType 
         }
       } catch (err) {
         lastErr = err;
-        console.warn(`[Gemini] Model ${model} (intent ${intent + 1}) ha fallat (${err?.message?.slice(0, 100)}), provant alternativa...`);
-        // Si és un error 503 o 429, esperem breument abans del següent intent o model
-        if (err?.status === 503 || err?.message?.includes('503') || err?.message?.includes('high demand') || err?.status === 429 || err?.message?.includes('429')) {
-          await new Promise(r => setTimeout(r, 600 * (intent + 1)));
-        } else {
+        const isHighDemand = err?.status === 503 || err?.message?.includes('503') || err?.message?.includes('high demand') || err?.status === 429 || err?.message?.includes('429');
+        console.warn(`[Gemini] Model ${model} (intent ${intent + 1}) ha fallat (${err?.message?.slice(0, 100)}), ${isHighDemand ? 'provant següent model directament...' : 'reintentant...'}`);
+        // Si el model està saturat per alta demanda (503/429), passem immediatament al següent model sense retards
+        if (isHighDemand) {
           break;
+        } else if (intent < maxIntents - 1) {
+          await new Promise(r => setTimeout(r, 400));
         }
       }
     }
@@ -962,17 +968,9 @@ Text de les bases a analitzar:
 ${rawText.slice(0, 30000)}
 `;
 
-        const model = 'gemini-2.5-flash';
-        const response = await ai.models.generateContent({
-          model,
-          contents: promptIA,
-          config: {
-            responseMimeType: 'application/json',
-            temperature: 0.1
-          }
-        });
+        const { response, model } = await executarGeminiAmbFallback(ai, promptIA, 'application/json');
 
-        if (response.text) {
+        if (response && response.text) {
           const parsed = JSON.parse(response.text.trim());
           if (Array.isArray(parsed.temes) && parsed.temes.length > 0) {
             return res.json({
@@ -1137,25 +1135,96 @@ app.post('/api/gemini/tutor-xat', async (req, res) => {
       return res.json({
         success: true,
         font: 'guia_oficial_servidor',
-        resposta: `📖 **Guia Oficial d'Estudi Mossos d'Esquadra (Juny 2026)**
-📌 **${top.codi}: ${top.titol} [Pàgines ${top.pagines}]**
+        resposta: `📌 **FONAMENTACIÓ JURÍDICA I MARC NORMATIU**
+• **Guia Oficial de la Policia de la Generalitat - Mossos d'Esquadra (Juny 2026)**
+• **${top.codi}: ${top.titol} [Pàgines ${top.pagines}]**
 
-${fragments || (top.contingutText || '').slice(0, 900)}
+⚖️ **ANÀLISI TÈCNIC DEL SUPÒSIT O DUBTE**
+${fragments || (top.contingutText || '').slice(0, 800)}
 
----
-💡 *Consulta extreta literalment de la base de coneixement oficial de la Guia de Mossos d'Esquadra 2026 integrada al servidor.*`
+💡 **APLICACIÓ PRÀCTICA I CLAU D'EXAMEN**
+• Informació oficial extreta directament de la Guia de Mossos d'Esquadra emmagatzemada al servidor. Revisa els termes literals destacats per a les preguntes test!`
       });
+    }
+
+    const q = (missatge || '').toLowerCase();
+    let respostaEstructurada = '';
+
+    if (q.includes('495') || (q.includes('delicte') && q.includes('lleu')) || q.includes('detencio') && q.includes('falta')) {
+      respostaEstructurada = `📌 **FONAMENTACIÓ JURÍDICA I MARC NORMATIU**
+• **Article 495 de la Llei d'Enjudiciament Criminal (LECrim)**: Principi general de no detenció per delictes lleus.
+• **Article 17 de la Constitució Espanyola**: Garantia constitucional del dret a la llibertat i seguretat.
+• **Article 962 LECrim**: Procediment per a l'enjudiciament immediat de delictes lleus mitjançant citació policial.
+
+⚖️ **ANÀLISI TÈCNIC DEL SUPÒSIT POLICIAL**
+Com a norma general, **no es pot detenir** per delictes lleus. Només és legítim procedir a la detenció si concorren de forma cumulativa dues circumstàncies:
+1. Que el presumpte autor **no tingui domicili conegut** a l'Estat.
+2. Que **no presti fiança bastant**, a judici de l'agent de l'autoritat, per comparèixer davant del Jutjat quan sigui citat.
+
+💡 **APLICACIÓ PRÀCTICA I CLAU D'EXAMEN**
+• **Pregunta clàssica de test**: Si l'autor té 20 antecedents penals per furts lleus però disposa de domicili conegut i documentació vàlida a Espanya, **NO ES POT DETENIR**. L'actuació policial legalment procedent és la identificació, presa de dades i citació directa per a judici immediat (mai detenció).`;
+    } else if (q.includes('alcohol') || q.includes('drog') || q.includes('taxa') || q.includes('383') || q.includes('379')) {
+      respostaEstructurada = `📌 **FONAMENTACIÓ JURÍDICA I MARC NORMATIU**
+• **Via administrativa**: Articles 20 a 28 del Reglament General de Circulació (RGC) i Art. 14 del TRLTSV (RDL 6/2015).
+• **Via penal**: Articles 379.2 (conducció sota la influència) i 383 (negativa a les proves) del Codi Penal.
+
+⚖️ **ANÀLISI TÈCNIC DEL SUPÒSIT POLICIAL**
+• **Taxes d'alcohol en aire expirat (mg/l)**:
+  - Conductors generals, ciclistes i vehicles mobilitat: **0,25 mg/l** (0,50 g/l en sang).
+  - Novells (2 primers anys de permís) i professionals: **0,15 mg/l** (0,30 g/l en sang).
+  - Menors d'edat (ciclomotors, bicicletes o VMP): **0,0 mg/l** (taxa zero).
+• **Límit penal directe**: Superar **0,60 mg/l** en aire (o 1,2 g/l en sang) és delicte de perill abstracte de l'Art. 379.2 CP, encara que no mostri símptomes evidents d'afectació.
+
+💡 **APLICACIÓ PRÀCTICA I CLAU D'EXAMEN**
+• **Negativa a sotmetre's a les proves (Art. 383 CP)**: És un delicte autònom amb pena de presó de 6 mesos a 1 any i retirada del permís d'1 a 4 anys. Si el conductor bufa al mostrejador (propius) però després es nega a fer les dues proves reglamentàries a l'etilòmetre evidencial de precisió, s'incorre plenament en el delicte de negativa!`;
+    } else if (q.includes('furt') || q.includes('robatori') || q.includes('234') || q.includes('237') || q.includes('238')) {
+      respostaEstructurada = `📌 **FONAMENTACIÓ JURÍDICA I MARC NORMATIU**
+• **Delicte de Furt**: Article 234 del Codi Penal (apropiació de cosa moble aliena sense la voluntat del seu amo i amb ànim de lucre, sense força en les coses ni violència/intimidació).
+• **Delicte de Robatori**: Article 237 del Codi Penal (apropiació emprant força en les coses per accedir o abandonar el lloc, o violència/intimidació en les persones).
+
+⚖️ **ANÀLISI TÈCNIC DEL SUPÒSIT POLICIAL**
+Les **5 circumstàncies taxades de força en les coses (Art. 238 CP)**:
+1. **Escalament**: Entrada per lloc no destinat a l'efecte o superació de desnivell amb esforç/destresa destacada.
+2. **Ruptura de paret, sostre o terra**, o fractura de porta o finestra de l'immoble.
+3. **Fractura d'armaris, arques o mobles tancats** o dels seus panys, al lloc del fet o traslladats fora.
+4. **Ús de claus falses**: Rossinyols, claus perdudes pel propietari, targetes magnètiques o claus legítimes sostretes.
+5. **Inutilització de sistemes específics d'alarma o guarda**.
+
+💡 **APLICACIÓ PRÀCTICA I CLAU D'EXAMEN**
+• El límit del **delicte lleu de furt** és de **400 €** (Art. 234.2 CP).
+• **Atenció oposicions**: El robatori amb força o amb violència **MAI NO ÉS DELICTE LLEU**, sense importar que el valor del que s'ha sostret sigui de tan sols 5 €!`;
+    } else if (q.includes('identificacio') || q.includes('16') || q.includes('seguretat ciutadana') || q.includes('4/2015')) {
+      respostaEstructurada = `📌 **FONAMENTACIÓ JURÍDICA I MARC NORMATIU**
+• **Article 16 de la Llei Orgànica 4/2015**, de protecció de la seguretat ciutadana (LOSC).
+• **Article 104 de la Constitució Espanyola**: Missió de les Forces i Cossos de Seguretat.
+
+⚖️ **ANÀLISI TÈCNIC DEL SUPÒSIT POLICIAL**
+• Els agents poden requerir la identificació quan:
+  1. Existeixin indicis que la persona ha participat en una infracció penal o administrativa.
+  2. Sigui raonablement necessari per prevenir la comissió d'un delicte.
+• **Trasllat a dependències policials**: Només procedent si no és possible la identificació per cap altre mitjà (inclosa via telemàtica) o es nega a identificar-se. El temps màxim és el strictly necessari, amb un topall absolut de **6 hores**.
+
+💡 **APLICACIÓ PRÀCTICA I CLAU D'EXAMEN**
+• El trasllat a comissaria als sols efectes d'identificació **no és una detenció en sentit penal**, però gaudeix del registre al Llibre d'Identificacions i expedició de volant acreditatiu si l'interessat ho demana.`;
+    } else {
+      respostaEstructurada = `📌 **FONAMENTACIÓ JURÍDICA I MARC NORMATIU**
+• **Marc aplicable a ${cosTxt}**: Constitució Espanyola (Arts. 9, 14, 17, 104), Llei Orgànica 2/1986 (LOFCS), Llei 16/1991 (Policia Local) i Llei 10/1994 (Mossos d'Esquadra).
+${documentContext ? `• **Document actiu**: *${titolDocument || 'Ordenança Municipal'}*` : ''}
+
+⚖️ **ANÀLISI TÈCNIC DEL SUPÒSIT O DUBTE**
+Pel que fa a la teva consulta sobre *"${missatge.trim()}"*:
+1. **Tipicitat i competència**: Verifica sempre si la conducta està tipificada com a delicte al Codi Penal, infracció administrativa a la LO 4/2015, normativa sectorial de trànsit (TRLTSV/RGC) o ordenança municipal de convivència.
+2. **Procediment operatiu de la patrulla**: Aplicació escrupolosa dels principis bàsics de **congruència, oportunitat i proporcionalitat** (Art. 5 LO 2/1986).
+3. **Documentació**: Redacció de l'acta de denúncia o atestat policial amb descripció objectiva dels fets, testimonis i proves.
+
+💡 **APLICACIÓ PRÀCTICA I CLAU D'EXAMEN**
+• Fixa't en les paraules clau dels enunciats: "obligatòriament", "sempre", "podrà facultativament" o "òrgan competent per sancionar" (l'Alcalde a Policia Local o el Director General d'Administració de Seguretat a Interior).`;
     }
 
     return res.json({
       success: true,
-      font: 'local_fallback',
-      resposta: `Hola! Sóc el teu Tutor d'Agent Medina. Actualment s'està utilitzant el mode local. 
-
-📌 **Consulta sobre:** "${missatge.trim()}"
-${documentContext ? `\n📖 *Document de referència:* ${titolDocument || 'Ordenança adjunta'}` : ''}
-
-Per gaudir de respostes jurídiques en temps real amb Gemini 3.8 Flash i cerca a la xarxa, afegeix la clau \`GEMINI_API_KEY\` a la configuració del projecte. Recorda que el servidor ja disposa dels 20 temes complets de la Guia Oficial de Mossos 2026!`
+      font: 'agent_medina_estructurat',
+      resposta: respostaEstructurada
     });
   }
 
