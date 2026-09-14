@@ -92,6 +92,11 @@
       }
       localStorage.setItem(clau, JSON.stringify(sessionsCache));
       localStorage.setItem('agentmedina_chat_sessions', JSON.stringify(sessionsCache));
+
+      // Sincronització immediata amb el compte de l'usuari (Firestore)
+      if (typeof window.pujarDadesANucolManual === 'function') {
+        window.pujarDadesANucolManual();
+      }
     } catch (e) {
       console.warn('Error guardant sessions:', e);
     }
@@ -371,14 +376,65 @@ Article 47. Competència sancionadora
     window.renderitzarVistaTutorIA();
   };
 
-  function renderitzarSubvista() {
-    const host = document.getElementById('tutor-subview-content');
-    if (!host) return;
+  function actualitzarDrawerSessionsUI() {
+    const el = document.getElementById('tutor-drawer-sessions-list');
+    if (!el) return;
+    el.innerHTML = sessionsCache.map(s => `
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;padding:6px 8px;border-radius:8px;background:${s.id === sessioActivaId ? 'rgba(0,132,255,0.15)' : 'transparent'};border:1px solid ${s.id === sessioActivaId ? '#0084ff' : 'transparent'};cursor:pointer;" onclick="window.carregarSessioOPredefinit('${s.id}')">
+        <span style="font-size:12px;font-weight:600;color:#f1f5f9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">
+          💬 ${escapeHtml(s.titol || 'Consulta')}
+        </span>
+        <button 
+          type="button" 
+          onclick="event.stopPropagation(); window.eliminarSessioDrawer('${s.id}', event);" 
+          style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.25);color:#fca5a5;cursor:pointer;font-size:12px;font-weight:bold;padding:2px 7px;border-radius:6px;line-height:1.2;display:flex;align-items:center;justify-content:center;transition:all 0.15s;" 
+          onmouseover="this.style.background='rgba(239,68,68,0.3)'; this.style.color='#ffffff'" 
+          onmouseout="this.style.background='rgba(239,68,68,0.12)'; this.style.color='#fca5a5'" 
+          title="Eliminar consulta">✕</button>
+      </div>
+    `).join('');
+  }
 
+  function actualitzarMissatgesXatUI() {
+    const msgBox = document.getElementById('tutor-chat-messages');
+    if (msgBox) {
+      msgBox.innerHTML = (historialXat.length === 0)
+        ? renderitzarBenvingudaTelegram()
+        : historialXat.map(renderitzarMissatgeTelegram).join('');
+      msgBox.scrollTop = msgBox.scrollHeight;
+    }
+    const fsMsgBox = document.getElementById('tutor-fs-messages');
+    if (fsMsgBox) {
+      const inner = fsMsgBox.firstElementChild || fsMsgBox;
+      inner.innerHTML = (historialXat.length === 0 ? renderitzarBenvingudaXat(obtenirDocActiu(), true) : '') +
+        historialXat.map(msg => renderitzarMissatgeXat(msg, true)).join('');
+      fsMsgBox.scrollTop = fsMsgBox.scrollHeight;
+    }
+    actualitzarDrawerSessionsUI();
+  }
+
+  function renderitzarSubvista() {
     if (pestanyaActiva === 'xat') {
+      const msgBox = document.getElementById('tutor-chat-messages');
+      if (msgBox) {
+        actualitzarMissatgesXatUI();
+        return;
+      }
       const container = document.getElementById('view-tutor-ia');
-      if (container) renderitzarInterficieXatTelegram(container);
-    } else if (pestanyaActiva === 'examens') {
+      if (container) {
+        renderitzarInterficieXatTelegram(container);
+      }
+      return;
+    }
+
+    const host = document.getElementById('tutor-subview-content');
+    if (!host) {
+      const container = document.getElementById('view-tutor-ia');
+      if (container) renderitzarContenidorPestanyes(container);
+      return;
+    }
+
+    if (pestanyaActiva === 'examens') {
       renderitzarExamensOficials(host);
     } else if (pestanyaActiva === 'temes_annexos') {
       renderitzarTemesAnnexos(host);
@@ -387,6 +443,11 @@ Article 47. Competència sancionadora
     } else if (pestanyaActiva === 'generador') {
       renderitzarGenerador(host);
     }
+  }
+
+  function obtenirTemesGuiaMossos() {
+    const g = window.GUIA_MOSSOS_2026;
+    return (g && Array.isArray(g.temes)) ? g.temes : [];
   }
 
   function obtenirDocActiu() {
@@ -401,21 +462,109 @@ Article 47. Competència sancionadora
     }
     if (typeof documentActiuId === 'string' && documentActiuId.startsWith('guia:')) {
       const tid = documentActiuId.replace('guia:', '');
-      const g = window.GUIA_MOSSOS_2026;
-      if (g && Array.isArray(g.temes)) {
-        const t = g.temes.find(x => x.id === tid);
-        if (t) {
-          return {
-            id: `guia:${t.id}`,
-            titol: `${t.codi}: ${t.titol} [Pàg. ${t.pagines}]`,
-            municipi: t.ambitNom,
-            contingutText: t.contingutText,
-            pagines: t.pagines
-          };
-        }
+      const temes = obtenirTemesGuiaMossos();
+      const t = temes.find(x => x.id === tid || x.id.toLowerCase() === tid.toLowerCase() || x.id.replace(/^t_/, '').toLowerCase() === tid.replace(/^t_/, '').toLowerCase());
+      if (t) {
+        return {
+          id: `guia:${t.id}`,
+          titol: `${t.codi}: ${t.titol} [Pàg. ${t.pagines}]`,
+          municipi: t.ambitNom,
+          contingutText: t.contingutText,
+          pagines: t.pagines
+        };
       }
     }
     return documentsCache.find(d => d.id === documentActiuId) || null;
+  }
+
+  function obtenirEtiquetaAmbitResum() {
+    if (documentActiuId === 'guia_auto') {
+      return '📕 Guia Mossos (Auto)';
+    }
+    if (typeof documentActiuId === 'string' && documentActiuId.startsWith('guia:')) {
+      const tid = documentActiuId.replace('guia:', '');
+      const temes = obtenirTemesGuiaMossos();
+      const t = temes.find(x => x.id === tid || x.id.toLowerCase() === tid.toLowerCase() || x.id.replace(/^t_/, '').toLowerCase() === tid.replace(/^t_/, '').toLowerCase());
+      if (t) return `📘 ${t.codi}`;
+      return `📘 Guia ${tid.toUpperCase()}`;
+    }
+    if (documentActiuId) {
+      const d = documentsCache.find(x => x.id === documentActiuId);
+      if (d) return `📎 ${d.municipi || d.titol.slice(0, 10)}`;
+    }
+    if (cosActiu === 'mossos' && (!ambitNormatiuActiu || ambitNormatiuActiu === 'guia_mossos')) {
+      return '📕 Guia Mossos (Auto)';
+    }
+    if (ambitNormatiuActiu === 'transit') return '🚗 Trànsit';
+    if (ambitNormatiuActiu === 'ordenances') return '📜 Ordenances';
+    return '🌐 General';
+  }
+
+  function generarOpcionsAmbitSelect(cos, docId, ambit) {
+    const temesGuia = obtenirTemesGuiaMossos();
+
+    const temesA = temesGuia.filter(t => t.ambit === 'Àmbit A' || (t.id && t.id.startsWith('A')));
+    const temesB = temesGuia.filter(t => t.ambit === 'Àmbit B' || (t.id && t.id.startsWith('B')));
+    const temesC = temesGuia.filter(t => t.ambit === 'Àmbit C' || (t.id && t.id.startsWith('C')));
+
+    const esGuiaAuto = docId === 'guia_auto' || (!docId && (cos === 'mossos' || ambit === 'guia_mossos'));
+
+    const htmlBlocGuia = `
+      <optgroup label="📕 Guia d'Estudi Mossos 2026 (Temari Oficial)">
+        <option value="guia_auto" ${esGuiaAuto ? 'selected' : ''}>
+          🔍 Guia Mossos: Cerca Intel·ligent (20 Temes / 242 Pàg.)
+        </option>
+      </optgroup>
+      ${temesA.length > 0 ? `
+        <optgroup label="📘 Àmbit A: Coneixements de l'entorn (A1-A7)">
+          ${temesA.map(t => `
+            <option value="guia:${t.id}" ${docId === ('guia:' + t.id) ? 'selected' : ''}>
+              ${t.codi}: ${escapeHtml(t.titol.slice(0, 32))} [Pàg. ${t.pagines}]
+            </option>
+          `).join('')}
+        </optgroup>
+      ` : ''}
+      ${temesB.length > 0 ? `
+        <optgroup label="📘 Àmbit B: Institucional (B1-B8)">
+          ${temesB.map(t => `
+            <option value="guia:${t.id}" ${docId === ('guia:' + t.id) ? 'selected' : ''}>
+              ${t.codi}: ${escapeHtml(t.titol.slice(0, 32))} [Pàg. ${t.pagines}]
+            </option>
+          `).join('')}
+        </optgroup>
+      ` : ''}
+      ${temesC.length > 0 ? `
+        <optgroup label="📘 Àmbit C: Seguretat i Policia (C1-C5)">
+          ${temesC.map(t => `
+            <option value="guia:${t.id}" ${docId === ('guia:' + t.id) ? 'selected' : ''}>
+              ${t.codi}: ${escapeHtml(t.titol.slice(0, 32))} [Pàg. ${t.pagines}]
+            </option>
+          `).join('')}
+        </optgroup>
+      ` : ''}
+    `;
+
+    const htmlBlocGeneral = `
+      <optgroup label="🌐 Normativa General Policial">
+        <option value="general" ${(!docId && ambit === 'general') ? 'selected' : ''}>🌐 General (CP, LECrim, LOFCS, 16/91, CE)</option>
+        <option value="transit" ${(!docId && ambit === 'transit') ? 'selected' : ''}>🚗 Trànsit (TRLTSV, RGC, RGV)</option>
+        <option value="ordenances" ${(!docId && ambit === 'ordenances') ? 'selected' : ''}>📜 Ordenances Municipals Generals</option>
+      </optgroup>
+      ${documentsCache.length > 0 ? `
+        <optgroup label="📎 Ordenances Carregades">
+          ${documentsCache.map(d => `
+            <option value="doc:${d.id}" ${docId === d.id || docId === ('doc:' + d.id) ? 'selected' : ''}>
+              📎 [${escapeHtml(d.municipi || 'Doc')}] ${escapeHtml(d.titol.slice(0, 24))}...
+            </option>
+          `).join('')}
+        </optgroup>
+      ` : ''}
+    `;
+
+    if (cos === 'mossos') {
+      return htmlBlocGuia + htmlBlocGeneral;
+    }
+    return htmlBlocGeneral + htmlBlocGuia;
   }
 
   // ==========================================================================
@@ -463,35 +612,49 @@ Article 47. Competència sancionadora
   };
 
   window.esborrarSessioTutor = function (id, e) {
-    if (e && e.stopPropagation) e.stopPropagation();
-    if (sessionsCache.length <= 1) {
-      if (confirm('Vols buidar aquesta conversa?')) {
-        historialXat = [];
-        const s = sessionsCache.find(x => x.id === id);
-        if (s) {
-          s.titol = 'Nova consulta jurídica';
-          s.missatges = [];
-          s.dataActualitzacio = new Date().toISOString();
-        }
-        guardarSessions();
-        renderitzarSubvista();
-        if (modePantallaCompletaXat) renderitzarPantallaCompletaModal();
-      }
-      return;
+    if (e) {
+      if (typeof e.stopPropagation === 'function') e.stopPropagation();
+      if (typeof e.preventDefault === 'function') e.preventDefault();
     }
 
-    if (confirm('Estàs segur d\'eliminar aquesta conversa de l\'historial?')) {
-      sessionsCache = sessionsCache.filter(x => x.id !== id);
-      if (sessioActivaId === id) {
-        sessioActivaId = sessionsCache[0].id;
-        const s = sessionsCache[0];
-        historialXat = s.missatges || [];
-        if (s.cos) cosActiu = s.cos;
-        if (s.contextDocId !== undefined) documentActiuId = s.contextDocId;
-      }
-      guardarSessions();
-      renderitzarSubvista();
-      if (modePantallaCompletaXat) renderitzarPantallaCompletaModal();
+    // Eliminació directa sense bloquejos per confirm() de finestra/iframe
+    sessionsCache = sessionsCache.filter(x => x.id !== id);
+
+    if (sessionsCache.length === 0) {
+      const nova = {
+        id: 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+        titol: 'Nova consulta jurídica',
+        dataCreacio: new Date().toISOString(),
+        dataActualitzacio: new Date().toISOString(),
+        cos: cosActiu || 'mossos',
+        contextDocId: documentActiuId || 'guia_auto',
+        missatges: []
+      };
+      sessionsCache.push(nova);
+      sessioActivaId = nova.id;
+    } else if (sessioActivaId === id) {
+      sessioActivaId = sessionsCache[0].id;
+    }
+
+    const sActiva = sessionsCache.find(s => s.id === sessioActivaId) || sessionsCache[0];
+    if (sActiva) {
+      historialXat = sActiva.missatges || [];
+      if (sActiva.cos) cosActiu = sActiva.cos;
+      if (sActiva.contextDocId !== undefined) documentActiuId = sActiva.contextDocId;
+    } else {
+      historialXat = [];
+    }
+
+    guardarSessions();
+    actualitzarDrawerSessionsUI();
+    actualitzarLlistaSessionsFS();
+    actualitzarMissatgesXatUI();
+    renderitzarSubvista();
+    if (modePantallaCompletaXat) {
+      renderitzarPantallaCompletaModal();
+    }
+    if (typeof window.mostrarToast === 'function') {
+      window.mostrarToast('🗑️ Conversa eliminada', 'info');
     }
   };
 
@@ -854,27 +1017,8 @@ Article 47. Competència sancionadora
             <select 
               id="tutor-fs-sel-doc" 
               onchange="window.canviarDocumentActiu(this.value); window.renderitzarPantallaCompletaModal();" 
-              style="background: #0f172a; border: 1px solid #334155; padding: 6px 10px; border-radius: 8px; font-size: 12px; font-weight: 600; color: #ffffff; max-width: 260px; cursor: pointer; outline: none;">
-              <option value="">🌐 Normativa General</option>
-              <optgroup label="📕 Guia Mossos 2026 (Temari Oficial)">
-                <option value="guia_auto" ${documentActiuId === 'guia_auto' ? 'selected' : ''}>
-                  🔍 Cerca Intel·ligent Guia (20 Temes / 242 Pàg.)
-                </option>
-                ${temesGuia.map(t => `
-                  <option value="guia:${t.id}" ${documentActiuId === 'guia:' + t.id ? 'selected' : ''}>
-                    📘 ${t.codi}: ${escapeHtml(t.titol.slice(0, 28))}... [Pàg. ${t.pagines}]
-                  </option>
-                `).join('')}
-              </optgroup>
-              ${documentsCache.length > 0 ? `
-                <optgroup label="📎 Ordenances i Documents">
-                  ${documentsCache.map(d => `
-                    <option value="${d.id}" ${d.id === documentActiuId ? 'selected' : ''}>
-                      📎 ${escapeHtml(d.municipi ? `[${d.municipi}] ` : '')}${escapeHtml(d.titol.slice(0, 28))}...
-                    </option>
-                  `).join('')}
-                </optgroup>
-              ` : ''}
+              style="background: #0f172a; border: 1px solid #334155; padding: 6px 10px; border-radius: 8px; font-size: 12px; font-weight: 600; color: #ffffff; max-width: 280px; cursor: pointer; outline: none;">
+              ${generarOpcionsAmbitSelect(cosActiu, documentActiuId, ambitNormatiuActiu)}
             </select>
 
             <!-- Botó Netejar Xat -->
@@ -914,6 +1058,9 @@ Article 47. Competència sancionadora
             
             <!-- CHIPS DE PROMPTS RÀPIDS -->
             <div style="display: flex; gap: 8px; overflow-x: auto; white-space: nowrap; padding-bottom: 4px; -webkit-overflow-scrolling: touch;">
+              <button type="button" class="quick-prompt-btn" onclick="window.generar3PreguntesTestTemaActiu()" style="background: linear-gradient(135deg, rgba(245,158,11,0.25), rgba(217,119,6,0.35)); border: 1.5px solid #f59e0b; border-radius: 20px; padding: 5px 14px; font-size: 12px; color: #fde047; cursor: pointer; font-weight: 800; flex-shrink: 0; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 8px rgba(245,158,11,0.25);">
+                <span>🎯</span> <span>Fes-me 3 preguntes test d'aquest tema</span>
+              </button>
               <button type="button" class="quick-prompt-btn" onclick="window.omplirIEnviarPrompt('Fes-me una regla mnemotècnica clara per recordar els principis bàsics d\\'actuació policial.')" style="background:#0f172a; border:1px solid #334155; border-radius:20px; padding:5px 12px; font-size:12px; color:#cbd5e1; cursor:pointer; font-weight:600; flex-shrink:0;">
                 💡 Mnemotècnica principis d'actuació
               </button>
@@ -1087,6 +1234,9 @@ Verifica sempre la competència sancionadora: Alcaldia per ordenances i trànsit
             <span class="tutor-badge-cos" id="tutor-header-badge">
               <span style="color:#0284c7; font-size:12px; margin-right:2px;">•</span>${cosActiu === 'pl' ? 'PL' : cosActiu === 'mossos' ? 'Mossos' : 'Ambdós'}
             </span>
+            <span id="tutor-header-ambit-badge" onclick="window.toggleTutorFiltres(true)" style="cursor:pointer; background:rgba(2,132,199,0.18); border:1px solid rgba(2,132,199,0.35); color:#38bdf8; font-size:11px; font-weight:700; padding:2px 8px; border-radius:6px; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-flex; align-items:center; gap:4px;" title="Clica per canviar d'àmbit o tema">
+              ${obtenirEtiquetaAmbitResum()}
+            </span>
           </div>
 
           <div style="display: flex; align-items: center; gap: 6px;">
@@ -1105,7 +1255,7 @@ Verifica sempre la competència sancionadora: Alcaldia per ordenances i trànsit
 
         <!-- 2. PANELL DESPLEGABLE SUPERIOR DE FILTRES -->
         <div class="tutor-filter-panel ${panellFiltresObert ? 'open' : ''}" id="tutor-filter-panel">
-          <div class="tutor-filter-row">
+          <div class="tutor-filter-row" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
             <!-- Selector de Cos -->
             <div style="display: flex; align-items: center; gap: 6px;">
               <span style="font-size: 11px; font-weight: 700; color: #94a3b8;">Cos:</span>
@@ -1123,29 +1273,23 @@ Verifica sempre la competència sancionadora: Alcaldia per ordenances i trànsit
             </div>
 
             <!-- Desplegable d'Àmbit Normatiu -->
-            <div style="display: flex; align-items: center; gap: 6px;">
-              <span style="font-size: 11px; font-weight: 700; color: #94a3b8;">Àmbit:</span>
-              <select class="tutor-ambit-select" id="tutor-ambit-select" onchange="window.canviarAmbitFiltre(this.value)">
-                <option value="general" ${ambitNormatiuActiu === 'general' ? 'selected' : ''}>🌐 General (CP, LECrim, 16/91, CE)</option>
-                <option value="transit" ${ambitNormatiuActiu === 'transit' ? 'selected' : ''}>🚗 Trànsit (TRLTSV, RGC, RGV)</option>
-                <option value="ordenances" ${ambitNormatiuActiu === 'ordenances' ? 'selected' : ''}>📜 Ordenances Municipals</option>
-                ${documentsCache.length > 0 ? `
-                  <optgroup label="📎 Ordenances Carregades">
-                    ${documentsCache.map(d => `
-                      <option value="doc:${d.id}" ${documentActiuId === d.id ? 'selected' : ''}>
-                        📎 [${escapeHtml(d.municipi || 'Doc')}] ${escapeHtml(d.titol.slice(0, 24))}...
-                      </option>
-                    `).join('')}
-                  </optgroup>
-                ` : ''}
+            <div style="display: flex; align-items: center; gap: 6px; flex: 1; min-width: 240px;">
+              <span style="font-size: 11px; font-weight: 700; color: #94a3b8; white-space: nowrap;">Àmbit:</span>
+              <select class="tutor-ambit-select" id="tutor-ambit-select" onchange="window.canviarAmbitFiltre(this.value)" style="flex: 1; width: 100%; max-width: 100%;">
+                ${generarOpcionsAmbitSelect(cosActiu, documentActiuId, ambitNormatiuActiu)}
               </select>
             </div>
           </div>
         </div>
 
-        <!-- PÍNDOLA CENTRAL D'AVÍS D'HISTORIAL -->
-        <div class="tutor-history-hint">
+        <!-- PÍNDOLA CENTRAL D'AVÍS D'HISTORIAL I CONTEXT -->
+        <div class="tutor-history-hint" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
           <span>💡 Fes clic a ☰ a dalt per veure el teu historial de consultes</span>
+          <span style="display: inline-flex; align-items: center; gap: 5px; cursor: pointer;" onclick="window.toggleTutorFiltres(true)" title="Fes clic per canviar d'àmbit o tema">
+            <span style="opacity: 0.75;">🎯 Àmbit actiu:</span>
+            <strong id="tutor-hint-ambit-nom" style="color: #38bdf8;">${obtenirEtiquetaAmbitResum()}</strong>
+            <span style="font-size: 10px; opacity: 0.8;">⚙️</span>
+          </span>
         </div>
 
         <!-- 3. ÀREA DE MISSATGES (>80% D'ALÇADA ÚTIL, SENSE SCROLL GENERAL) -->
@@ -1158,6 +1302,9 @@ Verifica sempre la competència sancionadora: Alcaldia per ordenances i trànsit
         <div class="tutor-telegram-bar">
           <!-- Línia horitzontal de prompt chips desplegable amb 💡 -->
           <div class="tutor-chips-row ${suggerimentsOberts ? 'open' : ''}" id="tutor-chips-row">
+            <button type="button" class="tutor-prompt-chip" onclick="window.generar3PreguntesTestTemaActiu()" style="border:1.5px solid #f59e0b; background:rgba(245,158,11,0.22); color:#fde047; font-weight:800; display:inline-flex; align-items:center; gap:5px;">
+              <span>🎯</span> <span>Test 3 preguntes del Tema Actiu</span>
+            </button>
             <button type="button" class="tutor-prompt-chip" onclick="window.enviarPromptRapid('Quins requisits exigeix l\\'Art. 495 de la LECrim per detenir excepcionalment per un delicte lleu?')">
               ⚖️ Art. 495 LECrim: Detenció lleus
             </button>
@@ -1232,13 +1379,19 @@ Verifica sempre la competència sancionadora: Alcaldia per ordenances i trànsit
               </div>
 
               <!-- Llista de sessions de l'usuari -->
-              <div style="display:flex;flex-direction:column;gap:5px;max-height:200px;overflow-y:auto;">
+              <div id="tutor-drawer-sessions-list" style="display:flex;flex-direction:column;gap:5px;max-height:200px;overflow-y:auto;">
                 ${sessionsCache.map(s => `
                   <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;padding:6px 8px;border-radius:8px;background:${s.id === sessioActivaId ? 'rgba(0,132,255,0.15)' : 'transparent'};border:1px solid ${s.id === sessioActivaId ? '#0084ff' : 'transparent'};cursor:pointer;" onclick="window.carregarSessioOPredefinit('${s.id}')">
                     <span style="font-size:12px;font-weight:600;color:#f1f5f9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">
                       💬 ${escapeHtml(s.titol || 'Consulta')}
                     </span>
-                    <button type="button" onclick="window.eliminarSessioDrawer('${s.id}', event)" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:12px;padding:2px 4px;" title="Eliminar consulta">✕</button>
+                    <button 
+                      type="button" 
+                      onclick="event.stopPropagation(); window.eliminarSessioDrawer('${s.id}', event);" 
+                      style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.25);color:#fca5a5;cursor:pointer;font-size:12px;font-weight:bold;padding:2px 7px;border-radius:6px;line-height:1.2;display:flex;align-items:center;justify-content:center;transition:all 0.15s;" 
+                      onmouseover="this.style.background='rgba(239,68,68,0.3)'; this.style.color='#ffffff'" 
+                      onmouseout="this.style.background='rgba(239,68,68,0.12)'; this.style.color='#fca5a5'" 
+                      title="Eliminar consulta">✕</button>
                   </div>
                 `).join('')}
               </div>
@@ -1250,6 +1403,10 @@ Verifica sempre la competència sancionadora: Alcaldia per ordenances i trànsit
                 📚 Acoblaments a Temaris
               </div>
               <div style="display:flex;flex-direction:column;gap:6px;">
+                <button type="button" onclick="window.activarGuiaMossosDesDeDrawer();" style="width:100%;text-align:left;background:linear-gradient(135deg,rgba(0,43,94,0.45),rgba(2,132,199,0.25));border:1.5px solid #0284c7;border-radius:8px;padding:8px 10px;font-size:12px;font-weight:700;color:#38bdf8;cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
+                  <span>📕 Guia Oficial Mossos 2026</span>
+                  <span style="font-size:10px;background:#0284c7;color:#fff;padding:2px 7px;border-radius:10px;font-weight:800;">20 Temes</span>
+                </button>
                 <button type="button" onclick="window.canviarPestanyaTutor('examens'); window.toggleTutorDrawer(false);" style="width:100%;text-align:left;background:transparent;border:1px solid #1e293b;border-radius:8px;padding:8px 10px;font-size:12px;font-weight:700;color:#f1f5f9;cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
                   <span>🏛️ Exàmens Oficials PDF</span>
                   <span style="font-size:10.5px;color:#94a3b8;font-weight:700;">${examensCache.length}</span>
@@ -1291,6 +1448,9 @@ Verifica sempre la competència sancionadora: Alcaldia per ordenances i trànsit
             Pregunta qualsevol dubte jurídic sobre CP, LECrim, Llei 16/1991, Llei 4/2015 o RGC.
           </p>
           <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button type="button" onclick="window.generar3PreguntesTestTemaActiu()" style="border:1.5px solid #f59e0b; background:rgba(245,158,11,0.22); color:#fde047; padding:5px 12px; border-radius:6px; font-size:11.5px; font-weight:800; cursor:pointer; display:flex; align-items:center; gap:5px;">
+              <span>🎯</span> <span>Test 3 preguntes</span>
+            </button>
             <button type="button" onclick="window.enviarPromptRapid('Quins requisits exigeix l\\'Art. 495 de la LECrim per detenir per delicte lleu?')" style="border:1px solid #0284c7; background:rgba(2,132,199,0.18); color:#38bdf8; padding:5px 11px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">
               ✓ Articles vigents
             </button>
@@ -1384,6 +1544,22 @@ Verifica sempre la competència sancionadora: Alcaldia per ordenances i trànsit
       );
     }
 
+    // Estilització de Citació literal de la Guia de Mossos
+    if (html.includes('📘') && (html.includes('Guia') || html.includes('Citat de la Guia'))) {
+      html = html.replace(
+        /(📘\s*(?:<b>)?(?:Citat de la Guia|Font oficial)[^<]*(?:<\/b>)?[\s\S]*?)(?=(?:⚠️|📄|💡|<b>\d+\.|$))/i,
+        '<div style="background:rgba(2,132,199,0.12); border-left:4px solid #0284c7; border-radius:0 8px 8px 0; padding:10px 14px; margin:10px 0; color:#e0f2fe;">$1</div>'
+      );
+    }
+
+    // Estilització de Clau de Test pel Tribunal
+    if (html.includes('⚠️') && html.includes('Clau de Test')) {
+      html = html.replace(
+        /(⚠️\s*(?:<b>)?Clau de Test pel Tribunal(?:<\/b>)?[:\s]*[\s\S]*?)$/i,
+        '<div style="background:rgba(239,68,68,0.1); border:1.5px solid rgba(239,68,68,0.3); border-radius:10px; padding:10px 14px; margin-top:12px; color:#fca5a5;">$1</div>'
+      );
+    }
+
     return html;
   }
 
@@ -1405,14 +1581,20 @@ Verifica sempre la competència sancionadora: Alcaldia per ordenances i trànsit
     }
   };
 
-  window.toggleTutorFiltres = function () {
-    panellFiltresObert = !panellFiltresObert;
+  window.toggleTutorFiltres = function (forcarObrir) {
+    if (typeof forcarObrir === 'boolean') {
+      panellFiltresObert = forcarObrir;
+    } else {
+      panellFiltresObert = !panellFiltresObert;
+    }
     const panel = document.getElementById('tutor-filter-panel');
     const btn = document.getElementById('tutor-btn-filtres');
     if (panel) {
       if (panellFiltresObert) {
         panel.classList.add('open');
         if (btn) btn.classList.add('active');
+        const sel = document.getElementById('tutor-ambit-select');
+        if (sel) sel.focus();
       } else {
         panel.classList.remove('open');
         if (btn) btn.classList.remove('active');
@@ -1422,41 +1604,127 @@ Verifica sempre la competència sancionadora: Alcaldia per ordenances i trànsit
     }
   };
 
-  window.canviarCosFiltre = function (cos) {
-    cosActiu = cos;
+  window.actualitzarEstatFiltresUI = function () {
     const badge = document.getElementById('tutor-header-badge');
     if (badge) {
-      badge.textContent = cos === 'pl' ? '🚔 PL' : cos === 'mossos' ? '👮 Mossos' : '⚖️ Ambdós';
+      badge.innerHTML = `<span style="color:#0284c7; font-size:12px; margin-right:2px;">•</span>${cosActiu === 'pl' ? 'PL' : cosActiu === 'mossos' ? 'Mossos' : 'Ambdós'}`;
     }
+
+    const ambitBadge = document.getElementById('tutor-header-ambit-badge');
+    if (ambitBadge) {
+      ambitBadge.textContent = obtenirEtiquetaAmbitResum();
+    }
+
+    const hintAmbit = document.getElementById('tutor-hint-ambit-nom');
+    if (hintAmbit) {
+      hintAmbit.textContent = obtenirEtiquetaAmbitResum();
+    }
+
     ['pl', 'mossos', 'tots'].forEach(c => {
       const btn = document.getElementById(`tutor-cos-btn-${c}`);
       if (btn) {
-        if (c === cos) btn.classList.add('active');
+        if (c === cosActiu) btn.classList.add('active');
         else btn.classList.remove('active');
       }
     });
-    // Actualitzar sessió activa
-    const s = sessionsCache.find(x => x.id === sessioActivaId);
-    if (s) {
-      s.cos = cos;
-      guardarSessions();
+
+    const selAmbit = document.getElementById('tutor-ambit-select');
+    if (selAmbit) {
+      selAmbit.innerHTML = generarOpcionsAmbitSelect(cosActiu, documentActiuId, ambitNormatiuActiu);
+      if (documentActiuId === 'guia_auto') selAmbit.value = 'guia_auto';
+      else if (documentActiuId && documentActiuId.startsWith('guia:')) selAmbit.value = documentActiuId;
+      else if (documentActiuId) selAmbit.value = `doc:${documentActiuId}`;
+      else selAmbit.value = ambitNormatiuActiu || 'general';
+    }
+
+    const fsSel = document.getElementById('tutor-fs-sel-doc');
+    if (fsSel) {
+      fsSel.innerHTML = generarOpcionsAmbitSelect(cosActiu, documentActiuId, ambitNormatiuActiu);
+      if (documentActiuId === 'guia_auto') fsSel.value = 'guia_auto';
+      else if (documentActiuId && documentActiuId.startsWith('guia:')) fsSel.value = documentActiuId;
+      else if (documentActiuId) fsSel.value = `doc:${documentActiuId}`;
+      else fsSel.value = ambitNormatiuActiu || 'general';
     }
   };
 
+  window.canviarCosFiltre = function (cos) {
+    cosActiu = cos;
+    if (cos === 'mossos' && (!documentActiuId || !documentActiuId.startsWith('guia'))) {
+      documentActiuId = 'guia_auto';
+      ambitNormatiuActiu = 'guia_mossos';
+    } else if (cos === 'pl' && documentActiuId && documentActiuId.startsWith('guia')) {
+      documentActiuId = '';
+      ambitNormatiuActiu = 'general';
+    }
+
+    // Actualitzar sessió activa
+    const s = sessionsCache.find(x => x.id === sessioActivaId);
+    if (s) {
+      s.cos = cosActiu;
+      s.contextDocId = documentActiuId;
+      guardarSessions();
+    }
+
+    actualitzarEstatFiltresUI();
+  };
+
   window.canviarAmbitFiltre = function (val) {
-    if (val.startsWith('doc:')) {
-      const docId = val.replace('doc:', '');
-      documentActiuId = docId;
+    if (!val || val === 'general') {
+      ambitNormatiuActiu = 'general';
+      documentActiuId = '';
+    } else if (val === 'transit') {
+      ambitNormatiuActiu = 'transit';
+      documentActiuId = '';
+    } else if (val === 'ordenances') {
+      ambitNormatiuActiu = 'ordenances';
+      documentActiuId = '';
+    } else if (val === 'guia_auto') {
+      documentActiuId = 'guia_auto';
+      ambitNormatiuActiu = 'guia_mossos';
+      cosActiu = 'mossos';
+    } else if (typeof val === 'string' && val.startsWith('guia:')) {
+      documentActiuId = val;
+      ambitNormatiuActiu = 'guia_mossos';
+      cosActiu = 'mossos';
+    } else if (typeof val === 'string' && val.startsWith('doc:')) {
+      documentActiuId = val.replace('doc:', '');
+      ambitNormatiuActiu = 'ordenances';
+    } else if (documentsCache.some(d => d.id === val)) {
+      documentActiuId = val;
       ambitNormatiuActiu = 'ordenances';
     } else {
       ambitNormatiuActiu = val;
       documentActiuId = '';
     }
+
     const s = sessionsCache.find(x => x.id === sessioActivaId);
     if (s) {
       s.contextDocId = documentActiuId;
+      s.cos = cosActiu;
       guardarSessions();
     }
+
+    actualitzarEstatFiltresUI();
+  };
+
+  window.canviarCosTutor = function (cos) {
+    window.canviarCosFiltre(cos);
+    if (modePantallaCompletaXat) {
+      renderitzarPantallaCompletaModal();
+    }
+  };
+
+  window.canviarDocumentActiu = function (val) {
+    window.canviarAmbitFiltre(val);
+    if (modePantallaCompletaXat) {
+      renderitzarPantallaCompletaModal();
+    }
+  };
+
+  window.activarGuiaMossosDesDeDrawer = function () {
+    window.canviarCosFiltre('mossos');
+    window.canviarAmbitFiltre('guia_auto');
+    window.toggleTutorDrawer(false);
   };
 
   window.netejarXatActual = function () {
@@ -1488,11 +1756,38 @@ Verifica sempre la competència sancionadora: Alcaldia per ordenances i trànsit
   };
 
   window.enviarPromptRapid = function (text) {
-    const input = document.getElementById('tutor-input-msg');
+    const inputFs = document.getElementById('tutor-fs-input-msg');
+    const inputStd = document.getElementById('tutor-input-msg');
+    const input = (modePantallaCompletaXat && inputFs) ? inputFs : (inputStd || inputFs);
     if (input) {
       input.value = text;
-      window.enviarMissatgeTelegram();
+      window.enviarMissatgeTutor();
     }
+  };
+
+  window.generar3PreguntesTestTemaActiu = function () {
+    const docActiu = obtenirDocActiu();
+    let temaNom = '';
+    if (typeof documentActiuId === 'string' && documentActiuId.startsWith('guia:')) {
+      const idClean = documentActiuId.replace('guia:', '');
+      const tGuia = obtenirTemesGuiaMossos().find(t => t.id === idClean || t.id.toLowerCase() === idClean.toLowerCase() || t.id.replace(/^t_/, '').toLowerCase() === idClean.replace(/^t_/, '').toLowerCase());
+      temaNom = tGuia ? `${tGuia.codi}: ${tGuia.titol} [Pàg. ${tGuia.pagines}]` : `Tema ${idClean} de la Guia de Mossos 2026`;
+    } else if (documentActiuId === 'guia_auto' || (!documentActiuId && cosActiu === 'mossos')) {
+      temaNom = "la Guia Oficial d'Estudi de Mossos d'Esquadra (Convocatòria Juny 2026)";
+    } else if (docActiu) {
+      temaNom = `${docActiu.titol} (${docActiu.municipi || 'General'})`;
+    } else {
+      temaNom = "el temari oficial policial i marc legal vigent";
+    }
+
+    const peticio = `Genera exactament 3 preguntes de test oficials d'alta dificultat sobre ${temaNom}.
+Format requerit per a cadascuna:
+1. Enunciat de la pregunta (estil examen oficial de Mossos d'Esquadra).
+2. 4 opcions (a, b, c, d).
+3. Solució correcta justificada amb la referència de pàgina oficial de la Guia [Pàg. X] o article de la llei.
+4. Parany / trampa habitual que sol posar el tribunal.`;
+
+    window.enviarPromptRapid(peticio);
   };
 
   window.handleTelegramInputResize = function (el) {
@@ -1717,6 +2012,7 @@ Verifica sempre la competència sancionadora: Alcaldia per ordenances i trànsit
 
     // 1. Prioritat: Servidor local amb la base de dades completa de la Guia de Mossos 2026
     try {
+      const uFb = (typeof window.obtenirUsuariFirebase === 'function') ? window.obtenirUsuariFirebase() : null;
       const localRes = await fetch('/api/gemini/tutor-xat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1727,7 +2023,9 @@ Verifica sempre la competència sancionadora: Alcaldia per ordenances i trànsit
           titolDocument: docActiu ? docActiu.titol : null,
           municipi: docActiu ? docActiu.municipi : null,
           cos: cosActiu,
-          guiaTemaId: guiaTemaId
+          guiaTemaId: guiaTemaId,
+          usuariNom: uFb?.displayName || (uFb?.email ? uFb.email.split('@')[0] : 'Òscar'),
+          usuariEmail: uFb?.email || null
         })
       });
 
@@ -3281,6 +3579,27 @@ Verifica sempre la competència sancionadora: Alcaldia per ordenances i trànsit
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
   }
+
+  // Sincronització automàtica quan s'actualitzin dades al núvol o a una altra pestanya
+  window.addEventListener('agentmedina:sync_complete', () => {
+    carregarSessions();
+    const s = sessionsCache.find(x => x.id === sessioActivaId) || sessionsCache[0];
+    if (s) {
+      historialXat = s.missatges || [];
+    }
+    renderitzarSubvista();
+  });
+
+  window.addEventListener('storage', (e) => {
+    if (e.key && (e.key === 'agentmedina_chat_sessions' || e.key.startsWith('agentmedina_chat_sessions_'))) {
+      carregarSessions();
+      const s = sessionsCache.find(x => x.id === sessioActivaId) || sessionsCache[0];
+      if (s) {
+        historialXat = s.missatges || [];
+      }
+      renderitzarSubvista();
+    }
+  });
 
   // Inicialització quan canviï de pestanya a 'tutor-ia'
   document.addEventListener('DOMContentLoaded', () => {

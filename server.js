@@ -300,11 +300,13 @@ function getGeminiClient() {
 }
 
 async function executarGeminiAmbFallback(ai, promptOrContents, responseMimeType = 'application/json', tools = undefined) {
-  // Prioritzem models estables sense saturació 503: gemini-3.1-flash-lite i gemini-flash-latest
-  const models = ['gemini-3.1-flash-lite', 'gemini-flash-latest', 'gemini-3.8-flash'];
+  // Prioritzem models d'alt rendiment i baixa saturació (evitant 503)
+  const models = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.8-flash', 'gemini-flash-latest'];
   let lastErr = null;
-  for (const model of models) {
-    for (let intent = 0; intent < 2; intent++) {
+
+  // Fem fins a 2 rondes completes alternant entre models
+  for (let ronda = 0; ronda < 2; ronda++) {
+    for (const model of models) {
       try {
         const config = {};
         if (responseMimeType) config.responseMimeType = responseMimeType;
@@ -320,14 +322,20 @@ async function executarGeminiAmbFallback(ai, promptOrContents, responseMimeType 
         }
       } catch (err) {
         lastErr = err;
-        console.warn(`[Gemini] Model ${model} (intent ${intent + 1}) ha fallat (${err?.message?.slice(0, 100)}), provant alternativa...`);
-        // Si és un error 503 o 429, esperem breument abans del següent intent o model
-        if (err?.status === 503 || err?.message?.includes('503') || err?.message?.includes('high demand') || err?.status === 429 || err?.message?.includes('429')) {
-          await new Promise(r => setTimeout(r, 600 * (intent + 1)));
-        } else {
-          break;
+        const msg = err?.message || String(err);
+        const esSaturat = err?.status === 503 || msg.includes('503') || msg.includes('high demand') || err?.status === 429 || msg.includes('429');
+        console.warn(`[Gemini] Model ${model} (ronda ${ronda + 1}) ha fallat (${msg.slice(0, 110)}), provant següent model...`);
+
+        // Si és un error de demanda/quota, passem immediatament al següent model disponible
+        if (!esSaturat && (err?.status === 400 || msg.includes('INVALID_ARGUMENT'))) {
+          continue;
         }
       }
+    }
+
+    // Si tots els models han fallat en la primera ronda, esperem amb backoff i jitter
+    if (ronda === 0) {
+      await new Promise(r => setTimeout(r, 1200 + Math.random() * 800));
     }
   }
   throw lastErr;
@@ -1105,7 +1113,7 @@ ${rawText.slice(0, 30000)}
   }
 });
 app.post('/api/gemini/tutor-xat', async (req, res) => {
-  const { missatge, historial, documentContext, titolDocument, municipi, cos, guiaTemaId } = req.body || {};
+  const { missatge, historial, documentContext, titolDocument, municipi, cos, guiaTemaId, usuariNom, usuariEmail } = req.body || {};
   if (!missatge || !missatge.trim()) {
     return res.status(400).json({ success: false, error: 'Missatge buit' });
   }
@@ -1117,11 +1125,17 @@ app.post('/api/gemini/tutor-xat', async (req, res) => {
   let contextGuia = '';
   let trobatsGuia = [];
   try {
-    if (guiaTemaId) {
-      contextGuia = construirContextGuiaPerPrompt(missatge, guiaTemaId);
+    const guiaIdNet = (guiaTemaId && guiaTemaId !== 'null' && guiaTemaId !== 'undefined')
+      ? String(guiaTemaId).replace(/^guia:/, '').trim()
+      : null;
+
+    if (guiaIdNet && guiaIdNet !== 'auto' && guiaIdNet !== 'guia_auto') {
+      contextGuia = construirContextGuiaPerPrompt(missatge, guiaIdNet);
+    } else if (guiaIdNet === 'auto' || guiaIdNet === 'guia_auto' || cos === 'mossos') {
+      contextGuia = construirContextGuiaPerPrompt(missatge, 'auto');
     } else {
-      trobatsGuia = cercarALaGuia(missatge, 2);
-      if (trobatsGuia.length > 0 && (cos === 'mossos' || trobatsGuia[0].puntuacio >= 15)) {
+      trobatsGuia = cercarALaGuia(missatge, 3);
+      if (trobatsGuia.length > 0 && trobatsGuia[0].puntuacio >= 8) {
         contextGuia = construirContextGuiaPerPrompt(missatge, null);
       }
     }
@@ -1255,22 +1269,29 @@ REGLA D'OR DE CERCA:
     }
 
     const prompt = `Ets el Tutor d'Intel·ligència Artificial personal de l'acadèmia "Agent Medina", especialitzat en la preparació d'oposicions de ${cosTxt} a Catalunya.
+${usuariNom ? `Estàs acompanyant personalment a l'aspirant opositor ${usuariNom}. Adreça't a ell de manera propera i professional quan sigui oportú.` : ''}
 
-El teu to és proper, pedagògic, rigorós i motivador.
+El teu to és proper, pedagògic, d'alt rigor jurídic i molt motivador.
 Escriu SEMPRE en català correcte.
 
-INSTRUCCIONS PRINCIPALS:
-- Cita sempre els articles concrets de les lleis aplicables o el número de pàgina oficial de la Guia de Mossos [Pàg. X] si la informació prové del temari oficial.
-- Si l'opositor et demana un fragment o definició exacta del temari, cita literalment el text de la Guia Oficial proporcionat al context.
-- Si l'opositor et demana una regla mnemotècnica, crea acrònims o associacions mentals fàcils de recordar.
-- Si et demana un cas pràctic, planteja una intervenció policial realista pas a pas amb la fonamentació jurídica i procediment d'actuació (identificació, escorcoll, citació o detenció).
-- Fes servir negretes, llistes i emoticones policials/jurídiques per estructurar la resposta de manera molt visual i llegible.
+INSTRUCCIONS PRINCIPALS D'ESTUDI I EXAMEN:
+1. CITACIÓ TEXTUAL DE LA GUIA DE MOSSOS 2026: Sempre que la consulta faci referència a conceptes del temari oficial de Mossos d'Esquadra presents al context, comença la teva resposta citant el paràgraf o concepte textual oficial amb aquest encapçalament exacte:
+📘 **Citat de la Guia Oficial de Mossos 2026 — [Tema X.Y, Pàg. Z]**:
+> *"Text literal del document oficial..."*
+
+2. ANÀLISI TÈCNIC I OPERATIU: Desglossa la normativa amb claredat, citant articles concrets (Constitució, CP, LECrim, Llei 10/1994, Llei 16/1991, LOFCS 2/1986).
+
+3. CLAU DE TEST PEL TRIBUNAL (MOLT IMPORTANT): Afegeix sempre un bloc final titulat:
+⚠️ **Clau de Test pel Tribunal**:
+Destaca-hi les trampes típiques dels tribunals d'oposició (canvis de terminis, diferències entre facultatiu i preceptiu, confusió de competències municipals vs autonòmiques, etc.).
+
+4. PREGUNTES DE TEST: Si l'opositor et demana preguntes de test (per exemple amb la petició de 3 preguntes), redueix la teoria al mínim i genera directament preguntes d'examen oficial amb 4 opcions (a, b, c, d), indicant la solució correcta justificada amb la pàgina de la Guia Oficial o l'article de la llei.
 ${contextInstruccions}
 ${historialTxt ? `HISTORIAL DE LA CONVERSA:\n${historialTxt}\n` : ''}
 CONSULTA DE L'OPOSITOR:
 "${missatge.trim()}"
 
-Respon de manera clara, pedagògica i estructurada:`;
+Respon de manera clara, pedagògica, estricta en la literalitat oficial i altament estructurada:`;
 
     const { response, model } = await executarGeminiAmbFallback(ai, prompt, 'text/plain');
     const textResposta = response.text ? response.text.trim() : 'No s\'ha pogut generar una resposta.';
@@ -1458,16 +1479,13 @@ Respon ÚNICAMENT amb un array JSON vàlid amb aquest format:
 function parsejarPlantillaSolucions(plantillaText) {
   const map = {};
   if (!plantillaText || typeof plantillaText !== 'string') return map;
-  const linies = plantillaText.split(/\r?\n/);
-  for (const l of linies) {
-    // Patrons comuns com "1. A", "1-B", "1: C", "Pregunta 1 -> D", "1 A"
-    const m = l.match(/(?:pregunta\s*)?(\d+)[\s.:\-_–>)]+([a-dA-D])/i);
-    if (m) {
-      const num = parseInt(m[1], 10);
-      const lletra = m[2].toUpperCase();
-      const idx = lletra.charCodeAt(0) - 65; // A->0, B->1, C->2, D->3
-      if (idx >= 0 && idx < 4) map[num] = idx;
-    }
+  const regex = /(?:pregunta\s*|p\s*|q\s*)?(\d+)[\s.:\-_–>)\]=]+([a-dA-D])/gi;
+  let m;
+  while ((m = regex.exec(plantillaText)) !== null) {
+    const num = parseInt(m[1], 10);
+    const lletra = m[2].toUpperCase();
+    const idx = lletra.charCodeAt(0) - 65; // A->0, B->1, C->2, D->3
+    if (idx >= 0 && idx < 4) map[num] = idx;
   }
   return map;
 }
@@ -1511,34 +1529,35 @@ function extraurePreguntesHeuristiques(text, cos = 'pl', municipi = '', any = ''
   // Normalitzem salts de línia
   const clean = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
-  // Regex per detectar blocs numerats com:
-  // "1. Enunciat..." o "Pregunta 1: Enunciat..."
-  const regexBlocs = /(?:^|\n)\s*(?:Pregunta\s*)?(\d+)[\.\)\-\:\s]\s*([^\n]+(?:\n(?!\s*[a-dA-D][\.\)\-\:]|\s*(?:Pregunta\s*)?\d+[\.\)\-\:])[^\n]+)*)/g;
-  
-  // Alternativa més senzilla i resilient per blocs d'examen: dividir per número de pregunta
-  const segments = clean.split(/(?=(?:^|\n)\s*(?:Pregunta\s*)?\d+[\.\)\-]\s+)/i);
+  // Regex universal de segmentació per número de pregunta (ex: 1., 1.-, 1), Pregunta 1:, 1:, Q1., P1.)
+  const questionPattern = /(?:^|\n)\s*(?:Pregunta\s*|Q\s*|P\s*|N[úu]m\.?\s*)?(\d+)(?:[\.\)\:\/\-]|[\.\-]{1,2})\s*([\s\S]*?)(?=(?:\n\s*(?:Pregunta\s*|Q\s*|P\s*|N[úu]m\.?\s*)?\d+(?:[\.\)\:\/\-]|[\.\-]{1,2})\s*)|$)/gi;
 
-  for (const seg of segments) {
-    const mNum = seg.match(/(?:^|\n)\s*(?:Pregunta\s*)?(\d+)[\.\)\-]\s+([\s\S]+)/i);
-    if (!mNum) continue;
+  let match;
+  while ((match = questionPattern.exec(clean)) !== null) {
+    const num = parseInt(match[1], 10);
+    const cosPregunta = match[2].trim();
 
-    const num = parseInt(mNum[1], 10);
-    const cosPregunta = mNum[2].trim();
+    // Reconeix opcions tant verticals com horitzontals: a), A), a., A., (a), (A), a.-, A.-, [a], [A]
+    const optRegex = /(?:^|\n|\s{2,}|\t)\s*(?:\(?([a-dA-D])\)|\(?([a-dA-D])[\.\:\-\]\/]|([a-dA-D])\.-)\s+([\s\S]*?)(?=(?:(?:\n|\s{2,}|\t)\s*(?:\(?[a-dA-D]\)|\(?[a-dA-D][\.\:\-\]\/]|[a-dA-D]\.-)\s+)|$)/gi;
 
-    // Busquem les opcions a, b, c, d
-    const opcionsMatches = [...cosPregunta.matchAll(/(?:^|\n)\s*([a-dA-D])[\.\)\-\]\:]\s*([^\n]+(?:\n(?!\s*[a-dA-D][\.\)\-\]\:]|\s*(?:Pregunta\s*)?\d+[\.\)\-]|(?:\n\s*Soluci[oó]|\n\s*Resp))[^\n]+)*)/gi)];
+    const opcionsMatches = [];
+    let optMatch;
+    let primerIndex = -1;
+    while ((optMatch = optRegex.exec(cosPregunta)) !== null) {
+      if (primerIndex === -1) primerIndex = optMatch.index;
+      const lletra = (optMatch[1] || optMatch[2] || optMatch[3]).toUpperCase();
+      const txtOp = optMatch[4].trim().replace(/\s+/g, ' ');
+      opcionsMatches.push({ lletra, text: txtOp });
+    }
 
     if (opcionsMatches.length >= 2) {
-      // Extreure l'enunciat: tot el que hi ha abans de la primera opció
-      const primerIndex = opcionsMatches[0].index;
-      let enunciat = cosPregunta.substring(0, primerIndex).replace(/^\s*(?:Pregunta\s*)?\d+[\.\)\-]\s*/i, '').trim();
-      // Neteja caràcters espuris
-      enunciat = enunciat.replace(/\s+/g, ' ');
+      let enunciat = (primerIndex !== -1 ? cosPregunta.substring(0, primerIndex) : cosPregunta)
+        .replace(/^\s*(?:Pregunta\s*|Q\s*|P\s*|N[úu]m\.?\s*)?\d+(?:[\.\)\:\/\-]|[\.\-]{1,2})\s*/i, '')
+        .replace(/\s+/g, ' ')
+        .trim();
 
-      if (enunciat.length >= 8) {
-        const opcions = opcionsMatches.map(m => m[2].trim().replace(/\s+/g, ' ')).slice(0, 4);
-
-        // Omplir fins a 4 opcions si en té 3
+      if (enunciat.length >= 6) {
+        const opcions = opcionsMatches.map(m => m.text).slice(0, 4);
         while (opcions.length < 4) {
           opcions.push(`Opció ${String.fromCharCode(65 + opcions.length)} (no especificada)`);
         }
@@ -1548,8 +1567,8 @@ function extraurePreguntesHeuristiques(text, cos = 'pl', municipi = '', any = ''
         if (solucionsMap[num] !== undefined) {
           respostaCorrecta = solucionsMap[num];
         } else {
-          // Cercar marcadors inline com "Solució: B" o "(B) *" o "✅"
-          const mSol = seg.match(/(?:resposta|soluci[oó]|correcta)[\s\:\-]+([a-dA-D])/i);
+          const mSol = cosPregunta.match(/(?:resposta|soluci[oó]|correcta|rc)[\s\:\-]+([a-dA-D])/i) ||
+                        cosPregunta.match(/[\(\[]\s*([a-dA-D])\s*[\)\]]\s*[\*✓✔]/i);
           if (mSol) {
             respostaCorrecta = mSol[1].toUpperCase().charCodeAt(0) - 65;
           }
@@ -1575,6 +1594,47 @@ function extraurePreguntesHeuristiques(text, cos = 'pl', municipi = '', any = ''
           any: any || '',
           cos: cos || 'pl'
         });
+      }
+    }
+  }
+
+  // Si el format per número no ha trobat preguntes suficients, fallback per segments
+  if (preguntes.length === 0) {
+    const segments = clean.split(/(?=(?:^|\n)\s*(?:Pregunta\s*)?\d+[\.\)\-:\/]\s+)/i);
+    for (const seg of segments) {
+      const mNum = seg.match(/(?:^|\n)\s*(?:Pregunta\s*)?(\d+)[\.\)\-:\/]\s+([\s\S]+)/i);
+      if (!mNum) continue;
+      const num = parseInt(mNum[1], 10);
+      const cosPregunta = mNum[2].trim();
+      const opcionsMatches = [...cosPregunta.matchAll(/(?:^|\n)\s*([a-dA-D])[\.\)\-\]\:]\s*([^\n]+(?:\n(?!\s*[a-dA-D][\.\)\-\]\:]|\s*(?:Pregunta\s*)?\d+[\.\)\-]|(?:\n\s*Soluci[oó]|\n\s*Resp))[^\n]+)*)/gi)];
+      if (opcionsMatches.length >= 2) {
+        const primerIndex = opcionsMatches[0].index;
+        let enunciat = cosPregunta.substring(0, primerIndex).replace(/^\s*(?:Pregunta\s*)?\d+[\.\)\-:\/]\s*/i, '').replace(/\s+/g, ' ').trim();
+        if (enunciat.length >= 6) {
+          const opcions = opcionsMatches.map(m => m[2].trim().replace(/\s+/g, ' ')).slice(0, 4);
+          while (opcions.length < 4) {
+            opcions.push(`Opció ${String.fromCharCode(65 + opcions.length)} (no especificada)`);
+          }
+          const classif = classificarTemaHeuristic(enunciat + ' ' + opcions.join(' '), cos);
+          preguntes.push({
+            id: `oficial_${Date.now()}_${num}`,
+            num,
+            pregunta: enunciat,
+            opcions,
+            respostaCorrecta: solucionsMap[num] !== undefined ? solucionsMap[num] : 0,
+            esReserva: /reserva|suplent/i.test(enunciat),
+            esAnulada: /anul[·l]ada/i.test(enunciat),
+            temaClassificat: classif.tema,
+            esMunicipalONoCoincideix: Boolean(municipi && (enunciat.toLowerCase().includes(municipi.toLowerCase()) || enunciat.toLowerCase().includes('ordenan'))),
+            motiuClassificacio: classif.motiu,
+            explicacio: `Extreta de l'examen oficial${municipi ? ' de ' + municipi : ''}${any ? ' (' + any + ')' : ''}.`,
+            esExamenOficial: true,
+            examenOrigen: titol || `Examen Oficial ${municipi || ''} ${any || ''}`.trim(),
+            municipi: municipi || '',
+            any: any || '',
+            cos: cos || 'pl'
+          });
+        }
       }
     }
   }
@@ -1657,14 +1717,16 @@ app.post('/api/gemini/analitzar-examen-oficial', async (req, res) => {
 
   const cosNom = cos === 'mossos' ? "Mossos d'Esquadra" : "Policia Local";
 
+  const textCompletNet = (textComplet || '').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+
   const prompt = `Ets el màxim expert preparador i jurista d'oposicions de ${cosNom} a Catalunya (tribunal examinador oficial).
 T'adjuntem un EXAMEN OFICIAL REAL d'oposicions${municipi ? ` del municipi de ${municipi}` : ''}${any ? ` de l'any ${any}` : ''}.
 
 El teu objectiu és extreure totes les preguntes d'opció múltiple de l'examen, resoldre-les amb justificació jurídica vigent citant article i llei, i classificar-les respecte al temari oficial.
 
-${textComplet ? `TEXT DE L'EXAMEN RECOLLIT:
+${textCompletNet ? `TEXT DE L'EXAMEN RECOLLIT:
 """
-${textComplet.slice(0, 48000)}
+${textCompletNet.slice(0, 26000)}
 """` : `L'examen es troba al document PDF adjunt. Llegeix acuradament totes les preguntes, enunciats i opcions de resposta (A, B, C, D).`}
 
 ${plantillaSolucions && plantillaSolucions.trim() ? `
@@ -1783,24 +1845,30 @@ Respon EXCLUSIVAMENT amb un objecte JSON que contingui:
     if (textNetejat.endsWith('```')) textNetejat = textNetejat.slice(0, -3);
 
     const parsed = JSON.parse(textNetejat.trim());
-    const preguntes = (parsed.preguntes || []).map((q, idx) => ({
-      id: `oficial_${Date.now()}_${idx + 1}`,
-      num: q.num || (idx + 1),
-      pregunta: (q.pregunta || '').trim(),
-      opcions: Array.isArray(q.opcions) ? q.opcions.map(o => String(o).trim()) : [],
-      respostaCorrecta: typeof q.respostaCorrecta === 'number' && q.respostaCorrecta >= 0 && q.respostaCorrecta < 4 ? q.respostaCorrecta : 0,
-      esReserva: Boolean(q.esReserva),
-      esAnulada: Boolean(q.esAnulada),
-      temaClassificat: q.temaClassificat || null,
-      esMunicipalONoCoincideix: Boolean(q.esMunicipalONoCoincideix),
-      motiuClassificacio: q.motiuClassificacio || '',
-      explicacio: q.explicacio || '',
-      esExamenOficial: true,
-      examenOrigen: titol || `Examen Oficial ${municipi || ''} ${any || ''}`.trim(),
-      municipi: municipi || '',
-      any: any || '',
-      cos: cos || 'pl'
-    })).filter(q => q.pregunta && q.opcions.length === 4);
+    const preguntes = (parsed.preguntes || []).map((q, idx) => {
+      const rawOpcions = Array.isArray(q.opcions) ? q.opcions.map(o => String(o).trim()) : [];
+      while (rawOpcions.length < 4 && rawOpcions.length >= 2) {
+        rawOpcions.push(`Opció ${String.fromCharCode(65 + rawOpcions.length)}`);
+      }
+      return {
+        id: `oficial_${Date.now()}_${idx + 1}`,
+        num: q.num || (idx + 1),
+        pregunta: (q.pregunta || '').trim(),
+        opcions: rawOpcions,
+        respostaCorrecta: typeof q.respostaCorrecta === 'number' && q.respostaCorrecta >= 0 && q.respostaCorrecta < rawOpcions.length ? q.respostaCorrecta : 0,
+        esReserva: Boolean(q.esReserva),
+        esAnulada: Boolean(q.esAnulada),
+        temaClassificat: q.temaClassificat || null,
+        esMunicipalONoCoincideix: Boolean(q.esMunicipalONoCoincideix),
+        motiuClassificacio: q.motiuClassificacio || '',
+        explicacio: q.explicacio || '',
+        esExamenOficial: true,
+        examenOrigen: titol || `Examen Oficial ${municipi || ''} ${any || ''}`.trim(),
+        municipi: municipi || '',
+        any: any || '',
+        cos: cos || 'pl'
+      };
+    }).filter(q => q.pregunta && q.opcions.length >= 2);
 
     const coincidents = preguntes.filter(q => !q.esMunicipalONoCoincideix && q.temaClassificat);
     const municipals = preguntes.filter(q => q.esMunicipalONoCoincideix || !q.temaClassificat);
@@ -1865,9 +1933,14 @@ Respon EXCLUSIVAMENT amb un objecte JSON que contingui:
       });
     }
 
+    const es503 = error?.status === 503 || error?.message?.includes('503') || error?.message?.includes('high demand');
+    const msgClar = es503
+      ? 'Els servidors de IA estan experimentant una alta demanda momentània i no s\'han pogut extreure preguntes del PDF. Prova de copiar i enganxar el text de l\'examen directament a la pestanya "Enganxar text" o torna-ho a intentar en uns segons.'
+      : 'No s\'han pogut extreure preguntes vàlides del document. Assegura\'t que contingui text seleccionable o enganxa el text directament a la casella de text.';
+
     return res.status(500).json({
       success: false,
-      error: 'Error analitzant l\'examen oficial: ' + (error?.message || 'No s\'han pogut detectar preguntes vàlides al document.')
+      error: msgClar
     });
   }
 });

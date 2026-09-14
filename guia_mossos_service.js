@@ -62,9 +62,9 @@ export function cercarALaGuia(query, maxResultats = 4) {
     'a', 'amb', 'en', 'per', 'per a', 'o', 'i', 'que', 'què', 'es', 'son', 'era',
     'com', 'quin', 'quina', 'quins', 'quines', 'on', 'quan', 'perquè', 'sobre',
     'segons', 'dintre', 'fins', 'al', 'als', 'pel', 'pels', 'del', 'dels', 'cap',
-    'guia', 'oficial', 'temari', 'tema', 'temes', 'mossos', 'esquadra', 'policia',
-    'catalunya', 'segons', 'explica', 'digues', 'saps', 'pots', 'dir', 'diu', 'parla',
-    'quin', 'quina', 'quins', 'quines', 'qual', 'quals', 'dona', 'donam'
+    'guia', 'oficial', 'temari', 'tema', 'temes',
+    'explica', 'digues', 'saps', 'pots', 'dir', 'diu', 'parla',
+    'qual', 'quals', 'dona', 'donam'
   ]);
 
   let paraules = textNet.split(/\s+/).filter(w => w.length > 2 && !stopWords.has(w));
@@ -188,14 +188,15 @@ export function construirContextGuiaPerPrompt(consulta, temaIdForcat = null) {
   if (!g) return '';
 
   let temaSel = null;
-  if (temaIdForcat) {
-    temaSel = getTemaGuiaPerId(temaIdForcat);
+  if (temaIdForcat && temaIdForcat !== 'auto' && temaIdForcat !== 'guia_auto' && temaIdForcat !== 'null') {
+    const netId = String(temaIdForcat).replace(/^guia:/, '').trim();
+    temaSel = getTemaGuiaPerId(netId);
   }
 
   if (temaSel) {
     return `
 FONT OFICIAL OBLIGATÒRIA: GUIA D'ESTUDI MOSSOS D'ESQUADRA (JUNY 2026)
-TEMA SELECCIONAT: ${temaSel.codi} - ${temaSel.titol} [Pàgines ${temaSel.pagines}]
+TEMA SELECCIONAT PEL CANDIDAT: ${temaSel.codi} - ${temaSel.titol} [Pàgines ${temaSel.pagines}]
 Àmbit: ${temaSel.ambit} (${temaSel.ambitNom})
 ---
 IDEES FORÇA OFICIALS DEL TEMA:
@@ -207,17 +208,36 @@ ${(temaSel.glossari || []).join(', ')}
 TEXT OFICIAL I PÀGINES DEL TEMA:
 ${(temaSel.contingutText || '').slice(0, 35000)}
 ---
-INSTRUCCIÓ ESTRICTA DE FIDELITAT:
-Respon a la consulta de l'opositor fent servir exclusivament la informació i els paràgrafs textuals d'aquest Tema de la Guia Oficial. Cita expressament el número de pàgina oficial [Pàg. X] i l'apartat concret.
+INSTRUCCIÓ ESTRICTA DE FIDELITAT I CITACIÓ:
+1. Comença la teva resposta citant el paràgraf o concepte literal amb aquest format exacte:
+📘 **Citat de la Guia Oficial de Mossos 2026 — [${temaSel.codi}, Pàg. ${temaSel.pagines}]**:
+> *"Text literal extret del document..."*
+2. Explica el dubte amb claredat pedagògica basada exclusivament en aquest tema oficial.
+3. Afegeix un apartat destacat:
+⚠️ **Clau de Test pel Tribunal**: Indica com solen preguntar aquest concepte al test oficial (trampes de terminis, termes obligatoris vs facultatius, etc.).
 `;
   }
 
-  // Si no s'ha forçat un tema, fer cerca intel·ligent
-  const trobats = cercarALaGuia(consulta, 2);
-  if (trobats.length === 0) return '';
+  // Si no s'ha forçat un tema o és 'auto', fer cerca intel·ligent sobre els 20 temes
+  let trobats = cercarALaGuia(consulta, 3);
+  
+  // Si no hi ha coincidència directa, agafar els temes més rellevants policials per defecte (A.3 i C.1)
+  if (trobats.length === 0) {
+    const tA3 = getTemaGuiaPerId('A3');
+    const tC1 = getTemaGuiaPerId('C1') || getTemaGuiaPerId('B1');
+    trobats = [tA3, tC1].filter(Boolean).map(t => ({
+      temaId: t.id,
+      codi: t.codi,
+      titol: t.titol,
+      ambit: t.ambit,
+      pagines: t.pagines,
+      contingutText: t.contingutText,
+      coincidencies: []
+    }));
+  }
 
   const fragmentsTxt = trobats.map(t => {
-    const millorsParr = t.coincidencies
+    const millorsParr = (t.coincidencies || [])
       .filter(c => c.tipus === 'paragraf' || c.tipus === 'idea_força')
       .map(c => c.text)
       .slice(0, 4)
@@ -225,20 +245,23 @@ Respon a la consulta de l'opositor fent servir exclusivament la informació i el
 
     return `
 [${t.codi}: ${t.titol} - Pàgines ${t.pagines}]
-COINCIDÈNCIES I PARÀGRAFS DESTACATS:
-${millorsParr}
-
-TEXT OFICIAL COMPLET DEL TEMA:
-${(t.contingutText || '').slice(0, 15000)}
+${millorsParr ? `COINCIDÈNCIES I PARÀGRAFS DESTACATS:\n${millorsParr}\n` : ''}
+TEXT OFICIAL DEL TEMA:
+${(t.contingutText || '').slice(0, 16000)}
 `;
   }).join('\n===\n');
 
   return `
 FONT OFICIAL DETECTADA: GUIA D'ESTUDI MOSSOS D'ESQUADRA (JUNY 2026)
-S'han trobat els següents fragments literals oficials pertinents a la consulta de l'opositor:
+S'han extret els següents fragments literals del temari oficial de 20 temes per a aquesta consulta:
 ${fragmentsTxt}
 ---
-INSTRUCCIÓ DE CITACIÓ OFICIAL:
-Aquesta consulta versa sobre el temari oficial de Mossos d'Esquadra. Utilitza i prioritza les definicions, dates, números i explicacions de la Guia Oficial 2026 citades anteriorment. Esmenta sempre la cita oficial [Pàg. X] de la guia.
+INSTRUCCIÓ DE CITACIÓ OFICIAL OBLIGATÒRIA:
+1. Respon prioritzant estrictament la Guia Oficial de Mossos 2026 proporcionada a sobre.
+2. Cita expressament el tema i el número de pàgina oficial amb aquest encapçalament:
+📘 **Citat de la Guia Oficial de Mossos 2026 — [Tema X.Y, Pàg. Z]**:
+> *"Text literal..."*
+3. Inclou sempre el bloc:
+⚠️ **Clau de Test pel Tribunal**: Alertant sobre com es pregunta aquest punt a les proves oficials de Mossos d'Esquadra.
 `;
 }

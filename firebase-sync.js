@@ -312,9 +312,13 @@
     actualitzarBotoLogin();
     carregaInicialFeta = false;
     if (user) {
-      baixarDadesDelNucol().finally(() => { carregaInicialFeta = true; });
+      baixarDadesDelNucol().finally(() => { 
+        carregaInicialFeta = true; 
+        window.dispatchEvent(new CustomEvent('agentmedina:auth_changed', { detail: user }));
+      });
     } else {
       carregaInicialFeta = true;
+      window.dispatchEvent(new CustomEvent('agentmedina:auth_changed', { detail: null }));
     }
   });
 })();
