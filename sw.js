@@ -4,7 +4,7 @@
 // El progrés de l'usuari NO es guarda aquí (va a localStorage), aquest
 // fitxer només serveix per fer l'app instal·lable i disponible offline.
 
-const CACHE_NAME = 'agent-medina-cache-v6';
+const CACHE_NAME = 'agent-medina-cache-v7';
 
 const FITXERS_APP_SHELL = [
   './',
@@ -16,9 +16,13 @@ const FITXERS_APP_SHELL = [
   './Actualidad_preguntas.js',
   './index-BNhYZkE9.css',
   './manifest.webmanifest',
+  './icon-180.png',
   './icon-192.png',
   './icon-512.png',
-  './Escut.png'
+  './icon-maskable-512.png',
+  './favicon.png',
+  './Escut.png',
+  './logo_agent_medina.jpg'
 ];
 
 self.addEventListener('install', (event) => {

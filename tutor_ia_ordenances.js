@@ -615,35 +615,53 @@ Article 47. Competència sancionadora
     }
 
     try {
-      const res = await fetch('/api/gemini/tutor-xat', {
+      const promptParts = [
+        `Ets el Tutor virtual expert en temari i normativa policial d'Agent Medina (Mossos d'Esquadra i Policia Local de Catalunya).`,
+        `Cos actiu: ${cosActiu === 'pl' ? 'Policia Local' : "Mossos d'Esquadra"}`
+      ];
+      if (docActiu && docActiu.titol) {
+        promptParts.push(`Document/Normativa consultada: "${docActiu.titol}" (${docActiu.municipi || 'General'})\nFragment:\n${(docActiu.contingutText || '').slice(0, 2500)}`);
+      }
+      if (historialXat.length > 0) {
+        const histRecent = historialXat.slice(-4).map(m => `${m.role === 'user' ? 'Opositor' : 'Tutor'}: ${m.text}`).join('\n');
+        promptParts.push(`Historial de conversa recent:\n${histRecent}`);
+      }
+      promptParts.push(`Pregunta actual de l'opositor:\n"${missatge}"`);
+      promptParts.push(`Respon de forma clara, pedagògica, precisa amb articles legals si escau i en català.`);
+
+      const res = await fetch('https://backend-opos-tests.vercel.app/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          missatge,
-          historial: historialXat.slice(-6).map(m => ({ role: m.role, text: m.text })),
-          documentContext: docActiu ? docActiu.contingutText : null,
-          titolDocument: docActiu ? docActiu.titol : null,
-          municipi: docActiu ? docActiu.municipi : null,
-          cos: cosActiu
+          prompt: promptParts.join('\n\n')
         })
       });
 
-      const dades = await res.json();
+      let dades = null;
+      const rawText = await res.text();
+      try {
+        dades = JSON.parse(rawText);
+      } catch (_) {
+        dades = { text: rawText };
+      }
+
       const loadEl = document.getElementById(loadingId);
       if (loadEl) loadEl.remove();
 
-      if (dades.success && dades.resposta) {
+      const respostaText = (dades && (dades.text || dades.resposta || dades.message)) || rawText;
+
+      if (respostaText && typeof respostaText === 'string' && respostaText.trim().length > 0) {
         historialXat.push({
           role: 'model',
-          text: dades.resposta,
+          text: respostaText,
           contextDoc: docActiu ? `${docActiu.titol} (${docActiu.municipi || 'General'})` : null,
-          font: dades.font,
+          font: 'Vercel AI Backend',
           hora: `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`
         });
       } else {
         historialXat.push({
           role: 'model',
-          text: '⚠️ No s\'ha pogut obtenir resposta: ' + (dades.error || 'Error desconegut'),
+          text: '⚠️ No s\'ha pogut obtenir resposta: ' + ((dades && dades.error) || 'Error desconegut al servidor'),
           hora
         });
       }

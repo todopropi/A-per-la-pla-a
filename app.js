@@ -3872,6 +3872,28 @@ function iniciarExamenOficial(mode = 'estudi') {
       if (!c) return;
       c.innerHTML = `
         <div style="background:white;padding:20px 25px;border-radius:16px;border:1px solid #e2e8f0;margin-top:15px;">
+          
+          <!-- Comptador visual en temps real (Aciertos, Fallos, Sin responder) -->
+          <div id="oficial-live-counter-bar" style="display:flex;align-items:center;justify-content:space-between;gap:8px;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:12px;padding:9px 14px;margin-bottom:15px;flex-wrap:wrap;">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <div style="display:inline-flex;align-items:center;gap:6px;background:#ecfdf5;border:1px solid #a7f3d0;padding:5px 12px;border-radius:8px;font-size:13px;font-weight:700;color:#065f46;">
+                <span style="font-size:14px;">✅</span>
+                <span>Aciertos:</span>
+                <strong id="contador-oficial-aciertos" style="font-size:15px;font-weight:900;color:#047857;">${encerts}</strong>
+              </div>
+              <div style="display:inline-flex;align-items:center;gap:6px;background:#fef2f2;border:1px solid #fecaca;padding:5px 12px;border-radius:8px;font-size:13px;font-weight:700;color:#991b1b;">
+                <span style="font-size:14px;">❌</span>
+                <span>Fallos:</span>
+                <strong id="contador-oficial-fallos" style="font-size:15px;font-weight:900;color:#b91c1c;">${errors}</strong>
+              </div>
+            </div>
+            <div style="display:inline-flex;align-items:center;gap:6px;background:#f1f5f9;border:1px solid #cbd5e1;padding:5px 12px;border-radius:8px;font-size:13px;font-weight:700;color:#334155;">
+              <span style="font-size:14px;">⏳</span>
+              <span>Sin responder:</span>
+              <strong id="contador-oficial-sin-responder" style="font-size:15px;font-weight:900;color:#0f172a;">${Math.max(0, 30 - encerts - errors)}</strong>
+            </div>
+          </div>
+
           <div style="display:flex;justify-content:space-between;align-items:center;gap:15px;margin-bottom:12px;">
             <span style="font-size:13px;color:#64748b;font-weight:700;">Pregunta ${index+1} de 30</span>
             <span id="rellotge-examen-oficial" style="font-size:18px;font-weight:800;">⏱️ 30:00</span>
@@ -3899,6 +3921,20 @@ function iniciarExamenOficial(mode = 'estudi') {
           lista.querySelectorAll('button').forEach(x => x.style.pointerEvents='none');
           const esCorrecte = i === idxCorrecte;
           if (esCorrecte) encerts++; else errors++;
+
+          // Actualitzar immediatament els marcadors en temps real
+          const elAciertos = c.querySelector('#contador-oficial-aciertos');
+          const elFallos = c.querySelector('#contador-oficial-fallos');
+          const elSinResp = c.querySelector('#contador-oficial-sin-responder');
+          if (elAciertos) elAciertos.textContent = encerts;
+          if (elFallos) elFallos.textContent = errors;
+          if (elSinResp) elSinResp.textContent = Math.max(0, 30 - encerts - errors);
+
+          const btnFinalitzarAra = c.querySelector('#btn-finalitzar-ara-oficial');
+          if (btnFinalitzarAra) {
+            btnFinalitzarAra.textContent = `🏁 Finalitzar ara (${encerts + errors} de 30 contestades)`;
+          }
+
           respostes[index] = esCorrecte ? q.resposta : null;
           registrarRespuestaGlobal(q.id, esCorrecte, q);
           if (esCorrecte) eliminarPreguntaAcertada(q.id); else guardarPreguntaFallada(q);
@@ -4036,6 +4072,17 @@ function iniciarExamen(quantitatDeseada = 10, esRepasErrors = false, datasetPers
     let encerts = 0;
     let fallades = 0;
 
+    const testStats = {
+      get encerts() { return encerts; },
+      get fallades() { return fallades; },
+      get total() { return preguntesTest.length; },
+      get pendents() { return Math.max(0, preguntesTest.length - encerts - fallades); },
+      registrar(esCorrecte) {
+        if (esCorrecte) encerts++;
+        else fallades++;
+      }
+    };
+
     function renderitzarPreguntaActual() {
       if (indexActual >= preguntesTest.length) {
         const contenedor = obtenirContenidorTest();
@@ -4080,9 +4127,7 @@ function iniciarExamen(quantitatDeseada = 10, esRepasErrors = false, datasetPers
 
       const preguntaActual = preguntesTest[indexActual];
 
-      mostrarPreguntaAmbSeguent(preguntaActual, indexActual, preguntesTest.length, (esCorrecte) => {
-        if (esCorrecte) encerts++;
-        else fallades++;
+      mostrarPreguntaAmbSeguent(preguntaActual, indexActual, preguntesTest.length, testStats, (esCorrecte) => {
         indexActual++;
         renderitzarPreguntaActual();
         requestAnimationFrame(() => {
@@ -4127,7 +4172,24 @@ function iniciarRepasUltimTest() {
   render();
 }
 
-function mostrarPreguntaAmbSeguent(preguntaObj, indexActual, totalPreguntes, onSeguent) {
+function mostrarPreguntaAmbSeguent(preguntaObj, indexActual, totalPreguntes, onSeguentOrStats, maybeOnSeguent) {
+    let stats = null;
+    let onSeguent = null;
+
+    if (typeof onSeguentOrStats === 'function') {
+        onSeguent = onSeguentOrStats;
+        stats = { encerts: 0, fallades: 0 };
+    } else {
+        stats = onSeguentOrStats || { encerts: 0, fallades: 0 };
+        onSeguent = maybeOnSeguent || (() => {});
+    }
+
+    const encertsInicials = typeof stats.encerts === 'number' ? stats.encerts : 0;
+    const falladesInicials = typeof stats.fallades === 'number' ? stats.fallades : 0;
+    const pendentsInicials = typeof stats.pendents === 'number'
+        ? stats.pendents
+        : Math.max(0, totalPreguntes - encertsInicials - falladesInicials);
+
     const respostaCorrectaText = preguntaObj.opcions[preguntaObj.resposta];
     let opcionsBarrejades = [...preguntaObj.opcions];
     barrejarArray(opcionsBarrejades);
@@ -4141,6 +4203,28 @@ function mostrarPreguntaAmbSeguent(preguntaObj, indexActual, totalPreguntes, onS
 
     contenedor.innerHTML = `
         <div class="pregunta-box" style="background: var(--bg-card, #ffffff); padding: 26px 24px; border-radius: 18px; border: 1.5px solid var(--border-card, #e2e8f0); box-shadow: var(--shadow-card); max-width: 820px; margin: 0 auto;">
+            
+            <!-- Contador visual en temps real (Aciertos, Fallos, Sin responder) -->
+            <div id="test-live-counter-bar" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; background: var(--bg-card-subtle, #f8fafc); border: 1.5px solid var(--border-card, #e2e8f0); border-radius: 12px; padding: 10px 14px; margin-bottom: 16px; flex-wrap: wrap;">
+              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <div style="display: inline-flex; align-items: center; gap: 6px; background: #ecfdf5; border: 1px solid #a7f3d0; padding: 5px 12px; border-radius: 8px; font-size: 13px; font-weight: 700; color: #065f46;">
+                  <span style="font-size: 14px;">✅</span>
+                  <span>Aciertos:</span>
+                  <strong id="contador-live-aciertos" style="font-size: 15px; font-weight: 900; color: #047857;">${encertsInicials}</strong>
+                </div>
+                <div style="display: inline-flex; align-items: center; gap: 6px; background: #fef2f2; border: 1px solid #fecaca; padding: 5px 12px; border-radius: 8px; font-size: 13px; font-weight: 700; color: #991b1b;">
+                  <span style="font-size: 14px;">❌</span>
+                  <span>Fallos:</span>
+                  <strong id="contador-live-fallos" style="font-size: 15px; font-weight: 900; color: #b91c1c;">${falladesInicials}</strong>
+                </div>
+              </div>
+              <div style="display: inline-flex; align-items: center; gap: 6px; background: #f1f5f9; border: 1px solid #cbd5e1; padding: 5px 12px; border-radius: 8px; font-size: 13px; font-weight: 700; color: #334155;">
+                <span style="font-size: 14px;">⏳</span>
+                <span>Sin responder:</span>
+                <strong id="contador-live-sin-responder" style="font-size: 15px; font-weight: 900; color: #0f172a;">${pendentsInicials}</strong>
+              </div>
+            </div>
+
             <!-- Barra de progrés superior del test -->
             <div style="margin-bottom: 18px;">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
@@ -4212,6 +4296,27 @@ function mostrarPreguntaAmbSeguent(preguntaObj, indexActual, totalPreguntes, onS
             
             const feedback = document.getElementById('feedback');
             const esCorrecte = (index === nouIndexCorrecte);
+
+            if (typeof stats.registrar === 'function') {
+                stats.registrar(esCorrecte);
+            } else {
+                if (esCorrecte) stats.encerts = (stats.encerts || 0) + 1;
+                else stats.fallades = (stats.fallades || 0) + 1;
+            }
+
+            // Actualitzar dinàmicament els 3 marcadors en temps real a l'instant
+            const elAciertos = contenedor.querySelector('#contador-live-aciertos');
+            const elFallos = contenedor.querySelector('#contador-live-fallos');
+            const elSinResp = contenedor.querySelector('#contador-live-sin-responder');
+            const valEncerts = typeof stats.encerts === 'number' ? stats.encerts : encertsInicials + (esCorrecte ? 1 : 0);
+            const valFallades = typeof stats.fallades === 'number' ? stats.fallades : falladesInicials + (esCorrecte ? 0 : 1);
+            const valPendents = typeof stats.pendents === 'number' 
+                ? stats.pendents 
+                : Math.max(0, totalPreguntes - valEncerts - valFallades);
+
+            if (elAciertos) elAciertos.textContent = valEncerts;
+            if (elFallos) elFallos.textContent = valFallades;
+            if (elSinResp) elSinResp.textContent = valPendents;
             
             if (preguntaObj.id) {
                 const fontPregunta = (typeof detectarFontPregunta === 'function' ? detectarFontPregunta(preguntaObj) : '') || 'Mossos';
