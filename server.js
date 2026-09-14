@@ -300,16 +300,11 @@ function getGeminiClient() {
 }
 
 async function executarGeminiAmbFallback(ai, promptOrContents, responseMimeType = 'application/json', tools = undefined) {
-  // Models ultra-ràpids i estables sense saturació 503 per alta demanda:
-  // 1. gemini-flash-lite-latest (~600ms, suportat directament)
-  // 2. gemini-3.5-flash-lite (~550ms, excel·lent disponibilitat)
-  // 3. gemini-3.6-flash
-  // 4. gemini-3.8-flash
-  const models = ['gemini-flash-lite-latest', 'gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-3.8-flash'];
+  // Prioritzem models estables sense saturació 503: gemini-3.1-flash-lite i gemini-flash-latest
+  const models = ['gemini-3.1-flash-lite', 'gemini-flash-latest', 'gemini-3.8-flash'];
   let lastErr = null;
   for (const model of models) {
-    const maxIntents = 2;
-    for (let intent = 0; intent < maxIntents; intent++) {
+    for (let intent = 0; intent < 2; intent++) {
       try {
         const config = {};
         if (responseMimeType) config.responseMimeType = responseMimeType;
@@ -325,13 +320,12 @@ async function executarGeminiAmbFallback(ai, promptOrContents, responseMimeType 
         }
       } catch (err) {
         lastErr = err;
-        const isHighDemand = err?.status === 503 || err?.message?.includes('503') || err?.message?.includes('high demand') || err?.status === 429 || err?.message?.includes('429');
-        console.warn(`[Gemini] Model ${model} (intent ${intent + 1}) ha fallat (${err?.message?.slice(0, 100)}), ${isHighDemand ? 'provant següent model directament...' : 'reintentant...'}`);
-        // Si el model està saturat per alta demanda (503/429), passem immediatament al següent model sense retards
-        if (isHighDemand) {
+        console.warn(`[Gemini] Model ${model} (intent ${intent + 1}) ha fallat (${err?.message?.slice(0, 100)}), provant alternativa...`);
+        // Si és un error 503 o 429, esperem breument abans del següent intent o model
+        if (err?.status === 503 || err?.message?.includes('503') || err?.message?.includes('high demand') || err?.status === 429 || err?.message?.includes('429')) {
+          await new Promise(r => setTimeout(r, 600 * (intent + 1)));
+        } else {
           break;
-        } else if (intent < maxIntents - 1) {
-          await new Promise(r => setTimeout(r, 400));
         }
       }
     }
@@ -968,9 +962,17 @@ Text de les bases a analitzar:
 ${rawText.slice(0, 30000)}
 `;
 
-        const { response, model } = await executarGeminiAmbFallback(ai, promptIA, 'application/json');
+        const model = 'gemini-2.5-flash';
+        const response = await ai.models.generateContent({
+          model,
+          contents: promptIA,
+          config: {
+            responseMimeType: 'application/json',
+            temperature: 0.1
+          }
+        });
 
-        if (response && response.text) {
+        if (response.text) {
           const parsed = JSON.parse(response.text.trim());
           if (Array.isArray(parsed.temes) && parsed.temes.length > 0) {
             return res.json({
