@@ -6,6 +6,12 @@ import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
 import { GoogleGenAI } from '@google/genai';
 import mammoth from 'mammoth';
+import {
+  getTotsElsTemesGuia,
+  getTemaGuiaPerId,
+  cercarALaGuia,
+  construirContextGuiaPerPrompt
+} from './guia_mossos_service.js';
 
 const require = createRequire(import.meta.url);
 
@@ -340,11 +346,28 @@ app.post('/api/gemini/dubte-pregunta', async (req, res) => {
   const textCorrecte = opcions[idxResp] || '';
   const triadaLletra = (typeof respostaTriada === 'number' && respostaTriada >= 0 && respostaTriada < opcions.length) ? lletres[respostaTriada] : null;
 
+  // Cerca de suport a la Guia Oficial de Mossos d'Esquadra
+  let matchGuia = null;
+  let contextGuiaDubte = '';
+  try {
+    const cerca = cercarALaGuia(`${pregunta} ${seccio || ''}`, 1);
+    if (cerca.length > 0 && (banc === 'mossos' || cerca[0].puntuacio >= 15)) {
+      matchGuia = cerca[0];
+      const topFragment = matchGuia.coincidencies.map(c => c.text).slice(0, 2).join('\n\n');
+      contextGuiaDubte = `
+FONT DE LA GUIA OFICIAL MOSSOS D'ESQUADRA (JUNY 2026):
+${matchGuia.codi}: ${matchGuia.titol} [Pàgines ${matchGuia.pagines}]
+${topFragment || matchGuia.contingutText.slice(0, 1500)}
+Si la resposta es fonamenta en aquesta guia, cita [Pàg. X] expressament.
+`;
+    }
+  } catch (_) {}
+
   const fallbackLocal = () => ({
     explicacioClau: `La resposta oficial correcta és l'opció **${lletraCorrecta}) ${textCorrecte}**. ${explicacio ? `\n\n📌 *Justificació del temari:* ${explicacio}` : ''}`,
-    perQueEsCorrecta: `Segons el temari oficial i la normativa de referència de l'oposició (${banc === 'pl' ? 'Policia Local' : banc === 'mossos' ? "Mossos d'Esquadra" : 'Actualitat'}), l'opció ${lletraCorrecta} reflecteix amb exactitud el precepte legal aplicable.`,
+    perQueEsCorrecta: `Segons el temari oficial i la normativa de referència de l'oposició (${banc === 'pl' ? 'Policia Local' : banc === 'mossos' ? "Mossos d'Esquadra" : 'Actualitat'}), l'opció ${lletraCorrecta} reflecteix amb exactitud el precepte aplicable.${matchGuia ? ` [Guia Mossos 2026, ${matchGuia.codi}, pàg. ${matchGuia.pagines}]` : ''}`,
     perQueSonFalses: `Les altres opcions contenen distractors típics d'examen com terminis modificats, terminologia no vigent o conceptes incompatibles.`,
-    baseLegalVigent: explicacio || 'Legislació vigent de Catalunya i de l\'Estat (CE, CP, LECrim, Llei 16/1991 o 10/1994).',
+    baseLegalVigent: matchGuia ? `Guia Oficial Mossos 2026: ${matchGuia.codi} [Pàg. ${matchGuia.pagines}] / Legislació aplicable` : (explicacio || 'Legislació vigent de Catalunya i de l\'Estat (CE, CP, LECrim, Llei 16/1991 o 10/1994).'),
     estatVigencia: 'vigent',
     detallVigencia: 'Aquesta pregunta està d\'acord amb les bases oficials i la normativa vigent.',
     consellExamen: 'Llegeix sempre amb atenció paraules com "sempre", "mai", "excepte" o els terminis temporals.'
@@ -376,7 +399,7 @@ ${triadaLletra ? `L'opositor havia triat: Opció ${triadaLletra}) "${opcions[res
 ${explicacio ? `Justificació del temari: "${explicacio}"` : ''}
 ${seccio ? `Tema o matèria: "${seccio}"` : ''}
 ${banc ? `Cos policial: ${banc === 'pl' ? 'Policia Local' : banc === 'mossos' ? "Mossos d'Esquadra" : 'Actualitat'}` : ''}
-
+${contextGuiaDubte}
 DUBTE O CONSULTA DE L'OPOSITOR:
 "${dubte || 'Explica\'m detalladament per què aquesta és la resposta correcta, per què les altres són falses, la cita legal exacta i si està vigent.'}"
 
@@ -822,10 +845,267 @@ app.delete('/api/examens-oficials/:id', (req, res) => {
 });
 
 // ==========================================
+// GUIA D'ESTUDI OFICIAL MOSSOS D'ESQUADRA 2026
+// ==========================================
+app.get('/api/guia-mossos/temes', (req, res) => {
+  try {
+    const temes = getTotsElsTemesGuia();
+    res.json({ success: true, total: temes.length, temes });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err?.message });
+  }
+});
+
+app.get('/api/guia-mossos/tema/:id', (req, res) => {
+  try {
+    const tema = getTemaGuiaPerId(req.params.id);
+    if (!tema) return res.status(404).json({ success: false, error: 'Tema no trobat a la Guia' });
+    res.json({ success: true, tema });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err?.message });
+  }
+});
+
+app.post('/api/guia-mossos/cercar', (req, res) => {
+  try {
+    const { query, max } = req.body || {};
+    const resultats = cercarALaGuia(query, max || 4);
+    res.json({ success: true, query, total: resultats.length, resultats });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err?.message });
+  }
+});
+
+// ==========================================
 // TUTOR IA PERSONAL (AGENT MEDINA)
 // ==========================================
+// Endpoint per analitzar bases d'un municipi amb IA i detectar transversals
+app.post('/api/gemini/analitzar-bases-municipi', async (req, res) => {
+  try {
+    const { nomMunicipi, textBases, municipisExistents } = req.body || {};
+    const nomMun = String(nomMunicipi || '').trim() || 'Nou Municipi';
+    const rawText = String(textBases || '').trim();
+
+    if (!rawText) {
+      return res.status(400).json({ success: false, error: 'Cal proporcionar el text o llistat de temes de les bases.' });
+    }
+
+    const llistaMun = Array.isArray(municipisExistents) && municipisExistents.length > 0
+      ? municipisExistents
+      : ['Constantí', 'Cubelles', 'Cunit'];
+
+    // Map de matèries troncals i en quins municipis clàssics solen entrar
+    const MATERIES_MAP = {
+      'constitucio': { nom: 'Constitució Espanyola de 1978 i TC', munHabituals: ['Constantí', 'Cubelles', 'Cunit'] },
+      'estatut': { nom: 'Estatut d’Autonomia de Catalunya', munHabituals: ['Constantí', 'Cubelles', 'Cunit'] },
+      'regim_local': { nom: 'Organització Territorial i Règim Local (LBRL)', munHabituals: ['Constantí', 'Cubelles', 'Cunit'] },
+      'procediment_administratiu': { nom: 'Procediment Administratiu Comú (Llei 39/2015)', munHabituals: ['Constantí', 'Cubelles', 'Cunit'] },
+      'disciplinari_incompatibilitats': { nom: 'Funció Pública i Règim Disciplinari', munHabituals: ['Constantí', 'Cubelles', 'Cunit'] },
+      'transparencia_dades': { nom: 'Transparència i Protecció de Dades (RGPD / LOPD)', munHabituals: ['Constantí', 'Cubelles', 'Cunit'] },
+      'llei_16_1991': { nom: 'Llei 16/1991 de Policies Locals de Catalunya', munHabituals: ['Constantí', 'Cubelles', 'Cunit'] },
+      'forces_cossos': { nom: 'Forces i Cossos de Seguretat (LO 2/1986)', munHabituals: ['Constantí', 'Cubelles', 'Cunit'] },
+      'seguretat_ciutadana': { nom: 'Seguretat Ciutadana (Llei Orgànica 4/2015)', munHabituals: ['Constantí', 'Cubelles', 'Cunit'] },
+      'seguretat_publica': { nom: 'Sistema de Seguretat Pública de Catalunya (Llei 4/2003)', munHabituals: ['Constantí', 'Cubelles', 'Cunit'] },
+      'codi_penal': { nom: 'Codi Penal i Delictes', munHabituals: ['Constantí', 'Cubelles', 'Cunit'] },
+      'transit': { nom: 'Trànsit, RGC i Seguretat Viària', munHabituals: ['Constantí', 'Cubelles', 'Cunit'] },
+      'accidents_transit': { nom: 'Accidents de Trànsit i Alcoholèmies', munHabituals: ['Constantí', 'Cubelles', 'Cunit'] },
+      'detencions': { nom: 'Detencions, Drets del Detingut i Habeas Corpus (LECrim)', munHabituals: ['Constantí', 'Cubelles', 'Cunit'] },
+      'atestat_policial': { nom: 'L’Atestat Policial, Denúncies i Actes', munHabituals: ['Constantí', 'Cubelles', 'Cunit'] },
+      'codi_etica': { nom: 'Codi d’Ètica Policial de Catalunya', munHabituals: ['Constantí', 'Cubelles', 'Cunit'] },
+      'unio_europea': { nom: 'La Unió Europea i Institucions', munHabituals: ['Cubelles', 'Cunit'] }
+    };
+
+    const ai = getGeminiClient();
+
+    if (ai) {
+      try {
+        const promptIA = `Ets un expert en oposicions de Policia Local a Catalunya.
+Analitza el següent text de les bases de convocatòria per al municipi de "${nomMun}".
+Els municipis que ja tenim registrats a la plataforma són: ${llistaMun.join(', ')}.
+
+Matèries transversals conegudes:
+${Object.entries(MATERIES_MAP).map(([id, info]) => `- ${id}: ${info.nom} (Entra habitualment a: ${info.munHabituals.join(', ')})`).join('\n')}
+
+Objectius de l'anàlisi:
+1. Extreu tots i cadascun dels temes que componen el temari oficial d'aquest municipi.
+2. Identifica si cada tema és TRANSVERSAL (coincideix amb una matèria comuna) o ESPECÍFIC LOCAL (propi exclusiu de ${nomMun}, com ordenances del municipi, carrerer, història local, geografia).
+3. Si és transversal, indica quins municipis dels registrats (${llistaMun.join(', ')}) també tenen aquest tema (coincideixAmb), i quins NO el tenen (noCoincideixAmb).
+4. Genera una etiqueta clara de transversalitat (ex: "Transversal: Cubelles, El Vendrell · No a Cunit" o "Transversal a tots els municipis").
+
+Respon EXCLUSIVAMENT amb un objecte JSON vàlid amb aquest format:
+{
+  "nomMunicipi": "${nomMun}",
+  "temes": [
+    {
+      "id": "1",
+      "codi": "T1",
+      "titol": "Títol complet del tema",
+      "descripcio": "Resum o contingut clau",
+      "materiaId": "codi_penal | constitucio | estatut | regim_local | procediment_administratiu | llei_16_1991 | etc... o especific_${nomMun.toLowerCase()}",
+      "materiaNom": "Nom de la matèria o Específic local de ${nomMun}",
+      "esTransversal": true,
+      "esEspecific": false,
+      "coincideixAmb": ["Cubelles", "Constantí"],
+      "noCoincideixAmb": ["Cunit"],
+      "etiquetaTransversal": "Transversal: Cubelles, Constantí, ${nomMun} · No a Cunit"
+    }
+  ],
+  "estadistiques": {
+    "totalTemes": 0,
+    "totalTransversals": 0,
+    "totalEspecifics": 0,
+    "resumCompatibilitat": "Descripció en una frase del grau de coincidència"
+  }
+}
+
+Text de les bases a analitzar:
+${rawText.slice(0, 30000)}
+`;
+
+        const model = 'gemini-2.5-flash';
+        const response = await ai.models.generateContent({
+          model,
+          contents: promptIA,
+          config: {
+            responseMimeType: 'application/json',
+            temperature: 0.1
+          }
+        });
+
+        if (response.text) {
+          const parsed = JSON.parse(response.text.trim());
+          if (Array.isArray(parsed.temes) && parsed.temes.length > 0) {
+            return res.json({
+              success: true,
+              font: `gemini (${model})`,
+              ...parsed
+            });
+          }
+        }
+      } catch (geminiError) {
+        console.warn('Avís a anàlisi de bases amb Gemini, utilitzant motor heurístic local:', geminiError?.message);
+      }
+    }
+
+    // Motor heurístic local de reserva (garanteix resposta instantània si la IA no està disponible)
+    const linies = rawText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    const temesDetectats = [];
+    let temaActual = null;
+
+    linies.forEach(linia => {
+      const m = linia.match(/^(?:tema|t\.)\s*([0-9a-zA-Z\.\-_]+)(?:[:\.\-\s]+)(.*)$/i) ||
+                linia.match(/^([0-9]{1,3})[\.\-\)\s]+(.*)$/);
+      if (m && m[1] && m[2]) {
+        if (temaActual) temesDetectats.push(temaActual);
+        temaActual = { rawId: m[1].replace(/[^0-9a-zA-Z]/g, ''), titol: m[2].trim(), descripcio: '' };
+      } else if (temaActual) {
+        temaActual.descripcio += (temaActual.descripcio ? ' ' : '') + linia;
+      } else if (linia.length > 5 && linia.length < 250) {
+        temaActual = { rawId: String(temesDetectats.length + 1), titol: linia, descripcio: '' };
+      }
+    });
+    if (temaActual) temesDetectats.push(temaActual);
+
+    let countTransversals = 0;
+    let countEspecifics = 0;
+
+    const temes = temesDetectats.map((t, idx) => {
+      const id = String(idx + 1);
+      const codi = `T${t.rawId || id}`;
+      const txt = (t.titol + ' ' + t.descripcio).toLowerCase();
+      const munLow = nomMun.toLowerCase();
+
+      let materiaId = 'altres';
+      let esEspecific = false;
+
+      if (txt.includes(munLow) || txt.includes('ordenança municipal') || txt.includes('carrerer') || txt.includes('història local')) {
+        materiaId = `especific_${munLow}`;
+        esEspecific = true;
+      } else if (txt.includes('penal') || txt.includes('delict')) {
+        materiaId = 'codi_penal';
+      } else if (txt.includes('constitució') || txt.includes('constitucional')) {
+        materiaId = 'constitucio';
+      } else if (txt.includes('estatut')) {
+        materiaId = 'estatut';
+      } else if (txt.includes('municipi') || txt.includes('règim local') || txt.includes('7/1985')) {
+        materiaId = 'regim_local';
+      } else if (txt.includes('procediment administratiu') || txt.includes('39/2015') || txt.includes('acte administratiu')) {
+        materiaId = 'procediment_administratiu';
+      } else if (txt.includes('16/1991')) {
+        materiaId = 'llei_16_1991';
+      } else if (txt.includes('2/1986') || txt.includes('forces i cossos')) {
+        materiaId = 'forces_cossos';
+      } else if (txt.includes('4/2015') || txt.includes('seguretat ciutadana')) {
+        materiaId = 'seguretat_ciutadana';
+      } else if (txt.includes('trànsit') || txt.includes('circulació')) {
+        materiaId = 'transit';
+      } else if (txt.includes('detenció') || txt.includes('habeas corpus')) {
+        materiaId = 'detencions';
+      } else if (txt.includes('atestat')) {
+        materiaId = 'atestat_policial';
+      } else if (txt.includes('unió europea') || txt.includes('europea')) {
+        materiaId = 'unio_europea';
+      } else if (txt.includes('ètica') || txt.includes('deontologia')) {
+        materiaId = 'codi_etica';
+      } else {
+        materiaId = 'altres';
+      }
+
+      const matInfo = MATERIES_MAP[materiaId];
+      const esTransversal = !esEspecific && materiaId !== 'altres';
+
+      if (esTransversal) countTransversals++;
+      else countEspecifics++;
+
+      const habituals = matInfo ? matInfo.munHabituals.filter(m => llistaMun.includes(m)) : [];
+      const coincideixAmb = esTransversal ? [...habituals] : [];
+      const noCoincideixAmb = esTransversal ? llistaMun.filter(m => !habituals.includes(m)) : llistaMun;
+
+      let etiquetaTransversal = '';
+      if (esEspecific) {
+        etiquetaTransversal = `📌 Específic local exclusiu de ${nomMun}`;
+      } else if (esTransversal) {
+        const altres = coincideixAmb.join(', ');
+        const noHiEs = noCoincideixAmb.length > 0 ? ` · No entra a ${noCoincideixAmb.join(', ')}` : '';
+        etiquetaTransversal = altres ? `Transversal: ${altres}, ${nomMun}${noHiEs}` : `Transversal nou: ${nomMun}`;
+      } else {
+        etiquetaTransversal = `Matèria general (${nomMun})`;
+      }
+
+      return {
+        id,
+        codi,
+        titol: t.titol,
+        descripcio: t.descripcio || '',
+        materiaId,
+        materiaNom: matInfo ? matInfo.nom : (esEspecific ? `Específic de ${nomMun}` : 'Altres matèries'),
+        esTransversal,
+        esEspecific,
+        coincideixAmb,
+        noCoincideixAmb,
+        etiquetaTransversal
+      };
+    });
+
+    return res.json({
+      success: true,
+      font: 'heuristica_local',
+      nomMunicipi: nomMun,
+      temes,
+      estadistiques: {
+        totalTemes: temes.length,
+        totalTransversals: countTransversals,
+        totalEspecifics: countEspecifics,
+        resumCompatibilitat: `${countTransversals} temes transversals compartits amb altres municipis i ${countEspecifics} específics locals.`
+      }
+    });
+  } catch (err) {
+    console.error('Error a analitzar-bases-municipi:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
 app.post('/api/gemini/tutor-xat', async (req, res) => {
-  const { missatge, historial, documentContext, titolDocument, municipi, cos } = req.body || {};
+  const { missatge, historial, documentContext, titolDocument, municipi, cos, guiaTemaId } = req.body || {};
   if (!missatge || !missatge.trim()) {
     return res.status(400).json({ success: false, error: 'Missatge buit' });
   }
@@ -833,7 +1113,40 @@ app.post('/api/gemini/tutor-xat', async (req, res) => {
   const ai = getGeminiClient();
   const cosTxt = cos === 'mossos' ? "Mossos d'Esquadra" : cos === 'pl' ? 'Policia Local' : 'Policia Local i Mossos d\'Esquadra';
 
+  // Cerca automàtica o directa a la Guia Oficial de Mossos d'Esquadra
+  let contextGuia = '';
+  let trobatsGuia = [];
+  try {
+    if (guiaTemaId) {
+      contextGuia = construirContextGuiaPerPrompt(missatge, guiaTemaId);
+    } else {
+      trobatsGuia = cercarALaGuia(missatge, 2);
+      if (trobatsGuia.length > 0 && (cos === 'mossos' || trobatsGuia[0].puntuacio >= 15)) {
+        contextGuia = construirContextGuiaPerPrompt(missatge, null);
+      }
+    }
+  } catch (e) {
+    console.warn('Avís processant Guia Mossos per a tutor:', e?.message);
+  }
+
+  // Fallback si no hi ha Gemini configurat
   if (!ai) {
+    if (trobatsGuia.length > 0) {
+      const top = trobatsGuia[0];
+      const fragments = top.coincidencies.slice(0, 3).map(c => `> *${c.text}*`).join('\n\n');
+      return res.json({
+        success: true,
+        font: 'guia_oficial_servidor',
+        resposta: `📖 **Guia Oficial d'Estudi Mossos d'Esquadra (Juny 2026)**
+📌 **${top.codi}: ${top.titol} [Pàgines ${top.pagines}]**
+
+${fragments || (top.contingutText || '').slice(0, 900)}
+
+---
+💡 *Consulta extreta literalment de la base de coneixement oficial de la Guia de Mossos d'Esquadra 2026 integrada al servidor.*`
+      });
+    }
+
     return res.json({
       success: true,
       font: 'local_fallback',
@@ -842,7 +1155,7 @@ app.post('/api/gemini/tutor-xat', async (req, res) => {
 📌 **Consulta sobre:** "${missatge.trim()}"
 ${documentContext ? `\n📖 *Document de referència:* ${titolDocument || 'Ordenança adjunta'}` : ''}
 
-Per gaudir de respostes jurídiques en temps real amb Gemini 3.8 Flash i cerca a la xarxa, afegeix la clau \`GEMINI_API_KEY\` a la configuració del projecte. Recorda que pots consultar qualsevol article de la Llei 16/1991, Llei 10/1994, Codi Penal o l'Estatut!`
+Per gaudir de respostes jurídiques en temps real amb Gemini 3.8 Flash i cerca a la xarxa, afegeix la clau \`GEMINI_API_KEY\` a la configuració del projecte. Recorda que el servidor ja disposa dels 20 temes complets de la Guia Oficial de Mossos 2026!`
     });
   }
 
@@ -853,8 +1166,12 @@ Per gaudir de respostes jurídiques en temps real amb Gemini 3.8 Flash i cerca a
       : '';
 
     let contextInstruccions = '';
+    if (contextGuia) {
+      contextInstruccions += `\n${contextGuia}\n`;
+    }
+
     if (documentContext && documentContext.trim()) {
-      contextInstruccions = `
+      contextInstruccions += `
 DOCUMENT / ORDENANÇA ADJUNTA DE REFERÈNCIA:
 Títol: ${titolDocument || 'Document adjunt'} ${municipi ? `(Municipi: ${municipi})` : ''}
 ---
@@ -872,7 +1189,8 @@ El teu to és proper, pedagògic, rigorós i motivador.
 Escriu SEMPRE en català correcte.
 
 INSTRUCCIONS PRINCIPALS:
-- Cita sempre els articles concrets de les lleis aplicables (ex: Art. 17 CE, Art. 138 CP, Art. 11 Llei 16/1991, Art. 12 LO 4/2015, etc.).
+- Cita sempre els articles concrets de les lleis aplicables o el número de pàgina oficial de la Guia de Mossos [Pàg. X] si la informació prové del temari oficial.
+- Si l'opositor et demana un fragment o definició exacta del temari, cita literalment el text de la Guia Oficial proporcionat al context.
 - Si l'opositor et demana una regla mnemotècnica, crea acrònims o associacions mentals fàcils de recordar.
 - Si et demana un cas pràctic, planteja una intervenció policial realista pas a pas amb la fonamentació jurídica i procediment d'actuació (identificació, escorcoll, citació o detenció).
 - Fes servir negretes, llistes i emoticones policials/jurídiques per estructurar la resposta de manera molt visual i llegible.
@@ -893,6 +1211,22 @@ Respon de manera clara, pedagògica i estructurada:`;
     });
   } catch (error) {
     console.error('Error a /api/gemini/tutor-xat:', error?.message);
+    if (trobatsGuia.length > 0) {
+      const top = trobatsGuia[0];
+      const fragments = top.coincidencies.slice(0, 3).map(c => `> *${c.text}*`).join('\n\n');
+      return res.json({
+        success: true,
+        font: 'guia_oficial_servidor',
+        resposta: `📖 **Guia Oficial d'Estudi Mossos d'Esquadra (Juny 2026)**
+📌 **${top.codi}: ${top.titol} [Pàgines ${top.pagines}]**
+
+${fragments || (top.contingutText || '').slice(0, 900)}
+
+---
+*(Informació oficial extreta directament del temari de Mossos d'Esquadra emmagatzemat al servidor).*`
+      });
+    }
+
     const textCons = (missatge || '').trim();
     const respostaLocal = `📚 **Resposta d'assistència:**\n\nPel que fa a la teva consulta sobre *"${textCons.slice(0, 100)}"*, recorda tenir en compte la jerarquia normativa:\n- **Constitució Espanyola (CE):** Drets fonamentals (art. 14 a 29 i 30.2), detenció preventiva màxima de 72 hores (art. 17).\n- **Llei Orgànica 2/1986 i Llei 16/1991:** Principis bàsics d'actuació (congruència, oportunitat i proporcionalitat).\n- **Llei Orgànica 4/2015:** Règim de seguretat ciutadana, identificacions i escorcolls.\n- **Codi Penal (LO 10/1995):** Tipicitat dels delictes contra les persones, patrimoni i seguretat viària.\n\n*(Nota: Hi ha hagut una alta demanda temporal del servidor de IA. Pots formular una nova pregunta o especificar l'article exacte.)*`;
     return res.json({

@@ -15,6 +15,84 @@
   let cosActiu = 'pl'; // 'pl', 'mossos', 'tots'
   let preguntesGeneradesUltimes = [];
 
+  // Gestió de sessions i historial persistent de xat (Firebase + Local)
+  let sessionsCache = [];
+  let sessioActivaId = null;
+  let modePantallaCompletaXat = false;
+  let filtreCercaSessions = '';
+  let barraLateralOberta = true;
+
+  function obtenirClauSessions() {
+    const u = (typeof window.obtenirUsuariFirebase === 'function') ? window.obtenirUsuariFirebase() : null;
+    if (u && u.uid) {
+      return `agentmedina_chat_sessions_${u.uid}`;
+    }
+    return 'agentmedina_chat_sessions_local';
+  }
+
+  function carregarSessions() {
+    try {
+      const clau = obtenirClauSessions();
+      let raw = localStorage.getItem(clau);
+      if (!raw && clau !== 'agentmedina_chat_sessions_local') {
+        raw = localStorage.getItem('agentmedina_chat_sessions_local') || localStorage.getItem('agentmedina_chat_sessions');
+      }
+      if (raw) {
+        sessionsCache = JSON.parse(raw);
+        if (!Array.isArray(sessionsCache)) sessionsCache = [];
+      } else {
+        sessionsCache = [];
+      }
+    } catch (e) {
+      console.warn('Error carregant sessions de xat:', e);
+      sessionsCache = [];
+    }
+
+    if (sessionsCache.length === 0) {
+      const nova = {
+        id: 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+        titol: 'Nova consulta jurídica',
+        dataCreacio: new Date().toISOString(),
+        dataActualitzacio: new Date().toISOString(),
+        cos: cosActiu || 'pl',
+        contextDocId: documentActiuId || '',
+        missatges: []
+      };
+      sessionsCache.push(nova);
+      sessioActivaId = nova.id;
+      guardarSessions();
+    } else {
+      if (!sessioActivaId || !sessionsCache.some(s => s.id === sessioActivaId)) {
+        sessioActivaId = sessionsCache[0].id;
+      }
+    }
+
+    // Sincronitzar historialXat amb la sessió activa
+    const sActiva = sessionsCache.find(s => s.id === sessioActivaId) || sessionsCache[0];
+    if (sActiva) {
+      historialXat = sActiva.missatges || [];
+      if (sActiva.cos) cosActiu = sActiva.cos;
+      if (sActiva.contextDocId !== undefined) documentActiuId = sActiva.contextDocId;
+    }
+  }
+
+  function guardarSessions() {
+    try {
+      const clau = obtenirClauSessions();
+      const idx = sessionsCache.findIndex(s => s.id === sessioActivaId);
+      if (idx !== -1) {
+        sessionsCache[idx].missatges = historialXat;
+        sessionsCache[idx].cos = cosActiu;
+        sessionsCache[idx].contextDocId = documentActiuId;
+        sessionsCache[idx].dataActualitzacio = new Date().toISOString();
+      }
+      localStorage.setItem(clau, JSON.stringify(sessionsCache));
+      localStorage.setItem('agentmedina_chat_sessions', JSON.stringify(sessionsCache));
+    } catch (e) {
+      console.warn('Error guardant sessions:', e);
+    }
+  }
+
   // Documents predeterminats de mostra si no n'hi ha cap desat
   const DOCUMENTS_MOSTRA = [
     {
@@ -243,6 +321,7 @@ Article 47. Competència sancionadora
     if (!container) return;
 
     await Promise.all([carregarDocuments(), carregarTemesAnnexos(), carregarExamensOficials()]);
+    carregarSessions();
 
     container.innerHTML = `
       <div class="tutor-container">
@@ -319,19 +398,602 @@ Article 47. Competència sancionadora
     }
   }
 
+  function obtenirDocActiu() {
+    if (!documentActiuId) return null;
+    if (documentActiuId === 'guia_auto') {
+      return {
+        id: 'guia_auto',
+        titol: "Guia d'Estudi Mossos d'Esquadra (Juny 2026)",
+        municipi: 'Temari Oficial (20 Temes / 242 Pàgines)',
+        contingutText: ''
+      };
+    }
+    if (typeof documentActiuId === 'string' && documentActiuId.startsWith('guia:')) {
+      const tid = documentActiuId.replace('guia:', '');
+      const g = window.GUIA_MOSSOS_2026;
+      if (g && Array.isArray(g.temes)) {
+        const t = g.temes.find(x => x.id === tid);
+        if (t) {
+          return {
+            id: `guia:${t.id}`,
+            titol: `${t.codi}: ${t.titol} [Pàg. ${t.pagines}]`,
+            municipi: t.ambitNom,
+            contingutText: t.contingutText,
+            pagines: t.pagines
+          };
+        }
+      }
+    }
+    return documentsCache.find(d => d.id === documentActiuId) || null;
+  }
+
+  // ==========================================================================
+  // GESTIÓ D'HISTORIAL DE CONVERSES I SESSIONS
+  // ==========================================================================
+  window.crearNovaConversaTutor = function () {
+    const d = new Date();
+    const nova = {
+      id: 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+      titol: 'Nova consulta ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      dataCreacio: d.toISOString(),
+      dataActualitzacio: d.toISOString(),
+      cos: cosActiu || 'pl',
+      contextDocId: documentActiuId || '',
+      missatges: []
+    };
+    sessionsCache.unshift(nova);
+    sessioActivaId = nova.id;
+    historialXat = [];
+    guardarSessions();
+    renderitzarSubvista();
+    if (modePantallaCompletaXat) {
+      renderitzarPantallaCompletaModal();
+    }
+    setTimeout(() => {
+      const inp = document.getElementById(modePantallaCompletaXat ? 'tutor-fs-input-msg' : 'tutor-input-msg');
+      if (inp) inp.focus();
+    }, 100);
+  };
+
+  window.canviarSessioTutor = function (id) {
+    if (!id || id === sessioActivaId) return;
+    guardarSessions();
+    sessioActivaId = id;
+    const s = sessionsCache.find(x => x.id === id);
+    if (s) {
+      historialXat = s.missatges || [];
+      if (s.cos) cosActiu = s.cos;
+      if (s.contextDocId !== undefined) documentActiuId = s.contextDocId;
+    }
+    renderitzarSubvista();
+    if (modePantallaCompletaXat) {
+      renderitzarPantallaCompletaModal();
+    }
+  };
+
+  window.esborrarSessioTutor = function (id, e) {
+    if (e && e.stopPropagation) e.stopPropagation();
+    if (sessionsCache.length <= 1) {
+      if (confirm('Vols buidar aquesta conversa?')) {
+        historialXat = [];
+        const s = sessionsCache.find(x => x.id === id);
+        if (s) {
+          s.titol = 'Nova consulta jurídica';
+          s.missatges = [];
+          s.dataActualitzacio = new Date().toISOString();
+        }
+        guardarSessions();
+        renderitzarSubvista();
+        if (modePantallaCompletaXat) renderitzarPantallaCompletaModal();
+      }
+      return;
+    }
+
+    if (confirm('Estàs segur d\'eliminar aquesta conversa de l\'historial?')) {
+      sessionsCache = sessionsCache.filter(x => x.id !== id);
+      if (sessioActivaId === id) {
+        sessioActivaId = sessionsCache[0].id;
+        const s = sessionsCache[0];
+        historialXat = s.missatges || [];
+        if (s.cos) cosActiu = s.cos;
+        if (s.contextDocId !== undefined) documentActiuId = s.contextDocId;
+      }
+      guardarSessions();
+      renderitzarSubvista();
+      if (modePantallaCompletaXat) renderitzarPantallaCompletaModal();
+    }
+  };
+
+  window.renombrarSessioTutor = function (id, e) {
+    if (e && e.stopPropagation) e.stopPropagation();
+    const s = sessionsCache.find(x => x.id === id);
+    if (!s) return;
+    const nou = prompt('Canvia el títol d\'aquesta consulta:', s.titol);
+    if (nou && nou.trim()) {
+      s.titol = nou.trim();
+      guardarSessions();
+      renderitzarSubvista();
+      if (modePantallaCompletaXat) renderitzarPantallaCompletaModal();
+    }
+  };
+
+  window.filtrarSessionsTutor = function (terme) {
+    filtreCercaSessions = (terme || '').toLowerCase().trim();
+    if (modePantallaCompletaXat) {
+      const llistaHost = document.getElementById('tutor-fs-session-list');
+      if (llistaHost) llistaHost.innerHTML = renderitzarItemsLlistaSessions();
+    }
+  };
+
+  window.alternarBarraLateralTutor = function () {
+    barraLateralOberta = !barraLateralOberta;
+    const sidebar = document.getElementById('tutor-fs-sidebar');
+    if (sidebar) {
+      sidebar.style.display = barraLateralOberta ? 'flex' : 'none';
+    }
+  };
+
+  // ==========================================================================
+  // PANTALLA COMPLETA DEL XAT TUTOR
+  // ==========================================================================
+  window.alternarPantallaCompletaTutor = function (forcar) {
+    if (typeof forcar === 'boolean') {
+      modePantallaCompletaXat = forcar;
+    } else {
+      modePantallaCompletaXat = !modePantallaCompletaXat;
+    }
+
+    let modal = document.getElementById('tutor-fullscreen-modal');
+    if (modePantallaCompletaXat) {
+      if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'tutor-fullscreen-modal';
+        document.body.appendChild(modal);
+      }
+      modal.style.display = 'flex';
+      document.body.style.overflow = 'hidden';
+      renderitzarPantallaCompletaModal();
+      setTimeout(() => {
+        const inp = document.getElementById('tutor-fs-input-msg');
+        if (inp) inp.focus();
+      }, 100);
+    } else {
+      if (modal) {
+        modal.style.display = 'none';
+      }
+      document.body.style.overflow = '';
+      renderitzarSubvista();
+    }
+  };
+
+  window.tancarPantallaCompletaTutor = function () {
+    window.alternarPantallaCompletaTutor(false);
+  };
+
+  if (typeof document !== 'undefined') {
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && modePantallaCompletaXat) {
+        window.alternarPantallaCompletaTutor(false);
+      }
+    });
+  }
+
+  window.copiarTextRespostaTutor = function (btn) {
+    if (!btn) return;
+    const textEncoded = btn.getAttribute('data-text') || '';
+    const text = decodeURIComponent(textEncoded);
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      const originalHtml = btn.innerHTML;
+      btn.innerHTML = '<span>✓ Copiat al porta-retalls!</span>';
+      btn.style.color = '#10b981';
+      setTimeout(() => {
+        btn.innerHTML = originalHtml;
+        btn.style.color = '';
+      }, 2200);
+    }).catch(err => {
+      console.warn('No s\'ha pogut copiar:', err);
+    });
+  };
+
+  function renderitzarItemsLlistaSessions() {
+    let filtrades = sessionsCache;
+    if (filtreCercaSessions) {
+      filtrades = sessionsCache.filter(s =>
+        (s.titol || '').toLowerCase().includes(filtreCercaSessions) ||
+        (s.missatges || []).some(m => (m.text || '').toLowerCase().includes(filtreCercaSessions))
+      );
+    }
+
+    if (filtrades.length === 0) {
+      return `
+        <div style="padding: 20px 14px; text-align: center; color: #94a3b8; font-size: 13px;">
+          Cap consulta coincideix amb la cerca.
+        </div>
+      `;
+    }
+
+    return filtrades.map(s => {
+      const esActiva = s.id === sessioActivaId;
+      const numMsgs = (s.missatges && s.missatges.length) || 0;
+      let dataText = '';
+      if (s.dataActualitzacio) {
+        const d = new Date(s.dataActualitzacio);
+        const ara = new Date();
+        if (d.toDateString() === ara.toDateString()) {
+          dataText = 'Avui ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        } else {
+          dataText = d.toLocaleDateString([], { day: '2-digit', month: 'short' });
+        }
+      }
+
+      return `
+        <div 
+          onclick="window.canviarSessioTutor('${s.id}')"
+          style="padding: 10px 12px; border-radius: 10px; cursor: pointer; margin-bottom: 4px; display: flex; align-items: center; justify-content: space-between; gap: 8px; transition: all 0.15s; background: ${esActiva ? '#1e293b' : 'transparent'}; border: 1px solid ${esActiva ? '#38bdf8' : 'transparent'};"
+          onmouseover="if(!${esActiva}) this.style.background='rgba(255,255,255,0.05)'"
+          onmouseout="if(!${esActiva}) this.style.background='transparent'"
+          title="${escapeHtml(s.titol)}">
+          
+          <div style="flex: 1; min-width: 0;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="font-size: 13px; color: ${esActiva ? '#38bdf8' : '#cbd5e1'};">💬</span>
+              <span style="font-size: 13px; font-weight: ${esActiva ? '700' : '500'}; color: ${esActiva ? '#ffffff' : '#e2e8f0'}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;">
+                ${escapeHtml(s.titol || 'Sense títol')}
+              </span>
+            </div>
+            <div style="font-size: 11px; color: #64748b; margin-top: 2px; display: flex; align-items: center; gap: 8px;">
+              <span>${dataText}</span>
+              ${numMsgs > 0 ? `<span style="background: rgba(255,255,255,0.08); padding: 1px 6px; border-radius: 999px; font-size: 10px; color: #94a3b8;">${numMsgs} msgs</span>` : ''}
+            </div>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 4px; flex-shrink: 0;">
+            <button 
+              type="button"
+              onclick="window.renombrarSessioTutor('${s.id}', event)" 
+              style="background: transparent; border: none; color: #94a3b8; font-size: 12px; cursor: pointer; padding: 4px; border-radius: 4px; opacity: 0.7; transition: opacity 0.2s;"
+              onmouseover="this.style.opacity='1'; this.style.color='#38bdf8'"
+              onmouseout="this.style.opacity='0.7'; this.style.color='#94a3b8'"
+              title="Canviar títol">
+              ✏️
+            </button>
+            <button 
+              type="button"
+              onclick="window.esborrarSessioTutor('${s.id}', event)" 
+              style="background: transparent; border: none; color: #94a3b8; font-size: 12px; cursor: pointer; padding: 4px; border-radius: 4px; opacity: 0.7; transition: opacity 0.2s;"
+              onmouseover="this.style.opacity='1'; this.style.color='#f87171'"
+              onmouseout="this.style.opacity='0.7'; this.style.color='#94a3b8'"
+              title="Eliminar consulta">
+              🗑️
+            </button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function renderitzarPantallaCompletaModal() {
+    const modal = document.getElementById('tutor-fullscreen-modal');
+    if (!modal) return;
+
+    const docActiu = obtenirDocActiu();
+    const gMossos = window.GUIA_MOSSOS_2026;
+    const temesGuia = (gMossos && Array.isArray(gMossos.temes)) ? gMossos.temes : [];
+    const sessioActiva = sessionsCache.find(s => s.id === sessioActivaId) || sessionsCache[0];
+    const usuariFb = (typeof window.obtenirUsuariFirebase === 'function') ? window.obtenirUsuariFirebase() : null;
+
+    modal.style.cssText = `
+      position: fixed;
+      inset: 0;
+      z-index: 999999;
+      background: #091024;
+      color: #f8fafc;
+      display: flex;
+      flex-direction: row;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    `;
+
+    modal.innerHTML = `
+      <!-- BARRA LATERAL D'HISTORIAL -->
+      <aside id="tutor-fs-sidebar" style="width: 320px; min-width: 280px; max-width: 380px; background: #070c1d; border-right: 1.5px solid #1e293b; display: ${barraLateralOberta ? 'flex' : 'none'}; flex-direction: column; height: 100%; flex-shrink: 0; transition: width 0.2s;">
+        
+        <!-- HEADER BARRA LATERAL -->
+        <div style="padding: 16px; border-bottom: 1.5px solid #1e293b; display: flex; align-items: center; justify-content: space-between; background: rgba(0,0,0,0.15);">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, #002B5E, #0284c7); display: flex; align-items: center; justify-content: center; font-size: 18px; box-shadow: 0 2px 6px rgba(0,43,94,0.4);">
+              🧠
+            </div>
+            <div>
+              <div style="font-size: 14px; font-weight: 800; color: #ffffff; letter-spacing: -0.01em;">Agent Medina Tutor</div>
+              <div style="font-size: 11px; color: #38bdf8; font-weight: 600;">Pantalla Completa</div>
+            </div>
+          </div>
+          <button 
+            type="button" 
+            onclick="window.alternarBarraLateralTutor()" 
+            style="background: transparent; border: 1px solid #334155; color: #94a3b8; border-radius: 6px; padding: 4px 8px; font-size: 12px; cursor: pointer;"
+            title="Amagar panell lateral">
+            ◀ Amagar
+          </button>
+        </div>
+
+        <!-- ESTAT DE COMPTE / SINCRONITZACIÓ -->
+        <div style="padding: 10px 14px; border-bottom: 1px solid #1e293b; background: #0c152e; display: flex; align-items: center; justify-content: space-between; font-size: 11.5px;">
+          ${usuariFb && usuariFb.email ? `
+            <div style="display: flex; align-items: center; gap: 6px; color: #10b981; font-weight: 700;">
+              <span>☁️ Sincronitzat</span>
+              <span style="color: #94a3b8; font-weight: 400; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">(${usuariFb.email})</span>
+            </div>
+          ` : `
+            <div style="display: flex; align-items: center; gap: 6px; color: #f59e0b; font-weight: 600;">
+              <span>💾 Historial local</span>
+            </div>
+          `}
+          ${typeof window.alternarSessioFirebase === 'function' ? `
+            <button 
+              type="button" 
+              onclick="window.alternarSessioFirebase()" 
+              style="background: #1e293b; border: 1px solid #334155; color: #e2e8f0; border-radius: 6px; padding: 2px 7px; font-size: 11px; cursor: pointer;">
+              ${usuariFb ? 'Compte' : 'Accedir'}
+            </button>
+          ` : ''}
+        </div>
+
+        <!-- BOTÓ NOVA CONVERSA -->
+        <div style="padding: 12px 14px 8px 14px;">
+          <button 
+            type="button"
+            onclick="window.crearNovaConversaTutor()" 
+            style="width: 100%; background: linear-gradient(135deg, #002B5E, #0284c7); color: #ffffff; border: 1.5px solid rgba(56,189,248,0.3); border-radius: 10px; padding: 10px 14px; font-size: 13.5px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 12px rgba(2,132,199,0.25); transition: all 0.2s;"
+            onmouseover="this.style.boxShadow='0 4px 16px rgba(2,132,199,0.45)'"
+            onmouseout="this.style.boxShadow='0 4px 12px rgba(2,132,199,0.25)'">
+            <span style="font-size: 16px;">➕</span>
+            <span>Nova consulta jurídica</span>
+          </button>
+        </div>
+
+        <!-- FILTRE DE CERCA DE SESSIONS -->
+        <div style="padding: 6px 14px 10px 14px;">
+          <input 
+            type="text" 
+            placeholder="🔍 Cercar a l'historial..." 
+            value="${escapeHtml(filtreCercaSessions)}"
+            oninput="window.filtrarSessionsTutor(this.value)"
+            style="width: 100%; box-sizing: border-box; background: #0f172a; border: 1px solid #1e293b; border-radius: 8px; padding: 7px 10px; font-size: 12px; color: #ffffff; outline: none;"
+          />
+        </div>
+
+        <!-- LLISTAT DE CONVERSES DESADES -->
+        <div id="tutor-fs-session-list" style="flex: 1; overflow-y: auto; padding: 0 10px 16px 10px;">
+          ${renderitzarItemsLlistaSessions()}
+        </div>
+
+        <!-- PEU DE LA BARRA LATERAL -->
+        <div style="padding: 10px 14px; border-top: 1.5px solid #1e293b; font-size: 11px; color: #64748b; display: flex; align-items: center; justify-content: space-between;">
+          <span>${sessionsCache.length} consultes guardades</span>
+          <span>Esc per sortir</span>
+        </div>
+      </aside>
+
+      <!-- PANELL PRINCIPAL DE XAT -->
+      <main id="tutor-fs-main" style="flex: 1; display: flex; flex-direction: column; height: 100%; background: #0b1329; position: relative; min-width: 0; overflow: hidden;">
+        
+        <!-- HEADER DEL PANELL PRINCIPAL -->
+        <header style="padding: 12px 20px; border-bottom: 1.5px solid #1e293b; background: #070c1d; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; z-index: 10;">
+          
+          <div style="display: flex; align-items: center; gap: 12px; min-width: 220px; flex: 1;">
+            ${!barraLateralOberta ? `
+              <button 
+                type="button" 
+                onclick="window.alternarBarraLateralTutor()" 
+                style="background: #1e293b; border: 1px solid #334155; color: #e2e8f0; border-radius: 8px; padding: 6px 10px; font-size: 12px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                <span>☰</span> <span>Historial (${sessionsCache.length})</span>
+              </button>
+            ` : ''}
+
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <h2 style="margin: 0; font-size: 16px; font-weight: 800; color: #ffffff; letter-spacing: -0.01em; max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                ${escapeHtml((sessioActiva && sessioActiva.titol) || 'Xat Tutor')}
+              </h2>
+              ${sessioActiva ? `
+                <button 
+                  type="button" 
+                  onclick="window.renombrarSessioTutor('${sessioActiva.id}')" 
+                  style="background: transparent; border: none; color: #94a3b8; font-size: 13px; cursor: pointer; padding: 2px;"
+                  title="Canviar títol">
+                  ✏️
+                </button>
+              ` : ''}
+            </div>
+          </div>
+
+          <!-- CONTROLS: COS, CONTEXT I BOTÓ SORTIR -->
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            
+            <!-- Selector de Cos -->
+            <div style="display: flex; align-items: center; background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 2px;">
+              <button 
+                type="button" 
+                onclick="window.canviarCosTutor('pl'); window.renderitzarPantallaCompletaModal();"
+                style="border: none; padding: 5px 10px; border-radius: 6px; font-size: 11.5px; font-weight: 700; cursor: pointer; background: ${cosActiu === 'pl' ? '#002B5E' : 'transparent'}; color: ${cosActiu === 'pl' ? '#38bdf8' : '#94a3b8'}; transition: all 0.15s;">
+                🚔 PL
+              </button>
+              <button 
+                type="button" 
+                onclick="window.canviarCosTutor('mossos'); window.renderitzarPantallaCompletaModal();"
+                style="border: none; padding: 5px 10px; border-radius: 6px; font-size: 11.5px; font-weight: 700; cursor: pointer; background: ${cosActiu === 'mossos' ? '#002B5E' : 'transparent'}; color: ${cosActiu === 'mossos' ? '#38bdf8' : '#94a3b8'}; transition: all 0.15s;">
+                👮 Mossos
+              </button>
+              <button 
+                type="button" 
+                onclick="window.canviarCosTutor('tots'); window.renderitzarPantallaCompletaModal();"
+                style="border: none; padding: 5px 10px; border-radius: 6px; font-size: 11.5px; font-weight: 700; cursor: pointer; background: ${cosActiu === 'tots' ? '#002B5E' : 'transparent'}; color: ${cosActiu === 'tots' ? '#38bdf8' : '#94a3b8'}; transition: all 0.15s;">
+                ⚖️ Ambdós
+              </button>
+            </div>
+
+            <!-- Selector de Context -->
+            <select 
+              id="tutor-fs-sel-doc" 
+              onchange="window.canviarDocumentActiu(this.value); window.renderitzarPantallaCompletaModal();" 
+              style="background: #0f172a; border: 1px solid #334155; padding: 6px 10px; border-radius: 8px; font-size: 12px; font-weight: 600; color: #ffffff; max-width: 260px; cursor: pointer; outline: none;">
+              <option value="">🌐 Normativa General</option>
+              <optgroup label="📕 Guia Mossos 2026 (Temari Oficial)">
+                <option value="guia_auto" ${documentActiuId === 'guia_auto' ? 'selected' : ''}>
+                  🔍 Cerca Intel·ligent Guia (20 Temes / 242 Pàg.)
+                </option>
+                ${temesGuia.map(t => `
+                  <option value="guia:${t.id}" ${documentActiuId === 'guia:' + t.id ? 'selected' : ''}>
+                    📘 ${t.codi}: ${escapeHtml(t.titol.slice(0, 28))}... [Pàg. ${t.pagines}]
+                  </option>
+                `).join('')}
+              </optgroup>
+              ${documentsCache.length > 0 ? `
+                <optgroup label="📎 Ordenances i Documents">
+                  ${documentsCache.map(d => `
+                    <option value="${d.id}" ${d.id === documentActiuId ? 'selected' : ''}>
+                      📎 ${escapeHtml(d.municipi ? `[${d.municipi}] ` : '')}${escapeHtml(d.titol.slice(0, 28))}...
+                    </option>
+                  `).join('')}
+                </optgroup>
+              ` : ''}
+            </select>
+
+            <!-- Botó Netejar Xat -->
+            <button 
+              type="button"
+              onclick="window.netejarHistorialXat()" 
+              style="background: #0f172a; border: 1px solid #334155; color: #94a3b8; padding: 6px 10px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;" 
+              title="Buidar conversa">
+              🗑️ Netejar
+            </button>
+
+            <!-- Botó Sortir Pantalla Completa -->
+            <button 
+              type="button"
+              onclick="window.tancarPantallaCompletaTutor()" 
+              style="background: #ef4444; color: #ffffff; border: none; padding: 6px 14px; border-radius: 8px; font-size: 12.5px; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 8px rgba(239,68,68,0.3); transition: background 0.2s;"
+              onmouseover="this.style.background='#dc2626'"
+              onmouseout="this.style.background='#ef4444'"
+              title="Sortir de la pantalla completa (Esc)">
+              <span>✕</span>
+              <span>Sortir</span>
+            </button>
+          </div>
+        </header>
+
+        <!-- STREAM DE MISSATGES (GRAN, AMB ESPAI I LLETRA CÒMODA) -->
+        <div id="tutor-fs-messages" style="flex: 1; overflow-y: auto; padding: 24px 20px; display: flex; flex-direction: column;">
+          <div style="max-width: 860px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 18px;">
+            ${historialXat.length === 0 ? renderitzarBenvingudaXat(docActiu, true) : ''}
+            ${historialXat.map(msg => renderitzarMissatgeXat(msg, true)).join('')}
+          </div>
+        </div>
+
+        <!-- ACCIONS RÀPIDES I FORMULARI D'ENTRADA A SOTA -->
+        <div style="background: #070c1d; border-top: 1.5px solid #1e293b; padding: 12px 20px 18px 20px;">
+          <div style="max-width: 860px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 10px;">
+            
+            <!-- CHIPS DE PROMPTS RÀPIDS -->
+            <div style="display: flex; gap: 8px; overflow-x: auto; white-space: nowrap; padding-bottom: 4px; -webkit-overflow-scrolling: touch;">
+              <button type="button" class="quick-prompt-btn" onclick="window.omplirIEnviarPrompt('Fes-me una regla mnemotècnica clara per recordar els principis bàsics d\\'actuació policial.')" style="background:#0f172a; border:1px solid #334155; border-radius:20px; padding:5px 12px; font-size:12px; color:#cbd5e1; cursor:pointer; font-weight:600; flex-shrink:0;">
+                💡 Mnemotècnica principis d'actuació
+              </button>
+              <button type="button" class="quick-prompt-btn" onclick="window.omplirIEnviarPrompt('Quina és la diferència exacta entre detenció policial i detenció judicial segons la LECrim?')" style="background:#0f172a; border:1px solid #334155; border-radius:20px; padding:5px 12px; font-size:12px; color:#cbd5e1; cursor:pointer; font-weight:600; flex-shrink:0;">
+                ⚖️ Detenció Policial vs Judicial
+              </button>
+              <button type="button" class="quick-prompt-btn" onclick="window.omplirIEnviarPrompt('Planteja\\'m un cas pràctic d\\'una actuació a la via pública i fes-me 3 preguntes amb la seva solució jurídica.')" style="background:#0f172a; border:1px solid #334155; border-radius:20px; padding:5px 12px; font-size:12px; color:#cbd5e1; cursor:pointer; font-weight:600; flex-shrink:0;">
+                🚔 Cas pràctic policial
+              </button>
+              ${docActiu ? `
+                <button type="button" class="quick-prompt-btn" onclick="window.omplirIEnviarPrompt('Quines són les infraccions molt greus que recull aquesta ordenança i quines sancions tenen?')" style="background:rgba(2,132,199,0.2); border:1px solid #0284c7; border-radius:20px; padding:5px 12px; font-size:12px; color:#38bdf8; cursor:pointer; font-weight:700; flex-shrink:0;">
+                  📜 Infraccions i sancions d'aquesta ordenança
+                </button>
+              ` : `
+                <button type="button" class="quick-prompt-btn" onclick="window.omplirIEnviarPrompt('Quins són els terminis clau de la Llei 39/2015 que solen preguntar als exàmens oficials?')" style="background:#0f172a; border:1px solid #334155; border-radius:20px; padding:5px 12px; font-size:12px; color:#cbd5e1; cursor:pointer; font-weight:600; flex-shrink:0;">
+                  ⏱️ Terminis administratius d'examen
+                </button>
+              `}
+            </div>
+
+            <!-- FORMULARI D'ENTRADA -->
+            <form id="tutor-fs-chat-form" onsubmit="window.enviarMissatgeTutor(event)" style="display: flex; gap: 12px; align-items: flex-end;">
+              <div style="flex: 1; background: #0f172a; border: 1.5px solid #334155; border-radius: 14px; padding: 10px 14px; display: flex; flex-direction: column; gap: 4px; box-shadow: 0 4px 16px rgba(0,0,0,0.3);">
+                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #64748b;">
+                  <span>Escriu la teva consulta jurídica, article o cas pràctic:</span>
+                  <span>Enter per enviar · Shift+Enter salt de línia</span>
+                </div>
+                <textarea 
+                  id="tutor-fs-input-msg" 
+                  placeholder="${docActiu ? `Fes una pregunta sobre '${escapeHtml(docActiu.titol)}'...` : 'Escriu qualsevol dubte jurídic, sol·licita un cas pràctic o premissa d\'oposició...'}" 
+                  oninput="window.handleTutorInputAutoResize(this)" 
+                  onkeydown="window.handleTutorInputKeyDown(event)"
+                  style="width: 100%; box-sizing: border-box; background: transparent; border: none; color: #ffffff; font-size: 15.5px; line-height: 1.5; resize: none; outline: none; min-height: 56px; max-height: 240px; font-family: inherit;"></textarea>
+              </div>
+
+              <button 
+                type="submit" 
+                id="tutor-fs-btn-enviar" 
+                style="background: linear-gradient(135deg, #002B5E, #0284c7); color: white; border: none; padding: 0 24px; min-height: 70px; border-radius: 14px; font-weight: 800; font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 16px rgba(2,132,199,0.3); transition: all 0.2s; flex-shrink: 0;"
+                onmouseover="this.style.boxShadow='0 4px 22px rgba(2,132,199,0.5)'"
+                onmouseout="this.style.boxShadow='0 4px 16px rgba(2,132,199,0.3)'">
+                <span>Enviar</span>
+                <span style="font-size: 18px;">➔</span>
+              </button>
+            </form>
+
+          </div>
+        </div>
+
+      </main>
+    `;
+
+    const scrollEl = document.getElementById('tutor-fs-messages');
+    if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
+  }
+
   // ==========================================================================
   // PESTANYA 1: XAT AMB EL TUTOR IA
   // ==========================================================================
   function renderitzarXat(host) {
-    const docActiu = documentsCache.find(d => d.id === documentActiuId);
+    const docActiu = obtenirDocActiu();
+    const gMossos = window.GUIA_MOSSOS_2026;
+    const temesGuia = (gMossos && Array.isArray(gMossos.temes)) ? gMossos.temes : [];
 
     host.innerHTML = `
       <div class="tutor-chat-card">
         
-        <!-- BARRA DE CONTROL DEL XAT -->
+        <!-- BARRA DE CONTROL DEL XAT AMB SELECTOR DE SESSIONS I BOTÓ PANTALLA COMPLETA -->
         <div style="padding: 10px 16px; border-bottom: 1.5px solid var(--border-card, #e2e8f0); background: var(--bg-card-subtle, #f8fafc); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
           
-          <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            
+            <!-- Selector de Sessions / Historial -->
+            <div style="display: flex; align-items: center; gap: 5px;">
+              <span style="font-size: 11.5px; font-weight: 700; color: var(--text-muted, #64748b);">Conversa:</span>
+              <select 
+                id="tutor-sel-sessio" 
+                onchange="window.canviarSessioTutor(this.value)" 
+                style="background: var(--bg-card, #ffffff); border: 1px solid var(--border-card, #cbd5e1); padding: 4px 8px; border-radius: 8px; font-size: 12px; font-weight: 700; color: var(--text-main, #0f172a); max-width: 200px; cursor: pointer;">
+                ${sessionsCache.map(s => `
+                  <option value="${s.id}" ${s.id === sessioActivaId ? 'selected' : ''}>
+                    💬 ${escapeHtml(s.titol || 'Nova consulta')} (${(s.missatges || []).length})
+                  </option>
+                `).join('')}
+              </select>
+              <button 
+                type="button" 
+                onclick="window.crearNovaConversaTutor()" 
+                style="background: #002B5E; color: white; border: none; padding: 4px 9px; border-radius: 8px; font-size: 11.5px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 4px;"
+                title="Començar una nova consulta">
+                <span>➕</span> <span>Nova</span>
+              </button>
+            </div>
+
             <!-- Selector de Cos -->
             <div style="display: flex; align-items: center; gap: 5px;">
               <span style="font-size: 11.5px; font-weight: 700; color: var(--text-muted, #64748b);">Cos:</span>
@@ -345,26 +1007,51 @@ Article 47. Competència sancionadora
             <!-- Selector de Document / Ordenança de Context -->
             <div style="display: flex; align-items: center; gap: 5px;">
               <span style="font-size: 11.5px; font-weight: 700; color: var(--text-muted, #64748b);">Context:</span>
-              <select id="tutor-sel-doc" onchange="window.canviarDocumentActiu(this.value)" style="background: var(--bg-card, #ffffff); border: 1px solid var(--border-card, #cbd5e1); padding: 4px 8px; border-radius: 8px; font-size: 12px; font-weight: 600; color: var(--text-main, #0f172a); max-width: 230px; cursor: pointer;">
-                <option value="">🌐 Normativa General (sense doc)</option>
-                ${documentsCache.map(d => `
-                  <option value="${d.id}" ${d.id === documentActiuId ? 'selected' : ''}>
-                    📎 ${escapeHtml(d.municipi ? `[${d.municipi}] ` : '')}${escapeHtml(d.titol.slice(0, 30))}...
+              <select id="tutor-sel-doc" onchange="window.canviarDocumentActiu(this.value)" style="background: var(--bg-card, #ffffff); border: 1px solid var(--border-card, #cbd5e1); padding: 4px 8px; border-radius: 8px; font-size: 12px; font-weight: 600; color: var(--text-main, #0f172a); max-width: 210px; cursor: pointer;">
+                <option value="">🌐 Normativa General</option>
+                <optgroup label="📕 Guia Mossos 2026 (Temari Oficial)">
+                  <option value="guia_auto" ${documentActiuId === 'guia_auto' ? 'selected' : ''}>
+                    🔍 Cerca Intel·ligent Guia (20 Temes / 242 Pàg.)
                   </option>
-                `).join('')}
+                  ${temesGuia.map(t => `
+                    <option value="guia:${t.id}" ${documentActiuId === 'guia:' + t.id ? 'selected' : ''}>
+                      📘 ${t.codi}: ${escapeHtml(t.titol.slice(0, 30))}... [Pàg. ${t.pagines}]
+                    </option>
+                  `).join('')}
+                </optgroup>
+                ${documentsCache.length > 0 ? `
+                  <optgroup label="📎 Ordenances i Documents">
+                    ${documentsCache.map(d => `
+                      <option value="${d.id}" ${d.id === documentActiuId ? 'selected' : ''}>
+                        📎 ${escapeHtml(d.municipi ? `[${d.municipi}] ` : '')}${escapeHtml(d.titol.slice(0, 30))}...
+                      </option>
+                    `).join('')}
+                  </optgroup>
+                ` : ''}
               </select>
             </div>
           </div>
 
-          <!-- Estat del context i botó netejar -->
+          <!-- Estat del context i botons de la dreta -->
           <div style="display: flex; align-items: center; gap: 8px;">
             ${docActiu ? `
               <span style="background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; padding: 2px 7px; border-radius: 6px; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
                 <span>🟢</span> ${escapeHtml(docActiu.municipi || 'Doc')}
               </span>
             ` : ''}
-            <button onclick="window.netejarHistorialXat()" style="background: none; border: 1px solid var(--border-card, #cbd5e1); color: var(--text-muted, #64748b); padding: 4px 8px; border-radius: 8px; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.2s;" title="Netejar la conversa">
-              🗑️ Netejar xat
+            
+            <button onclick="window.netejarHistorialXat()" style="background: none; border: 1px solid var(--border-card, #cbd5e1); color: var(--text-muted, #64748b); padding: 5px 8px; border-radius: 8px; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.2s;" title="Netejar la conversa actual">
+              🗑️ Netejar
+            </button>
+
+            <!-- BOTÓ PANTALLA COMPLETA IMMERSIVA -->
+            <button 
+              type="button"
+              onclick="window.alternarPantallaCompletaTutor(true)" 
+              style="background: linear-gradient(135deg, #002B5E, #0284c7); color: #ffffff; border: none; padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 3px 10px rgba(0,43,94,0.3); transition: all 0.2s;"
+              title="Obrir el xat a pantalla completa per estudiar còmodament">
+              <span style="font-size: 14px;">⛶</span>
+              <span>Pantalla Completa</span>
             </button>
           </div>
         </div>
@@ -554,26 +1241,12 @@ Article 47. Competència sancionadora
     }
   };
 
-  window.canviarCosTutor = function (val) {
-    cosActiu = val;
-  };
-
-  window.canviarDocumentActiu = function (id) {
-    documentActiuId = id || null;
-    renderitzarSubvista();
-  };
-
-  window.netejarHistorialXat = function () {
-    if (confirm('Vols reiniciar la conversa amb el Tutor?')) {
-      historialXat = [];
-      renderitzarSubvista();
-    }
-  };
-
   window.enviarMissatgeTutor = async function (e) {
     if (e && e.preventDefault) e.preventDefault();
 
-    const input = document.getElementById('tutor-input-msg');
+    const inputFs = document.getElementById('tutor-fs-input-msg');
+    const inputStd = document.getElementById('tutor-input-msg');
+    const input = (modePantallaCompletaXat && inputFs) ? inputFs : (inputFs && inputFs.value.trim() ? inputFs : inputStd);
     if (!input) return;
     const missatge = input.value.trim();
     if (!missatge) return;
@@ -581,39 +1254,142 @@ Article 47. Competència sancionadora
     const d = new Date();
     const hora = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 
-    // Afegir missatge d'usuari a l'historial
+    // Assegurar sessió activa
+    let sessio = sessionsCache.find(s => s.id === sessioActivaId);
+    if (!sessio) {
+      sessio = {
+        id: sessioActivaId || ('sess_' + Date.now()),
+        titol: missatge.slice(0, 32) + (missatge.length > 32 ? '...' : ''),
+        dataCreacio: d.toISOString(),
+        dataActualitzacio: d.toISOString(),
+        cos: cosActiu || 'pl',
+        contextDocId: documentActiuId || '',
+        missatges: []
+      };
+      sessionsCache.unshift(sessio);
+      sessioActivaId = sessio.id;
+    } else {
+      // Si la sessió encara té el títol per defecte o està buida, actualitzar títol amb la pregunta
+      if (sessio.missatges.length === 0 || (sessio.titol && sessio.titol.startsWith('Nova consulta'))) {
+        sessio.titol = missatge.slice(0, 32) + (missatge.length > 32 ? '...' : '');
+      }
+      sessio.dataActualitzacio = d.toISOString();
+    }
+
+    // Afegir missatge d'usuari
     historialXat.push({
       role: 'user',
       text: missatge,
       hora
     });
+    sessio.missatges = historialXat;
+    guardarSessions();
 
     input.value = '';
+    if (inputFs) {
+      inputFs.value = '';
+      window.handleTutorInputAutoResize(inputFs);
+    }
+    if (inputStd) {
+      inputStd.value = '';
+      window.handleTutorInputAutoResize(inputStd);
+    }
+
     renderitzarSubvista();
+    if (modePantallaCompletaXat) {
+      renderitzarPantallaCompletaModal();
+    }
 
-    const docActiu = documentsCache.find(d => d.id === documentActiuId);
+    const docActiu = obtenirDocActiu();
+    const guiaTemaId = typeof documentActiuId === 'string' && documentActiuId.startsWith('guia:')
+      ? documentActiuId.replace('guia:', '')
+      : (documentActiuId === 'guia_auto' ? 'auto' : null);
 
-    // Afegir missatge temporal de càrrega
-    const msgContainer = document.getElementById('tutor-chat-messages');
+    // Afegir indicador de càrrega visual
     const loadingId = 'tutor-loading-' + Date.now();
-    if (msgContainer) {
+    const msgContainers = [
+      document.getElementById('tutor-chat-messages'),
+      document.getElementById('tutor-fs-messages')
+    ].filter(Boolean);
+
+    msgContainers.forEach(container => {
       const loadingDiv = document.createElement('div');
-      loadingDiv.id = loadingId;
+      loadingDiv.className = loadingId;
       loadingDiv.style.display = 'flex';
       loadingDiv.style.alignItems = 'center';
       loadingDiv.style.gap = '10px';
+      loadingDiv.style.padding = '8px 0';
       loadingDiv.innerHTML = `
         <div style="width: 32px; height: 32px; border-radius: 50%; background: #002B5E; color: white; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0;">
           🧠
         </div>
-        <div style="background: var(--bg-card, #ffffff); border: 1px solid var(--border-card, #e2e8f0); padding: 10px 16px; border-radius: 16px 16px 16px 4px; font-size: 13px; color: var(--text-muted, #64748b); display: flex; align-items: center; gap: 8px;">
-          <span>⏳</span> <span>El Tutor d'Agent Medina està redactant la resposta...</span>
+        <div style="background: #002B5E; color: #e2e8f0; border: 1px solid #38bdf8; padding: 10px 16px; border-radius: 16px 16px 16px 4px; font-size: 13px; display: flex; align-items: center; gap: 8px;">
+          <span style="display:inline-block; animation: spin 1s linear infinite;">⏳</span> <span>Agent Medina està consultant la Guia Oficial i elaborant la resposta...</span>
         </div>
       `;
-      msgContainer.appendChild(loadingDiv);
-      msgContainer.scrollTop = msgContainer.scrollHeight;
+      container.appendChild(loadingDiv);
+      container.scrollTop = container.scrollHeight;
+    });
+
+    function treureLoaders() {
+      document.querySelectorAll('.' + loadingId).forEach(el => el.remove());
     }
 
+    function desarResposta(role, text, font) {
+      treureLoaders();
+      const respostaObj = {
+        role,
+        text,
+        contextDoc: docActiu ? `${docActiu.titol} (${docActiu.municipi || 'General'})` : null,
+        font: font || 'Tutor Agent Medina',
+        hora: `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`
+      };
+      historialXat.push(respostaObj);
+      if (sessio) {
+        sessio.missatges = historialXat;
+        sessio.dataActualitzacio = new Date().toISOString();
+      }
+      guardarSessions();
+      renderitzarSubvista();
+      if (modePantallaCompletaXat) {
+        renderitzarPantallaCompletaModal();
+      }
+    }
+
+    // 1. Prioritat: Servidor local amb la base de dades completa de la Guia de Mossos 2026
+    try {
+      const localRes = await fetch('/api/gemini/tutor-xat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          missatge,
+          historial: historialXat.slice(-6),
+          documentContext: docActiu ? docActiu.contingutText : null,
+          titolDocument: docActiu ? docActiu.titol : null,
+          municipi: docActiu ? docActiu.municipi : null,
+          cos: cosActiu,
+          guiaTemaId: guiaTemaId
+        })
+      });
+
+      if (localRes.ok) {
+        const localData = await localRes.json();
+        if (localData && localData.success && localData.resposta) {
+          let fontNom = 'Tutor Agent Medina';
+          if (localData.font === 'guia_oficial_servidor') {
+            fontNom = 'Guia Oficial Mossos 2026 (Servidor)';
+          } else if (localData.font && localData.font.includes('gemini')) {
+            fontNom = `Gemini IA + Guia Mossos 2026`;
+          }
+          desarResposta('model', localData.resposta, fontNom);
+          return;
+        }
+      }
+    } catch (localErr) {
+      console.warn('Avís connectant amb /api/gemini/tutor-xat local, utilitzant connexió de reserva:', localErr);
+    }
+
+    // 2. Connexió de reserva
     try {
       const promptParts = [
         `Ets el Tutor virtual expert en temari i normativa policial d'Agent Medina (Mossos d'Esquadra i Policia Local de Catalunya).`,
@@ -645,37 +1421,15 @@ Article 47. Competència sancionadora
         dades = { text: rawText };
       }
 
-      const loadEl = document.getElementById(loadingId);
-      if (loadEl) loadEl.remove();
-
       const respostaText = (dades && (dades.text || dades.resposta || dades.message)) || rawText;
-
       if (respostaText && typeof respostaText === 'string' && respostaText.trim().length > 0) {
-        historialXat.push({
-          role: 'model',
-          text: respostaText,
-          contextDoc: docActiu ? `${docActiu.titol} (${docActiu.municipi || 'General'})` : null,
-          font: 'Vercel AI Backend',
-          hora: `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`
-        });
+        desarResposta('model', respostaText, 'Vercel AI Backend');
       } else {
-        historialXat.push({
-          role: 'model',
-          text: '⚠️ No s\'ha pogut obtenir resposta: ' + ((dades && dades.error) || 'Error desconegut al servidor'),
-          hora
-        });
+        desarResposta('model', '⚠️ No s\'ha pogut obtenir resposta: ' + ((dades && dades.error) || 'Error desconegut al servidor'), 'Error');
       }
     } catch (err) {
-      const loadEl = document.getElementById(loadingId);
-      if (loadEl) loadEl.remove();
-      historialXat.push({
-        role: 'model',
-        text: '⚠️ Error de connexió amb el servidor del tutor: ' + err.message,
-        hora
-      });
+      desarResposta('model', '⚠️ Error de connexió amb el servidor del tutor: ' + err.message, 'Error');
     }
-
-    renderitzarSubvista();
   };
 
   // ==========================================================================

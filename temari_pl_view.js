@@ -247,10 +247,10 @@
 
               <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;flex-wrap:wrap;gap:8px;">
                 <p style="margin:0;font-size:12px;color:var(--text-muted,#64748b);">
-                  El sistema analitzarà cada tema i buscarà les preguntes coincidents al banc comú (PL i Mossos).
+                  La IA analitzarà cada tema de les bases, buscarà vincles transversals amb altres municipis (ex: Cubelles, Constantí, Cunit...) i assignarà les preguntes compatibles automàticament.
                 </p>
-                <button type="button" id="btn-analitzar-bases-pl" style="padding:9px 18px;background:#059669;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:800;cursor:pointer;display:flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(5,150,105,0.25);">
-                  <span>🔍</span> <span>Cercar coincidències</span>
+                <button type="button" id="btn-analitzar-bases-pl" style="padding:10px 18px;background:linear-gradient(135deg, #059669, #047857);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;display:flex;align-items:center;gap:7px;box-shadow:0 3px 10px rgba(5,150,105,0.3);">
+                  <span>🤖</span> <span>Analitzar bases amb IA & Detectar transversals</span>
                 </button>
               </div>
 
@@ -887,7 +887,7 @@ Tema 16: Coneixement del municipi: història, geografia, carrerer i serveis muni
     let darrerAnalisiBases = null;
 
     if (btnAnalitzarBases && textareaBases && contenidorPrevis) {
-      btnAnalitzarBases.addEventListener('click', () => {
+      btnAnalitzarBases.addEventListener('click', async () => {
         const nom = (inputNouMun ? inputNouMun.value.trim() : '');
         const text = textareaBases.value.trim();
         if (!text) {
@@ -896,96 +896,149 @@ Tema 16: Coneixement del municipi: història, geografia, carrerer i serveis muni
           return;
         }
 
-        if (typeof window.analitzarBasesMunicipi !== 'function') {
-          mostrarToast('Funció d\'anàlisi no disponible', 'error');
-          return;
-        }
-
-        const resultat = window.analitzarBasesMunicipi(text, nom);
-        darrerAnalisiBases = { ...resultat, nomMunicipi: nom };
-
-        if (!resultat.temes.length) {
-          mostrarToast('No s\'ha pogut identificar cap tema al text facilitat', 'warning');
-          return;
-        }
-
-        const materiesDisponibles = window.MATERIES_COMPARTIDES || [];
+        // Mostrar estat de càrrega
+        const textOriginalBoto = btnAnalitzarBases.innerHTML;
+        btnAnalitzarBases.disabled = true;
+        btnAnalitzarBases.innerHTML = `<span>⏳</span> <span>Analitzant bases i creant matriu transversal...</span>`;
 
         contenidorPrevis.style.display = 'block';
         contenidorPrevis.innerHTML = `
-          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
-            <div>
-              <div style="font-size:14px;font-weight:900;color:#065f46;display:flex;align-items:center;gap:6px;">
-                <span>🎯</span> <span>Anàlisi de bases completat per a «${escapeHtml(nom || 'Nou municipi')}»</span>
-              </div>
-              <p style="margin:2px 0 0;font-size:12px;color:#047857;">
-                S'han detectat <b>${resultat.totalTemes}</b> temes. <b>${resultat.totalCoincidencies}</b> coincideixen amb matèries oficials amb un total de <b>${resultat.preguntesTotalsDisponibles}</b> preguntes compatibles!
-              </p>
-            </div>
-            <button type="button" id="btn-desar-municipi-amb-temari" style="padding:10px 18px;background:#059669;color:#fff;border:none;border-radius:10px;font-weight:900;font-size:13.5px;cursor:pointer;display:flex;align-items:center;gap:6px;box-shadow:0 3px 10px rgba(5,150,105,0.3);">
-              <span>💾</span> <span>Desar municipi i activar temari</span>
-            </button>
-          </div>
-
-          <div style="max-height:260px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;padding:6px;">
-            ${resultat.temes.map((t, i) => `
-              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;background:#ffffff;border:1px solid #e2e8f0;border-radius:6px;margin-bottom:5px;font-size:12px;">
-                <div style="flex:1;min-width:0;">
-                  <b style="color:#0f172a;">${escapeHtml(t.codi)}:</b> <span style="color:#334155;">${escapeHtml(t.nom.length > 75 ? t.nom.slice(0, 75) + '...' : t.nom)}</span>
-                </div>
-                <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-                  <select class="select-materia-tema-custom" data-idx="${i}" style="font-size:11.5px;padding:3px 6px;border-radius:6px;border:1px solid #cbd5e1;background:#fff;color:#1e293b;max-width:180px;">
-                    <option value="especific_${(nom||'local').toLowerCase()}" ${t.especific ? 'selected' : ''}>📍 Específic local (${escapeHtml(nom||'local')})</option>
-                    ${materiesDisponibles.map(m => `
-                      <option value="${m.id}" ${t.materia === m.id ? 'selected' : ''}>${escapeHtml(m.nom.slice(0, 30))}</option>
-                    `).join('')}
-                    <option value="altres" ${t.materia === 'altres' && !t.especific ? 'selected' : ''}>Altres matèries</option>
-                  </select>
-                  <span style="display:inline-block;padding:2px 8px;border-radius:12px;font-weight:800;font-size:11px;background:${t.totalPreguntes > 0 ? '#dcfce7' : '#f1f5f9'};color:${t.totalPreguntes > 0 ? '#15803d' : '#64748b'};">
-                    ${t.totalPreguntes > 0 ? `✨ ${t.totalPreguntes} preg.` : '0 preg.'}
-                  </span>
-                </div>
-              </div>
-            `).join('')}
+          <div style="text-align:center;padding:24px 16px;color:#047857;">
+            <div style="font-size:24px;margin-bottom:8px;animation:spin 1s linear infinite;">🧠</div>
+            <div style="font-size:14px;font-weight:800;">La IA està analitzant l'estructura dels temes i les bases...</div>
+            <p style="margin:6px 0 0;font-size:12px;color:#065f46;">Identificant temes transversals compartits amb altres municipis (Constantí, Cubelles, Cunit) i temes específics locals.</p>
           </div>
         `;
 
-        // Event de desar municipi amb el temari analitzat
-        const btnDesarCustom = document.getElementById('btn-desar-municipi-amb-temari');
-        if (btnDesarCustom) {
-          btnDesarCustom.addEventListener('click', () => {
-            const nomFinal = (inputNouMun ? inputNouMun.value.trim() : '') || 'Nou Municipi';
-            if (!nomFinal) {
-              mostrarToast('Indica el nom del municipi a la casella superior', 'warning');
-              inputNouMun?.focus();
-              return;
-            }
+        try {
+          let resultat = null;
+          if (typeof window.analitzarBasesMunicipiIA === 'function') {
+            resultat = await window.analitzarBasesMunicipiIA(text, nom);
+          } else if (typeof window.analitzarBasesMunicipi === 'function') {
+            resultat = window.analitzarBasesMunicipi(text, nom);
+          }
 
-            // Actualitzem les matèries segons els selects de l'usuari
-            const selects = contenidorPrevis.querySelectorAll('.select-materia-tema-custom');
-            const temesFinals = resultat.temes.map((t, idx) => {
-              const sel = selects[idx];
-              const novaMateria = sel ? sel.value : t.materia;
-              const esEsp = novaMateria.startsWith('especific_');
-              return {
-                ...t,
-                materia: novaMateria,
-                especific: esEsp
-              };
-            });
+          btnAnalitzarBases.disabled = false;
+          btnAnalitzarBases.innerHTML = textOriginalBoto;
 
-            if (typeof window.guardarMunicipiAmbTemariPL === 'function') {
-              window.guardarMunicipiAmbTemariPL(nomFinal, {
-                nom: nomFinal,
-                referencia: 'Bases oficials',
-                descripcio: `Convocatòria oficial Policia Local de ${nomFinal} (${temesFinals.length} temes)`,
-                basesText: text,
-                temes: temesFinals
+          if (!resultat || !resultat.temes || !resultat.temes.length) {
+            mostrarToast('No s\'ha pogut identificar cap tema al text facilitat', 'warning');
+            contenidorPrevis.style.display = 'none';
+            return;
+          }
+
+          darrerAnalisiBases = { ...resultat, nomMunicipi: nom };
+          const materiesDisponibles = window.MATERIES_COMPARTIDES || [];
+          const totalTransversals = resultat.temes.filter(t => !t.especific && t.materia !== 'altres').length;
+          const totalEspecifics = resultat.temes.length - totalTransversals;
+
+          contenidorPrevis.innerHTML = `
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:14px;background:#ecfdf5;border:1.5px solid #10b981;border-radius:12px;padding:14px 18px;">
+              <div>
+                <div style="font-size:15px;font-weight:900;color:#065f46;display:flex;align-items:center;gap:8px;">
+                  <span>🎯</span> <span>Anàlisi i Matriu Transversal per a «${escapeHtml(nom || 'Nou municipi')}»</span>
+                  <span style="font-size:11px;background:#10b981;color:#fff;padding:2px 8px;border-radius:10px;font-weight:800;">IA Completat</span>
+                </div>
+                <div style="margin:4px 0 0;font-size:12.5px;color:#047857;display:flex;flex-wrap:wrap;gap:12px;align-items:center;">
+                  <span>📋 <b>${resultat.totalTemes}</b> temes a les bases</span>
+                  <span>🔗 <b>${totalTransversals}</b> transversals amb altres convocatòries</span>
+                  <span>📌 <b>${totalEspecifics}</b> específics locals de ${escapeHtml(nom || 'nou')}</span>
+                  <span>📚 <b>${resultat.preguntesTotalsDisponibles}</b> preguntes compatibles heretades</span>
+                </div>
+              </div>
+              <button type="button" id="btn-desar-municipi-amb-temari" style="padding:11px 20px;background:#059669;color:#fff;border:none;border-radius:10px;font-weight:900;font-size:13.5px;cursor:pointer;display:flex;align-items:center;gap:7px;box-shadow:0 3px 12px rgba(5,150,105,0.35);">
+                <span>💾</span> <span>Crear municipi i aplicar vinculacions transversals</span>
+              </button>
+            </div>
+
+            <div style="font-size:12px;font-weight:800;color:#334155;margin-bottom:8px;display:flex;justify-content:space-between;">
+              <span>Llistat de temes detectats i assignació de transversals:</span>
+              <span style="color:#64748b;font-weight:600;">(Pots reassignar qualsevol matèria si cal)</span>
+            </div>
+
+            <div style="max-height:320px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;padding:8px;display:flex;flex-direction:column;gap:7px;">
+              ${resultat.temes.map((t, i) => {
+                const esTransv = !t.especific && t.materia !== 'altres';
+                const tagTransv = t.etiquetaTransversal || (esTransv ? 'Transversal comú' : `📌 Específic local exclusiu de ${nom || 'nou'}`);
+                return `
+                  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:10px 12px;background:#ffffff;border:1.5px solid ${esTransv ? '#93c5fd' : '#cbd5e1'};border-radius:8px;font-size:12.5px;">
+                    <div style="flex:1;min-width:0;">
+                      <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;flex-wrap:wrap;">
+                        <span style="font-weight:900;color:#0f172a;background:#f1f5f9;padding:2px 7px;border-radius:6px;">${escapeHtml(t.codi)}</span>
+                        <span style="font-weight:700;color:#1e293b;">${escapeHtml(t.nom)}</span>
+                      </div>
+                      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11.5px;margin-top:4px;">
+                        <span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:6px;font-weight:800;background:${esTransv ? '#eff6ff' : '#fef3c7'};color:${esTransv ? '#1d4ed8' : '#b45309'};border:1px solid ${esTransv ? '#bfdbfe' : '#fde68a'};">
+                          <span>${esTransv ? '🔗' : '📌'}</span> <span>${escapeHtml(tagTransv)}</span>
+                        </span>
+                        ${t.totalPreguntes > 0 ? `
+                          <span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:6px;font-weight:800;background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;">
+                            <span>✨</span> <span>Hereta ${t.totalPreguntes} preguntes del banc</span>
+                          </span>
+                        ` : `
+                          <span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:6px;font-weight:700;background:#f1f5f9;color:#64748b;">
+                            <span>⚠️</span> <span>0 preguntes prèvies (pendent d'ordenança)</span>
+                          </span>
+                        `}
+                      </div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+                      <select class="select-materia-tema-custom" data-idx="${i}" style="font-size:11.5px;padding:4px 8px;border-radius:6px;border:1.5px solid #cbd5e1;background:#fff;color:#1e293b;max-width:210px;font-weight:600;">
+                        <option value="especific_${(nom||'local').toLowerCase()}" ${t.especific ? 'selected' : ''}>📍 Específic local (${escapeHtml(nom||'local')})</option>
+                        ${materiesDisponibles.map(m => `
+                          <option value="${m.id}" ${t.materia === m.id ? 'selected' : ''}>🔗 ${escapeHtml(m.nom.slice(0, 32))}</option>
+                        `).join('')}
+                        <option value="altres" ${t.materia === 'altres' && !t.especific ? 'selected' : ''}>Altres matèries generals</option>
+                      </select>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `;
+
+          // Event de desar municipi amb el temari analitzat
+          const btnDesarCustom = document.getElementById('btn-desar-municipi-amb-temari');
+          if (btnDesarCustom) {
+            btnDesarCustom.addEventListener('click', () => {
+              const nomFinal = (inputNouMun ? inputNouMun.value.trim() : '') || nom || 'Nou Municipi';
+              if (!nomFinal) {
+                mostrarToast('Indica el nom del municipi a la casella superior', 'warning');
+                inputNouMun?.focus();
+                return;
+              }
+
+              // Actualitzem les matèries segons els selects de l'usuari
+              const selects = contenidorPrevis.querySelectorAll('.select-materia-tema-custom');
+              const temesFinals = resultat.temes.map((t, idx) => {
+                const sel = selects[idx];
+                const novaMateria = sel ? sel.value : t.materia;
+                const esEsp = novaMateria.startsWith('especific_');
+                return {
+                  ...t,
+                  materia: novaMateria,
+                  especific: esEsp
+                };
               });
-              mostrarToast(`Municipi «${nomFinal}» desat amb ${temesFinals.length} temes!`, 'success');
-              refrestarVista();
-            }
-          });
+
+              if (typeof window.guardarMunicipiAmbTemariPL === 'function') {
+                window.guardarMunicipiAmbTemariPL(nomFinal, {
+                  nom: nomFinal,
+                  referencia: 'Bases oficials',
+                  descripcio: `Convocatòria oficial Policia Local de ${nomFinal} (${temesFinals.length} temes)`,
+                  basesText: text,
+                  temes: temesFinals
+                });
+                mostrarToast(`Municipi «${nomFinal}» creat i vinculat al temari transversal!`, 'success');
+                refrestarVista();
+              }
+            });
+          }
+        } catch (errAnalisi) {
+          console.error('Error analitzant bases:', errAnalisi);
+          btnAnalitzarBases.disabled = false;
+          btnAnalitzarBases.innerHTML = textOriginalBoto;
+          mostrarToast('Error analitzant les bases. Revisa el text introduït.', 'error');
         }
       });
     }

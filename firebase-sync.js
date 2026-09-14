@@ -187,8 +187,8 @@
           return;
         }
 
-        // Fusió d'arrays amb identificadors (documents, temes annexos, exàmens, preguntes)
-        if (['agentmedina_documents_ordenances', 'agentmedina_temes_annexos', 'agentmedina_examens_oficials', 'preguntes_creades_usuari'].includes(clau)) {
+        // Fusió d'arrays amb identificadors (documents, temes annexos, exàmens, preguntes, sessions de xat)
+        if (['agentmedina_documents_ordenances', 'agentmedina_temes_annexos', 'agentmedina_examens_oficials', 'preguntes_creades_usuari', 'agentmedina_chat_sessions'].includes(clau) || clau.startsWith('agentmedina_chat_sessions_')) {
           try {
             const arrLocal = JSON.parse(valorLocal);
             const arrRemot = typeof valorRemot === 'string' ? JSON.parse(valorRemot) : valorRemot;

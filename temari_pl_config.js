@@ -517,6 +517,39 @@
     }
   }
 
+  // Carregar concordances personalitzades de matèries compartides desades
+  function carregarConcordancesCustom() {
+    try {
+      const raw = localStorage.getItem('agentmedina_concordances_custom');
+      if (raw) {
+        const customObj = JSON.parse(raw);
+        Object.keys(customObj).forEach(matId => {
+          const mat = MATERIES_COMPARTIDES.find(m => m.id === matId);
+          if (mat && typeof customObj[matId] === 'object') {
+            mat.concordances = { ...mat.concordances, ...customObj[matId] };
+          }
+        });
+      }
+    } catch (e) {
+      console.warn('Avís carregant concordances custom:', e);
+    }
+  }
+
+  function desarConcordancesCustom() {
+    try {
+      const out = {};
+      MATERIES_COMPARTIDES.forEach(m => {
+        out[m.id] = m.concordances || {};
+      });
+      localStorage.setItem('agentmedina_concordances_custom', JSON.stringify(out));
+    } catch (e) {
+      console.warn('Avís desant concordances custom:', e);
+    }
+  }
+
+  // Inicialitzar concordances desades
+  carregarConcordancesCustom();
+
   function guardarMunicipisPL(llista) {
     try {
       localStorage.setItem(MUNICIPIS_PL_KEY, JSON.stringify(llista || []));
@@ -540,15 +573,30 @@
     if (!net) return false;
     afegirMunicipiPL(net);
     const custom = carregarCustomTemarisPL();
+    const temes = configTemari.temes || [];
+
     custom[net] = {
       nom: net,
       referencia: configTemari.referencia || 'Bases de convocatòria',
       descripcio: configTemari.descripcio || `Convocatòria oficial Policia Local de ${net}`,
       dataCreacio: new Date().toISOString(),
       basesText: configTemari.basesText || '',
-      temes: configTemari.temes || []
+      temes: temes
     };
     guardarCustomTemarisPL(custom);
+
+    // Actualitzar i vincular transversalment amb les matèries compartides
+    temes.forEach(t => {
+      if (t.materia && !t.especific && t.materia !== 'altres') {
+        const mat = MATERIES_COMPARTIDES.find(m => m.id === t.materia);
+        if (mat) {
+          if (!mat.concordances) mat.concordances = {};
+          mat.concordances[net] = `${t.codi || 'T' + t.id}: ${t.nom.slice(0, 45)}`;
+        }
+      }
+    });
+    desarConcordancesCustom();
+
     establirMunicipiActiuPL(net);
     return true;
   }
@@ -567,6 +615,24 @@
       }
     });
     if (esborrat) guardarCustomTemarisPL(custom);
+
+    // Netejar vinculacions a les matèries compartides
+    MATERIES_COMPARTIDES.forEach(mat => {
+      if (mat.concordances) {
+        Object.keys(mat.concordances).forEach(k => {
+          if (k.trim().toLowerCase() === target) {
+            delete mat.concordances[k];
+          }
+        });
+      }
+    });
+    desarConcordancesCustom();
+
+    // Si el municipi eliminat era l'actiu, canviar al primer disponible
+    if (obtenirMunicipiActiuPL().toLowerCase() === target) {
+      establirMunicipiActiuPL(llista[0] || 'Constantí');
+    }
+
     return true;
   }
 
@@ -779,6 +845,98 @@
       totalTemes: temesProcessats.length,
       totalCoincidencies,
       preguntesTotalsDisponibles
+    };
+  }
+
+  // Analitzador avançat amb IA i detecció de transversals (servidor + fallback)
+  async function analitzarBasesMunicipiIA(textBases, nomMunicipi = '') {
+    const raw = String(textBases || '').trim();
+    if (!raw) return { temes: [], totalTemes: 0, totalCoincidencies: 0, preguntesTotalsDisponibles: 0 };
+
+    const poolPL = Array.isArray(window.bancoPoliciaLocal) ? window.bancoPoliciaLocal : [];
+    const poolMossos = Array.isArray(window.bancoPreguntes) ? window.bancoPreguntes.flat(Infinity) : [];
+    const municipisExistents = carregarMunicipisPL();
+
+    try {
+      const res = await fetch('/api/gemini/analitzar-bases-municipi', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nomMunicipi,
+          textBases: raw,
+          municipisExistents
+        })
+      });
+
+      if (res.ok) {
+        const dades = await res.json();
+        if (dades && dades.success && Array.isArray(dades.temes) && dades.temes.length > 0) {
+          let totalCoincidencies = 0;
+          let preguntesTotalsDisponibles = 0;
+
+          const temesEnriquits = dades.temes.map((t, idx) => {
+            const materia = t.materiaId;
+            const esEsp = !!t.esEspecific;
+            let countPL = 0;
+            let countMossos = 0;
+
+            if (esEsp) {
+              const munLow = String(nomMunicipi || '').toLowerCase().trim();
+              countPL = poolPL.filter(q => {
+                const qMun = String(q.municipi || '').toLowerCase().trim();
+                const qTxt = `${q.seccio || ''} ${q.tema || ''}`.toLowerCase();
+                return qMun === munLow || (munLow && qTxt.includes(munLow));
+              }).length;
+            } else if (materia && materia !== 'altres') {
+              countPL = poolPL.filter(q => detectingMatPreg(q) === materia).length;
+              countMossos = poolMossos.filter(q => detectingMatPreg(q) === materia).length;
+              if (countPL > 0 || countMossos > 0) totalCoincidencies++;
+            }
+
+            const totalPreg = countPL + countMossos;
+            preguntesTotalsDisponibles += totalPreg;
+
+            return {
+              id: t.id || String(idx + 1),
+              codi: t.codi || `T${idx + 1}`,
+              nom: t.titol || t.nom,
+              descripcio: t.descripcio || '',
+              materia: materia,
+              materiaNom: t.materiaNom,
+              especific: esEsp,
+              esTransversal: !!t.esTransversal,
+              coincideixAmb: t.coincideixAmb || [],
+              noCoincideixAmb: t.noCoincideixAmb || [],
+              etiquetaTransversal: t.etiquetaTransversal || (esEsp ? `📌 Específic local exclusiu de ${nomMunicipi}` : `Transversal comú`),
+              preguntesPL: countPL,
+              preguntesMossos: countMossos,
+              totalPreguntes: totalPreg
+            };
+          });
+
+          return {
+            temes: temesEnriquits,
+            totalTemes: temesEnriquits.length,
+            totalCoincidencies,
+            preguntesTotalsDisponibles,
+            estadistiques: dades.estadistiques || {},
+            font: dades.font || 'ia'
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('Avís connectant amb /api/gemini/analitzar-bases-municipi, utilitzant motor local:', e);
+    }
+
+    function detectingMatPreg(q) {
+      return detectarMateriaPregunta(q);
+    }
+
+    // Fallback local
+    const baseLocal = analitzarBasesMunicipi(raw, nomMunicipi);
+    return {
+      ...baseLocal,
+      font: 'heuristica_local'
     };
   }
 
@@ -1124,6 +1282,7 @@
   window.guardarMunicipiAmbTemariPL = guardarMunicipiAmbTemariPL;
   window.afegirTemaCustomMunicipiPL = afegirTemaCustomMunicipiPL;
   window.analitzarBasesMunicipi = analitzarBasesMunicipi;
+  window.analitzarBasesMunicipiIA = analitzarBasesMunicipiIA;
   window.carregarMunicipisPL = carregarMunicipisPL;
   window.guardarMunicipisPL = guardarMunicipisPL;
   window.afegirMunicipiPL = afegirMunicipiPL;
