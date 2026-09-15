@@ -980,6 +980,11 @@
                 <span id="theme-toggle-icon">🌙</span> <span id="theme-toggle-text">Fosc</span>
               </button>
 
+              <!-- Botó Preguntes Guardades i Repàs -->
+              <button id="btn-guardades-topbar" class="theme-switch-btn" onclick="if(typeof window.obrirModalRepasIGuardades==='function') window.obrirModalRepasIGuardades('guardades');" title="Preguntes guardades i repàs personal" style="background:#fef3c7;color:#b45309;border:1px solid #fcd34d;">
+                <span>⭐</span> <span id="lbl-topbar-guardades-count" class="comptador-preguntes-guardades">0</span>
+              </button>
+
               <!-- Botó Crear Pregunta Directa -->
               <button id="btn-crear-pregunta-topbar" class="btn-crear-pregunta-top" onclick="window.obrirModalCrearPregunta()" title="Crear nova pregunta directament">
                 <span>➕</span> <span>Nova Pregunta</span>
@@ -1212,194 +1217,14 @@
       ]
     };
 
-    function comencarExamenOficial() {
-      // Generar 30 preguntes (barrejant Àmbits A, B, C i 2 fixes/aleatòries d'actualitat)
-      let poolA = [...bancPreguntesExamen.ambitA];
-      let poolB = [...bancPreguntesExamen.ambitB];
-      let poolC = [...bancPreguntesExamen.ambitC];
-      let poolAct = [...bancPreguntesExamen.actualitat];
-
-      // Assegurar 2 d'actualitat i repartir la resta entre A, B i C
-      let seleccionades = [];
-      
-      // Agafar 2 d'actualitat
-      while(seleccionades.length < 2 && poolAct.length > 0) {
-        let index = Math.floor(Math.random() * poolAct.length);
-        seleccionades.push(poolAct.splice(index, 1)[0]);
-      }
-
-      // Omplir fins a 30 amb A, B, C
-      let poolGeneral = [...poolA, ...poolB, ...poolC];
-      // Si el banc local és curt, fem loop o duplicació controlada per arribar a 30
-      while (seleccionades.length < 30) {
-        if (poolGeneral.length > 0) {
-          let index = Math.floor(Math.random() * poolGeneral.length);
-          seleccionades.push(poolGeneral.splice(index, 1)[0]);
-        } else {
-          // Repetir si cal
-          poolGeneral = [...bancPreguntesExamen.ambitA, ...bancPreguntesExamen.ambitB, ...bancPreguntesExamen.ambitC];
-        }
-      }
-
-      // Barrejar l'ordre final de les 30 preguntes
-      examenActualPreguntes = seleccionades.sort(() => Math.random() - 0.5);
-      examenRespostesUsuari = {};
-      examenSegonsRestants = 30 * 60;
-
-      // Renderitzar pantalla d'examen
-      const hubExamen = document.getElementById('hub-examen');
-      let htmlPreguntes = `
-        <div style="max-width: 800px; margin: 0 auto; text-align: left; background: #fff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08);">
-          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e9ecef; padding-bottom: 15px; margin-bottom: 20px; position: sticky; top: 0; background: white; z-index: 10;">
-            <h3 style="margin: 0; font-size: 18px; color: #007aff;">📝 Simulacre Oficial (30 Preguntes)</h3>
-            <div id="examen-temporitzador" style="background: #fff3cd; color: #856404; padding: 6px 12px; border-radius: 6px; font-weight: 700; font-size: 15px; border: 1px solid #ffeeba;">
-              ⏱️ 30:00
-            </div>
-          </div>
-
-          <div id="llistat-preguntes-examen" style="display: flex; flex-direction: column; gap: 25px;">
-      `;
-
-      examenActualPreguntes.forEach((p, idx) => {
-        htmlPreguntes += `
-          <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; border: 1px solid #e9ecef;">
-            <p style="font-weight: 700; margin-top: 0; margin-bottom: 12px; color: #333;">${idx + 1}. ${p.q}</p>
-            <div style="display: flex; flex-direction: column; gap: 8px;">
-        `;
-        p.opts.forEach((opt, oIdx) => {
-          htmlPreguntes += `
-            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 14px; background: white; padding: 10px 12px; border-radius: 6px; border: 1px solid #dee2e6; transition: all 0.2s;">
-              <input type="radio" name="preg_${idx}" value="${oIdx}" onchange="marcarRespostaExamen(${idx}, ${oIdx})" style="accent-color: #007aff;">
-              <span>${opt}</span>
-            </label>
-          `;
-        });
-        htmlPreguntes += `</div></div>`;
-      });
-
-      htmlPreguntes += `
-          </div>
-          <div style="margin-top: 30px; text-align: center;">
-            <button onclick="finalitzarExamenOficial(true)" style="background: #28a745; color: white; border: none; padding: 12px 30px; font-weight: 700; border-radius: 8px; font-size: 16px; cursor: pointer; box-shadow: 0 4px 6px rgba(40,167,69,0.2);">
-              Finalitzar i Lliurar Examen 🏁
-            </button>
-          </div>
-        </div>
-      `;
-
-      hubExamen.innerHTML = htmlPreguntes;
-
-      // Iniciar temporitzador
-      if (examenTimer) clearInterval(examenTimer);
-      examenTimer = setInterval(() => {
-        examenSegonsRestants--;
-        let m = Math.floor(examenSegonsRestants / 60);
-        let s = examenSegonsRestants % 60;
-        const elTimer = document.getElementById('examen-temporitzador');
-        if (elTimer) {
-          elTimer.textContent = `⏱️ ${m < 10 ? '0' + m : m}:${s < 10 ? '0' + s : s}`;
-        }
-
-        if (examenSegonsRestants <= 0) {
-          clearInterval(examenTimer);
-          alert("⏱️ S'ha esgotat el temps de l'examen!");
-          finalitzarExamenOficial(false);
-        }
-      }, 1000);
-    }
-
-    function marcarRespostaExamen(preguntaIdx, opcioIdx) {
-      examenRespostesUsuari[preguntaIdx] = opcioIdx;
-    }
-
-    function finalitzarExamenOficial(manual) {
-      if (examenTimer) clearInterval(examenTimer);
-
-      let encerts = 0;
-      let errors = 0;
-      let blancs = 0;
-
-      examenActualPreguntes.forEach((p, idx) => {
-        if (examenRespostesUsuari[idx] === undefined) {
-          blancs++;
-        } else if (parseInt(examenRespostesUsuari[idx], 10) === p.ans) {
-          encerts++;
-        } else {
-          errors++;
-        }
-      });
-
-      // Càlcul nota: 
-      // Totes sumen igual. Puntuació de 0 a 10.
-      // Fórmula: Nota = (Encerts - (Errors / 4)) * (10 / TotalPreguntes)
-      let totalPreguntes = examenActualPreguntes.length; // 30
-      let puntuacioNeta = encerts - (errors / 4);
-      if (puntuacioNeta < 0) puntuacioNeta = 0;
-      let notaFinal = (puntuacioNeta * 10) / totalPreguntes;
-      if (notaFinal > 10) notaFinal = 10;
-
-      // Actualitzar mitjana Mossos a la barra superior
-      const elNotaMossos = document.getElementById('nota-mossos');
-      if (elNotaMossos) {
-        elNotaMossos.textContent = `📊 ${notaFinal.toFixed(2)}`;
-        localStorage.setItem('mitjana_mossos_oficial', notaFinal.toFixed(2));
-      }
-
-      // Mostrar resultats detallats
-      const hubExamen = document.getElementById('hub-examen');
-      hubExamen.innerHTML = `
-        <div style="max-width: 650px; margin: 0 auto; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); text-align: center;">
-          <span style="font-size: 50px; display: block; margin-bottom: 10px;">🏆</span>
-          <h2 style="margin: 0 0 5px 0; color: #333;">Resultat del Simulacre d'Examen</h2>
-          <p style="color: #6c757d; font-size: 14px; margin-bottom: 25px;">Avaluació oficial completada segons barem de correcció.</p>
-          
-          <div style="font-size: 42px; font-weight: 900; color: ${notaFinal >= 5 ? '#28a745' : '#dc3545'}; margin-bottom: 20px;">
-            ${notaFinal.toFixed(2)} <span style="font-size: 18px; color: #6c757d;">/ 10</span>
-          </div>
-
-          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 30px;">
-            <div style="background: #e2f0d9; padding: 15px; border-radius: 8px;">
-              <span style="font-size: 20px; font-weight: 700; color: #385723; display: block;">${encerts}</span>
-              <span style="font-size: 12px; color: #385723;">Encerts</span>
-            </div>
-            <div style="background: #fce8e6; padding: 15px; border-radius: 8px;">
-              <span style="font-size: 20px; font-weight: 700; color: #a8071a; display: block;">${errors}</span>
-              <span style="font-size: 12px; color: #a8071a;">Errors</span>
-            </div>
-            <div style="background: #e9ecef; padding: 15px; border-radius: 8px;">
-              <span style="font-size: 20px; font-weight: 700; color: #495057; display: block;">${blancs}</span>
-              <span style="font-size: 12px; color: #495057;">Blancs</span>
-            </div>
-          </div>
-
-          <button onclick="comencarExamenOficial()" style="background: #007aff; color: white; border: none; padding: 12px 25px; font-weight: 700; border-radius: 8px; font-size: 15px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,122,255,0.2);">
-            Tornar a Fer un Altre Examen 🔄
-          </button>
-        </div>
-      `;
-    }
-
-    function tancarInterficieExamenActiu() {
-      if (examenTimer) clearInterval(examenTimer);
-      const hubExamen = document.getElementById('hub-examen');
-      if (hubExamen) {
-        hubExamen.innerHTML = `
-          <div style="max-width: 600px; margin: 0 auto; background: #fff; border: 1px solid #e9ecef; padding: 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
-            <span style="font-size: 40px; display: block; margin-bottom: 10px;">📝</span>
-            <h3 style="margin: 0 0 10px 0; font-size: 22px; color: #333;">Simulacre d'Examen Oficial</h3>
-            <p style="color: #6c757d; font-size: 14px; margin-bottom: 25px;">
-              30 preguntes aleatòries (inclou Àmbits A, B, C i 2 preguntes d'Actualitat).<br>
-              Temps límit: <b>30 minuts</b>. Errors resten 1/4 part. Blancs no penalitzen. Puntuació del 0 al 10.
-            </p>
-            <button onclick="comencarExamenOficial()" style="background: #007aff; color: white; border: none; padding: 12px 30px; font-weight: 700; border-radius: 8px; font-size: 16px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,122,255,0.2);">
-              Començar Examen Ara 🚀
-            </button>
-          </div>
-        `;
+    function comencarExamenOficial(mode = 'examen') {
+      if (typeof window.iniciarExamenOficial === 'function') {
+        window.iniciarExamenOficial(mode);
+      } else {
+        console.warn('iniciarExamenOficial encara no disponible');
       }
     }
-
-
+    window.comencarExamenOficial = comencarExamenOficial;
 </script>
 <script src="guia_mossos_2026.js"></script>
 <script src="Mossos_Preguntas.js"></script>
@@ -1407,6 +1232,7 @@
 <script src="Actualidad_preguntas.js"></script>
 <script src="temari_pl_config.js"></script>
 <script src="temari_pl_view.js"></script>
+<script src="repas_guardades.js"></script>
 <script src="app.js"></script>
 <script src="dubte_ia_tutor.js"></script>
 <script src="importador_preguntes_lot.js"></script>
@@ -1432,7 +1258,7 @@
     </div>
 
     <!-- Targeta d'usuari -->
-    <div style="display:flex;align-items:center;gap:16px;padding:16px;background:var(--bg-card-subtle);border:1px solid var(--border-card);border-radius:14px;margin-bottom:18px;">
+    <div style="display:flex;align-items:center;gap:16px;padding:16px;background:var(--bg-card-subtle);border:1px solid var(--border-card);border-radius:14px;margin-bottom:14px;">
       <div id="modal-user-avatar" style="width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#002B5E,#007aff);color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:900;flex-shrink:0;">
         👤
       </div>
@@ -1444,6 +1270,28 @@
             🟡 Guardat al navegador (Local)
           </span>
         </div>
+      </div>
+    </div>
+
+    <!-- Configuració de Nickname / Nom d'estudiant per a la IA -->
+    <div style="background:var(--bg-card);border:1.5px solid var(--border-card);border-radius:14px;padding:14px 16px;margin-bottom:18px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <label for="input-user-nickname" style="font-size:13px;font-weight:800;color:var(--text-main);display:flex;align-items:center;gap:6px;">
+          <span>🏷️</span> <span>El teu Nick / Àlies (com et cridarà la IA)</span>
+        </label>
+        <span style="font-size:11px;color:var(--text-muted);font-weight:600;">Personalitzat</span>
+      </div>
+      <p style="margin:0 0 10px;font-size:12px;color:var(--text-muted);line-height:1.45;">
+        Escriu el teu àlies per a l'estudi. El tutor virtual IA i l'Agent Medina s'adreçaran a tu exclusivament amb aquest nom.
+      </p>
+      <div style="display:flex;gap:8px;">
+        <input type="text" id="input-user-nickname" placeholder="Ex: Agent2026, Aspirant, Medina..." maxlength="25" style="flex:1;padding:9px 12px;border:1.5px solid var(--border-card);border-radius:8px;font-size:13.5px;font-weight:700;background:var(--bg-card-subtle);color:var(--text-main);outline:none;">
+        <button type="button" id="btn-desar-nickname" onclick="window.desarNickUsuariDesDeModal()" style="padding:9px 16px;background:#007aff;color:#fff;border:none;border-radius:8px;font-weight:800;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:5px;white-space:nowrap;">
+          💾 Desar
+        </button>
+      </div>
+      <div id="feedback-nick-guardat" style="display:none;margin-top:6px;font-size:11.5px;color:#10b981;font-weight:700;">
+        ✓ Nick actualitzat correctament!
       </div>
     </div>
 

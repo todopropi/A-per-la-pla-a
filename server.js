@@ -300,8 +300,8 @@ function getGeminiClient() {
 }
 
 async function executarGeminiAmbFallback(ai, promptOrContents, responseMimeType = 'application/json', tools = undefined) {
-  // Prioritzem models d'alt rendiment i baixa saturació (evitant 503)
-  const models = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.8-flash', 'gemini-flash-latest'];
+  // Models actuals suportats per l'API de Gemini
+  const models = ['gemini-3.6-flash', 'gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-3.6-pro'];
   let lastErr = null;
 
   // Fem fins a 2 rondes completes alternant entre models
@@ -340,6 +340,47 @@ async function executarGeminiAmbFallback(ai, promptOrContents, responseMimeType 
   }
   throw lastErr;
 }
+
+// Endpoint universal /api/chat compatible amb Vercel i clients remots
+app.all('/api/chat', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
+  const prompt = (req.body && (req.body.prompt || req.body.message || req.body.missatge)) || req.query.prompt || req.query.q || '';
+  if (!prompt || !prompt.trim()) {
+    return res.json({ text: "Sóc el teu tutor d'oposicions. En què et puc ajudar avui?" });
+  }
+
+  const ai = getGeminiClient();
+  if (!ai) {
+    const trobats = cercarALaGuia(prompt, 2);
+    if (trobats && trobats.length > 0) {
+      const t = trobats[0];
+      return res.json({
+        text: `📌 **Guia d'Estudi Mossos d'Esquadra (Juny 2026) - ${t.codi}: ${t.titol}**\n\n${(t.ideesForca || []).slice(0, 3).join('\n')}\n\n💡 *Pàgines oficials: ${t.pagines}*`
+      });
+    }
+    return res.json({
+      text: `S'ha rebut la teva consulta: "${prompt}". Consulta la Guia Mossos 2026 o el temari de Policia Local per a més informació.`
+    });
+  }
+
+  try {
+    const { response } = await executarGeminiAmbFallback(ai, prompt, undefined);
+    if (response && response.text) {
+      return res.json({ text: response.text });
+    }
+    throw new Error('No s\'ha pogut obtenir resposta de Gemini');
+  } catch (err) {
+    return res.status(500).json({ error: err.message || 'Error generant resposta' });
+  }
+});
 
 // 1. Endpoint per resoldre DUBTES d'una pregunta amb Gemini IA
 app.post('/api/gemini/dubte-pregunta', async (req, res) => {
@@ -1121,6 +1162,11 @@ app.post('/api/gemini/tutor-xat', async (req, res) => {
   const ai = getGeminiClient();
   const cosTxt = cos === 'mossos' ? "Mossos d'Esquadra" : cos === 'pl' ? 'Policia Local' : 'Policia Local i Mossos d\'Esquadra';
 
+  let nomTractament = (usuariNom || '').trim();
+  if (!nomTractament || /^(òscar|oscar|oposcarmossos|usuari)$/i.test(nomTractament)) {
+    nomTractament = 'Aspirant';
+  }
+
   // Cerca automàtica o directa a la Guia Oficial de Mossos d'Esquadra
   let contextGuia = '';
   let trobatsGuia = [];
@@ -1269,7 +1315,7 @@ REGLA D'OR DE CERCA:
     }
 
     const prompt = `Ets el Tutor d'Intel·ligència Artificial personal de l'acadèmia "Agent Medina", especialitzat en la preparació d'oposicions de ${cosTxt} a Catalunya.
-${usuariNom ? `Estàs acompanyant personalment a l'aspirant opositor ${usuariNom}. Adreça't a ell de manera propera i professional quan sigui oportú.` : ''}
+${nomTractament ? `Estàs acompanyant personalment a l'aspirant opositor amb el nom o àlies "${nomTractament}". Adreça't a ell utilitzant aquest nom "${nomTractament}" quan sigui oportú i MAI no l'anomenis d'una altra manera.` : ''}
 
 El teu to és proper, pedagògic, d'alt rigor jurídic i molt motivador.
 Escriu SEMPRE en català correcte.

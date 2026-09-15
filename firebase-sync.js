@@ -73,10 +73,12 @@
     const modalSyncBadge = document.getElementById('modal-sync-badge');
     const btnLoginModal = document.getElementById('btn-login-google-text');
 
+    const nickGuardat = (localStorage.getItem('agentmedina_user_nickname') || '').trim();
+
     if (usuariActual) {
       const nomComplet = usuariActual.displayName || usuariActual.email || 'Usuari';
-      const nomPila = nomComplet.split(' ')[0];
-      const inicial = (nomComplet[0] || 'U').toUpperCase();
+      const nomPila = nickGuardat || nomComplet.split(' ')[0];
+      const inicial = ((nickGuardat || nomComplet)[0] || 'U').toUpperCase();
 
       if (btn) {
         btn.textContent = `☁️ ${nomPila}`;
@@ -98,7 +100,7 @@
           modalAvatar.textContent = inicial;
         }
       }
-      if (modalName) modalName.textContent = nomComplet;
+      if (modalName) modalName.textContent = nickGuardat ? `${nickGuardat} (${nomComplet})` : nomComplet;
       if (modalEmail) modalEmail.textContent = usuariActual.email || '';
       if (modalSyncBadge) {
         modalSyncBadge.innerHTML = '🟢 Sincronitzat al núvol (Google)';
@@ -107,21 +109,24 @@
       }
       if (btnLoginModal) btnLoginModal.textContent = 'Tancar sessió';
     } else {
+      const nomPila = nickGuardat || 'Iniciar sessió';
+      const inicial = nickGuardat ? nickGuardat[0].toUpperCase() : '👤';
+
       if (btn) {
-        btn.textContent = '🔑 Sincronitzar';
+        btn.textContent = nickGuardat ? `👤 ${nickGuardat}` : '🔑 Sincronitzar';
         btn.title = 'Inicia sessió amb Google per sincronitzar el progrés';
         btn.classList.remove('sincronitzat');
       }
 
-      if (chipName) chipName.textContent = 'Iniciar sessió';
-      if (chipAvatar) chipAvatar.textContent = '👤';
+      if (chipName) chipName.textContent = nomPila;
+      if (chipAvatar) chipAvatar.textContent = inicial;
       if (chipDot) {
         chipDot.className = 'sync-status-indicator offline';
         chipDot.title = 'Mode local (clica per iniciar sessió)';
       }
 
-      if (modalAvatar) modalAvatar.textContent = '👤';
-      if (modalName) modalName.textContent = 'Mode Local (Sense compte)';
+      if (modalAvatar) modalAvatar.textContent = inicial;
+      if (modalName) modalName.textContent = nickGuardat ? `${nickGuardat} (Mode Local)` : 'Mode Local (Sense compte)';
       if (modalEmail) modalEmail.textContent = 'El progrés es guarda al navegador';
       if (modalSyncBadge) {
         modalSyncBadge.innerHTML = '🟡 Guardat al navegador (Local)';

@@ -284,6 +284,9 @@ function mostrarPregunta(preguntaObj) {
             <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:12px;">
                 <h3 style="margin: 0; color: var(--text-main, #0f172a); font-size: 17px; line-height: 1.5; font-weight: 800;">${preguntaObj.pregunta}</h3>
                 <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+                    <button type="button" class="btn-guardar-star" data-id="${escapeHtml(preguntaObj.id || '')}" style="background:var(--bg-card-subtle,#f8fafc);color:var(--text-muted,#475569);border:1px solid var(--border-card,#cbd5e1);border-radius:8px;padding:4px 9px;font-size:12px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:4px;" title="Guardar pregunta per repassar-la">
+                        ${(typeof window.esPreguntaGuardada === 'function' && window.esPreguntaGuardada(preguntaObj.id)) ? '⭐ <span>Guardada</span>' : '☆ <span>Guardar</span>'}
+                    </button>
                     <button type="button" class="btn-ia-dubte-head" title="Preguntar a la IA sobre aquesta pregunta" style="background:var(--bg-card-subtle,#eff6ff);color:#1d4ed8;border:1px solid #bfdbfe;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:4px;">
                         <span>🤖</span><span>Dubte IA</span>
                     </button>
@@ -294,6 +297,16 @@ function mostrarPregunta(preguntaObj) {
         </div>
         <div id="feedback" style="margin-top: 15px; max-width: 820px; margin-left: auto; margin-right: auto;"></div>
     `;
+
+    const btnGuardarHead = contenedor.querySelector('.btn-guardar-star');
+    if (btnGuardarHead) {
+        btnGuardarHead.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (typeof window.alternarGuardarPregunta === 'function') {
+                window.alternarGuardarPregunta(preguntaObj, btnGuardarHead);
+            }
+        });
+    }
 
     const btnDubteHead = contenedor.querySelector('.btn-ia-dubte-head');
     if (btnDubteHead) {
@@ -341,6 +354,14 @@ function mostrarPregunta(preguntaObj) {
             if (esCorrecte) {
                 btn.style.background = '#d1fae5';
                 btn.style.borderColor = '#10b981';
+            } else {
+                btn.style.background = '#fee2e2';
+                btn.style.borderColor = '#ef4444';
+            }
+
+            if (typeof window.generarExplicacioPedagogicaCompleta === 'function') {
+                feedback.innerHTML = window.generarExplicacioPedagogicaCompleta(preguntaObj, nouIndexCorrecte, index, esCorrecte);
+            } else if (esCorrecte) {
                 feedback.innerHTML = `
                     <div style="background: #d1fae5; border: 1px solid #6ee7b7; padding: 15px; border-radius: 8px; color: #065f46;">
                         <p style="margin: 0 0 5px 0; font-weight: 700;">✅ Correcte!</p>
@@ -349,8 +370,6 @@ function mostrarPregunta(preguntaObj) {
                     </div>
                 `;
             } else {
-                btn.style.background = '#fee2e2';
-                btn.style.borderColor = '#ef4444';
                 feedback.innerHTML = `
                     <div style="background: #fee2e2; border: 1px solid #fca5a5; padding: 15px; border-radius: 8px; color: #991b1b;">
                         <p style="margin: 0 0 5px 0; font-weight: 700;">❌ Incorrecte.</p>
@@ -1412,11 +1431,21 @@ document.addEventListener('DOMContentLoaded', () => {
               </div>
             </div>
 
-            <div id="centre-errors" class="action-card card-red">
+            <div id="centre-errors" class="action-card card-red" style="cursor:pointer;">
               <div class="action-card-icon-wrap" style="color:#ef4444;">🎯</div>
               <div>
-                <h4 class="action-card-title">Repàs d'errors</h4>
-                <p class="action-card-desc">Posa el focus en les preguntes que més has fallat fins a dominar-les.</p>
+                <span class="action-card-badge" style="background:#fee2e2;color:#991b1b;">Repàs Intel·ligent</span>
+                <h4 class="action-card-title" style="margin-top:4px;">Repàs d'errors</h4>
+                <p class="action-card-desc">Posa el focus en les preguntes fallades amb explicacions visuals i mnemotècnies.</p>
+              </div>
+            </div>
+
+            <div id="centre-guardades" class="action-card card-gold" style="cursor:pointer;">
+              <div class="action-card-icon-wrap" style="color:#f59e0b;">⭐</div>
+              <div>
+                <span class="action-card-badge" style="background:#fef3c7;color:#b45309;"><span class="comptador-preguntes-guardades">0</span> guardades</span>
+                <h4 class="action-card-title" style="margin-top:4px;">Preguntes guardades</h4>
+                <p class="action-card-desc">Repassa i practica les preguntes clau que has guardat per revisar quan vulguis.</p>
               </div>
             </div>
 
@@ -1531,7 +1560,19 @@ document.addEventListener('DOMContentLoaded', () => {
       requestAnimationFrame(() => window.scrollTo({top:0,behavior:'smooth'}));
     });
     const centreErrors = document.getElementById('centre-errors');
-    if (centreErrors) centreErrors.addEventListener('click', iniciarRepasErrorsTots);
+    if (centreErrors) centreErrors.addEventListener('click', () => {
+      if (typeof window.obrirModalRepasIGuardades === 'function') {
+        window.obrirModalRepasIGuardades('errors');
+      } else {
+        iniciarRepasErrorsTots();
+      }
+    });
+    const centreGuardades = document.getElementById('centre-guardades');
+    if (centreGuardades) centreGuardades.addEventListener('click', () => {
+      if (typeof window.obrirModalRepasIGuardades === 'function') {
+        window.obrirModalRepasIGuardades('guardades');
+      }
+    });
     const centreDificils = document.getElementById('centre-dificils');
     if (centreDificils) centreDificils.addEventListener('click', iniciarRepasErrorsTots);
     const centreSimulacre = document.getElementById('centre-simulacre');
@@ -3808,41 +3849,94 @@ function iniciarExamenOficial(mode = 'estudi') {
       if (window._agentMedinaTimer) { clearInterval(window._agentMedinaTimer); window._agentMedinaTimer = null; }
       index = examen.length;
 
-      // Recalculem els blancs a partir del total, tant si s'acaba pel temps, per haver
-      // respost totes les preguntes, com si l'usuari decideix finalitzar l'examen a mitges
-      // (botó "Finalitzar ara"). Així sempre queden correctament comptades totes les
-      // preguntes que s'han quedat sense contestar.
+      // Assegurem que totes les 30 preguntes tenen un registre a respostes
+      for (let j = 0; j < examen.length; j++) {
+        if (!respostes[j]) {
+          const qBlanca = examen[j];
+          respostes[j] = {
+            preguntaObj: qBlanca,
+            opcionsBarrejades: [...qBlanca.opcions],
+            triadaIndex: null,
+            triadaText: null,
+            correcteIndex: typeof qBlanca.resposta === 'number' ? qBlanca.resposta : 0,
+            esCorrecte: false,
+            enBlanc: true
+          };
+        }
+      }
+
+      // Recalculem els blancs a partir del total
       blancs = Math.max(0, examen.length - encerts - errors);
 
       const c = contenidor();
       if (!c) return;
       const puntuacioBruta = encerts - (errors * 0.25);
       const nota = Math.max(0, Math.round((puntuacioBruta / 3) * 100) / 100);
-      const percent = Math.round((encerts / 30) * 100);
+
+      window.ultimExamenOficialResum = {
+        examen: [...examen],
+        respostes: [...respostes],
+        encerts,
+        errors,
+        blancs,
+        nota,
+        esEstudi
+      };
+
       c.innerHTML = `
-        <div style="background:white;padding:30px;border-radius:16px;border:1.5px solid #e2e8f0;text-align:center;margin:10px auto;max-width:650px;box-shadow:var(--shadow-card);">
-          <div style="font-size:42px;">${perTemps ? '⏰' : '🏁'}</div>
-          <h2 style="color:#0f172a;margin:10px 0;">${perTemps ? 'Temps esgotat!' : 'Examen finalitzat'}</h2>
-          <p style="color:#64748b;">${esEstudi ? 'Mode Estudi' : 'Mode Examen'} · 30 preguntes</p>
-          <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:20px 0;">
-            <div style="padding:14px 20px;background:#ecfdf5;border-radius:12px;"><b style="font-size:24px;color:#15803d;">${encerts}</b><br>Encerts</div>
-            <div style="padding:14px 20px;background:#fef2f2;border-radius:12px;"><b style="font-size:24px;color:#b91c1c;">${errors}</b><br>Errors</div>
-            <div style="padding:14px 20px;background:#f8fafc;border-radius:12px;"><b style="font-size:24px;color:#475569;">${blancs}</b><br>En blanc</div>
+        <div class="examen-finalitzat-card" style="background:var(--bg-card,#ffffff);padding:32px 24px;border-radius:18px;border:1.5px solid var(--border-card,#e2e8f0);text-align:center;margin:10px auto;max-width:680px;box-shadow:var(--shadow-card);">
+          <div style="font-size:44px;">${perTemps ? '⏰' : '🏁'}</div>
+          <h2 style="color:var(--text-main,#0f172a);margin:10px 0;font-size:22px;font-weight:800;">${perTemps ? 'Temps esgotat!' : 'Examen finalitzat'}</h2>
+          <p style="color:var(--text-muted,#64748b);font-weight:600;">${esEstudi ? 'Mode Estudi' : 'Mode Examen'} · 30 preguntes</p>
+          <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin:22px 0;">
+            <div style="padding:14px 22px;background:rgba(16,185,129,0.15);border:1px solid #10b981;border-radius:12px;">
+              <b style="font-size:26px;color:var(--text-correct,#15803d);">${encerts}</b><br>
+              <span style="font-size:12.5px;font-weight:700;color:var(--text-correct,#15803d);">Encerts</span>
+            </div>
+            <div style="padding:14px 22px;background:rgba(239,68,68,0.15);border:1px solid #ef4444;border-radius:12px;">
+              <b style="font-size:26px;color:var(--text-incorrect,#b91c1c);">${errors}</b><br>
+              <span style="font-size:12.5px;font-weight:700;color:var(--text-incorrect,#b91c1c);">Errors</span>
+            </div>
+            <div style="padding:14px 22px;background:var(--bg-card-subtle,#f8fafc);border:1px solid var(--border-card,#cbd5e1);border-radius:12px;">
+              <b style="font-size:26px;color:var(--text-muted,#475569);">${blancs}</b><br>
+              <span style="font-size:12.5px;font-weight:700;color:var(--text-muted,#475569);">En blanc</span>
+            </div>
           </div>
           <p style="font-size:28px;font-weight:800;color:#007aff;margin:15px 0;">Nota: ${nota} / 10</p>
-          <p style="color:#64748b;font-size:13px;">Aquesta simulació aplica +1 per encert, −0,25 per error i 0 per blanc.</p>
+          <p style="color:var(--text-muted,#64748b);font-size:13px;margin-bottom:24px;">Aquesta simulació aplica barem oficial: +1 encert, −0,25 error i 0 blanc.</p>
           <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:20px;">
-            <button id="btn-temari-oficial" style="background:#002B5E;color:white;border:none;padding:12px 20px;border-radius:8px;font-weight:700;cursor:pointer;">← Tornar al Temari</button>
-            <button id="btn-repas-oficial" style="background:#16a34a;color:white;border:none;padding:12px 20px;border-radius:8px;font-weight:700;cursor:pointer;">📚 Repassar les 30 preguntes</button>
-            <button id="btn-inici-oficial" style="background:var(--bg-card-subtle,#f1f5f9);color:var(--text-main,#1e293b);border:1px solid #cbd5e1;padding:12px 20px;border-radius:8px;font-weight:700;cursor:pointer;">🏠 Inici</button>
+            ${errors > 0 ? `
+              <button type="button" id="btn-repas-errors-oficial" style="background:#dc2626;color:white;border:none;padding:12px 20px;border-radius:10px;font-weight:800;font-size:14px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 4px 14px rgba(220,38,38,0.3);">
+                <span>❌</span> <span>Repassar només errors (${errors})</span>
+              </button>
+            ` : ''}
+            <button type="button" id="btn-repas-oficial" style="background:#16a34a;color:white;border:none;padding:12px 20px;border-radius:10px;font-weight:800;font-size:14px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 4px 14px rgba(22,163,74,0.3);">
+              <span>📚</span> <span>Repassar les 30 preguntes</span>
+            </button>
+            <button type="button" id="btn-temari-oficial" style="background:var(--blue-primary,#002B5E);color:white;border:none;padding:12px 20px;border-radius:10px;font-weight:800;font-size:14px;cursor:pointer;">
+              ← Tornar al Temari
+            </button>
+            <button type="button" id="btn-inici-oficial" style="background:var(--bg-card-subtle,#f1f5f9);color:var(--text-main,#1e293b);border:1px solid var(--border-card,#cbd5e1);padding:12px 20px;border-radius:10px;font-weight:800;font-size:14px;cursor:pointer;">
+              🏠 Inici
+            </button>
           </div>
         </div>`;
+
       document.getElementById('btn-temari-oficial')?.addEventListener('click', () => {
         if (mossosZona) mossosZona.style.display = 'none';
         if (mossosPrincipal) mossosPrincipal.style.display = 'flex';
         window.scrollTo({ top: 0, behavior: 'smooth' });
       });
-      document.getElementById('btn-repas-oficial')?.addEventListener('click', iniciarRepasUltimTest);
+
+      document.getElementById('btn-repas-errors-oficial')?.addEventListener('click', () => {
+        const fallades = respostes.filter(r => r && !r.esCorrecte);
+        mostrarRepasExamenOficial(fallades, `Errors (${fallades.length})`, () => acabarExamen(false));
+      });
+
+      document.getElementById('btn-repas-oficial')?.addEventListener('click', () => {
+        mostrarRepasExamenOficial(respostes, 'Totes les preguntes', () => acabarExamen(false));
+      });
+
       document.getElementById('btn-inici-oficial')?.addEventListener('click', tornarAInici);
     }
 
@@ -3855,7 +3949,7 @@ function iniciarExamenOficial(mode = 'estudi') {
         const min = Math.floor(totalSec / 60);
         const sec = totalSec % 60;
         el.textContent = `⏱️ ${String(min).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
-        el.style.color = totalSec <= 300 ? '#dc2626' : '#0f172a';
+        el.style.color = totalSec <= 300 ? '#dc2626' : 'var(--text-main, #0f172a)';
       }
       if (tempsRestant <= 0) acabarExamen(true);
     }
@@ -3870,55 +3964,70 @@ function iniciarExamenOficial(mode = 'estudi') {
       const idxCorrecte = opcions.indexOf(correcte);
       const c = contenidor();
       if (!c) return;
+      const lletres = ['A', 'B', 'C', 'D'];
+
       c.innerHTML = `
-        <div style="background:white;padding:20px 25px;border-radius:16px;border:1px solid #e2e8f0;margin-top:15px;">
+        <div class="pregunta-box" style="background:var(--bg-card,#ffffff);padding:24px 26px;border-radius:18px;border:1.5px solid var(--border-card,#e2e8f0);margin-top:15px;box-shadow:var(--shadow-card);">
           
           <!-- Comptador visual en temps real (Aciertos, Fallos, Sin responder) -->
-          <div id="oficial-live-counter-bar" style="display:flex;align-items:center;justify-content:space-between;gap:8px;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:12px;padding:9px 14px;margin-bottom:15px;flex-wrap:wrap;">
+          <div id="oficial-live-counter-bar" style="display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--bg-card-subtle,#f8fafc);border:1.5px solid var(--border-card,#e2e8f0);border-radius:12px;padding:10px 14px;margin-bottom:16px;flex-wrap:wrap;">
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-              <div style="display:inline-flex;align-items:center;gap:6px;background:#ecfdf5;border:1px solid #a7f3d0;padding:5px 12px;border-radius:8px;font-size:13px;font-weight:700;color:#065f46;">
+              <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(16,185,129,0.15);border:1px solid #10b981;padding:5px 12px;border-radius:8px;font-size:13px;font-weight:700;color:var(--text-correct,#065f46);">
                 <span style="font-size:14px;">✅</span>
                 <span>Aciertos:</span>
-                <strong id="contador-oficial-aciertos" style="font-size:15px;font-weight:900;color:#047857;">${encerts}</strong>
+                <strong id="contador-oficial-aciertos" style="font-size:15px;font-weight:900;color:var(--text-correct,#047857);">${encerts}</strong>
               </div>
-              <div style="display:inline-flex;align-items:center;gap:6px;background:#fef2f2;border:1px solid #fecaca;padding:5px 12px;border-radius:8px;font-size:13px;font-weight:700;color:#991b1b;">
+              <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(239,68,68,0.15);border:1px solid #ef4444;padding:5px 12px;border-radius:8px;font-size:13px;font-weight:700;color:var(--text-incorrect,#991b1b);">
                 <span style="font-size:14px;">❌</span>
                 <span>Fallos:</span>
-                <strong id="contador-oficial-fallos" style="font-size:15px;font-weight:900;color:#b91c1c;">${errors}</strong>
+                <strong id="contador-oficial-fallos" style="font-size:15px;font-weight:900;color:var(--text-incorrect,#b91c1c);">${errors}</strong>
               </div>
             </div>
-            <div style="display:inline-flex;align-items:center;gap:6px;background:#f1f5f9;border:1px solid #cbd5e1;padding:5px 12px;border-radius:8px;font-size:13px;font-weight:700;color:#334155;">
+            <div style="display:inline-flex;align-items:center;gap:6px;background:var(--bg-card,#f1f5f9);border:1px solid var(--border-card,#cbd5e1);padding:5px 12px;border-radius:8px;font-size:13px;font-weight:700;color:var(--text-muted,#334155);">
               <span style="font-size:14px;">⏳</span>
               <span>Sin responder:</span>
-              <strong id="contador-oficial-sin-responder" style="font-size:15px;font-weight:900;color:#0f172a;">${Math.max(0, 30 - encerts - errors)}</strong>
+              <strong id="contador-oficial-sin-responder" style="font-size:15px;font-weight:900;color:var(--text-main,#0f172a);">${Math.max(0, 30 - encerts - errors)}</strong>
             </div>
           </div>
 
           <div style="display:flex;justify-content:space-between;align-items:center;gap:15px;margin-bottom:12px;">
-            <span style="font-size:13px;color:#64748b;font-weight:700;">Pregunta ${index+1} de 30</span>
-            <span id="rellotge-examen-oficial" style="font-size:18px;font-weight:800;">⏱️ 30:00</span>
+            <span style="font-size:13px;color:var(--text-muted,#64748b);font-weight:700;">Pregunta ${index+1} de 30 (${esEstudi ? 'Mode Estudi' : 'Mode Examen'})</span>
+            <span id="rellotge-examen-oficial" style="font-size:18px;font-weight:800;color:var(--text-main,#0f172a);">⏱️ 30:00</span>
           </div>
-          <div style="height:7px;background:#e2e8f0;border-radius:99px;overflow:hidden;margin-bottom:20px;"><div style="width:${((index)/30)*100}%;height:100%;background:#007aff;"></div></div>
+          <div style="height:7px;background:var(--bg-card-subtle,#e2e8f0);border-radius:99px;overflow:hidden;margin-bottom:20px;">
+            <div style="width:${((index)/30)*100}%;height:100%;background:#007aff;transition:width 0.3s ease;"></div>
+          </div>
           <div style="display:flex;justify-content:flex-end;margin-bottom:6px;">${etiquetaIdPreguntaHtml(q)}</div>
-          <h3 style="margin:0;color:#0f172a;font-size:17px;line-height:1.45;">${q.pregunta}</h3>
+          <h3 style="margin:0;color:var(--text-main,#0f172a);font-size:17.5px;line-height:1.45;font-weight:800;">${q.pregunta}</h3>
           <div id="llista-opcions-oficial" style="display:flex;flex-direction:column;gap:10px;margin-top:18px;"></div>
           <div id="feedback-oficial" style="margin-top:15px;"></div>
-          <button id="btn-finalitzar-ara-oficial" style="margin-top:18px;width:100%;background:#fff;color:#b91c1c;border:1.5px solid #fecaca;padding:11px 18px;border-radius:8px;font-weight:700;cursor:pointer;">🏁 Finalitzar ara (${encerts + errors} de 30 contestades)</button>
+          <button type="button" id="btn-finalitzar-ara-oficial" style="margin-top:18px;width:100%;background:var(--bg-card,#fff);color:#dc2626;border:1.5px solid rgba(239,68,68,0.4);padding:11px 18px;border-radius:10px;font-weight:700;cursor:pointer;transition:all 0.15s ease;">
+            🏁 Finalitzar ara (${encerts + errors} de 30 contestades)
+          </button>
         </div>`;
+
       c.querySelector('#btn-finalitzar-ara-oficial').onclick = () => {
         if (confirm('Segur que vols finalitzar l\'examen ara? Les preguntes que et quedin sense contestar comptaran com a blanc.')) {
           acabarExamen(false);
         }
       };
+
       const lista = c.querySelector('#llista-opcions-oficial');
       opcions.forEach((opcio, i) => {
         const b = document.createElement('button');
-        b.textContent = opcio;
-        b.style.cssText = 'padding:13px 15px;background:#f8fafc;border:1px solid #cbd5e1;border-radius:9px;text-align:left;cursor:pointer;font-size:14px;color:#1e293b;';
+        b.className = 'btn-opcio-test optio';
+        b.style.cssText = 'padding:14px 16px;background:var(--bg-card-subtle,#f8fafc);border:1.5px solid var(--border-card,#cbd5e1);border-radius:12px;text-align:left;cursor:pointer;font-size:14.5px;font-weight:600;color:var(--text-main,#1e293b);display:flex;align-items:flex-start;gap:12px;line-height:1.45;transition:all 0.15s ease;';
+        b.innerHTML = `
+          <span style="flex-shrink:0;width:26px;height:26px;border-radius:50%;background:rgba(0,122,255,0.1);color:#007aff;font-size:12px;font-weight:900;display:flex;align-items:center;justify-content:center;">
+            ${lletres[i] || '•'}
+          </span>
+          <span style="flex:1;">${escapeHtml(opcio)}</span>
+        `;
+
         b.onclick = () => {
           if (respostaDonada) return;
           respostaDonada = true;
-          lista.querySelectorAll('button').forEach(x => x.style.pointerEvents='none');
+          lista.querySelectorAll('button').forEach(x => x.style.pointerEvents = 'none');
           const esCorrecte = i === idxCorrecte;
           if (esCorrecte) encerts++; else errors++;
 
@@ -3935,22 +4044,80 @@ function iniciarExamenOficial(mode = 'estudi') {
             btnFinalitzarAra.textContent = `🏁 Finalitzar ara (${encerts + errors} de 30 contestades)`;
           }
 
-          respostes[index] = esCorrecte ? q.resposta : null;
+          // Guardem registre detallat per al repàs posterior
+          respostes[index] = {
+            preguntaObj: q,
+            opcionsBarrejades: opcions,
+            triadaIndex: i,
+            triadaText: opcio,
+            correcteIndex: idxCorrecte,
+            esCorrecte,
+            enBlanc: false
+          };
+
           registrarRespuestaGlobal(q.id, esCorrecte, q);
           if (esCorrecte) eliminarPreguntaAcertada(q.id); else guardarPreguntaFallada(q);
 
-          if (esEstudi) {
-            b.style.background = esCorrecte ? '#d1fae5' : '#fee2e2';
-            b.style.borderColor = esCorrecte ? '#10b981' : '#ef4444';
-            if (!esCorrecte) lista.querySelectorAll('button').forEach((x,j)=>{ if(j===idxCorrecte){x.style.background='#d1fae5';x.style.borderColor='#10b981';} });
-          } else {
-            b.style.background = '#e0f2fe';
-            b.style.borderColor = '#0284c7';
-          }
           const fb = c.querySelector('#feedback-oficial');
-          if (esEstudi) fb.innerHTML = `<div style="padding:14px;border-radius:10px;background:${esCorrecte?'#d1fae5':'#fee2e2'};color:${esCorrecte?'#065f46':'#991b1b'};"><b>${esCorrecte?'✅ Correcte':'❌ Incorrecte'}</b>${q.explicacio?`<div style="margin-top:5px;font-size:13px;">${q.explicacio}</div>`:''}</div>`;
-          fb.innerHTML += `<button id="btn-next-oficial" style="margin-top:12px;width:100%;background:#007aff;color:white;border:none;padding:12px 20px;border-radius:8px;font-weight:700;cursor:pointer;">${index===29?'Finalitzar examen':'Següent pregunta ➔'}</button>`;
-          document.getElementById('btn-next-oficial').onclick = () => { index++; render(); };
+
+          if (esEstudi) {
+            // Mode Estudi: retroacció completa pedagògica a l'instant
+            if (esCorrecte) {
+              b.style.background = 'rgba(16,185,129,0.18)';
+              b.style.borderColor = '#10b981';
+              b.style.color = 'var(--text-correct, #065f46)';
+            } else {
+              b.style.background = 'rgba(239,68,68,0.18)';
+              b.style.borderColor = '#ef4444';
+              b.style.color = 'var(--text-incorrect, #991b1b)';
+              lista.querySelectorAll('button').forEach((x, j) => {
+                if (j === idxCorrecte) {
+                  x.style.background = 'rgba(16,185,129,0.18)';
+                  x.style.borderColor = '#10b981';
+                  x.style.color = 'var(--text-correct, #065f46)';
+                }
+              });
+            }
+
+            const triadaOriginal = q.opcions.indexOf(opcio);
+            const explicacioHtml = (typeof window.generarExplicacioPedagogicaCompleta === 'function')
+              ? window.generarExplicacioPedagogicaCompleta(q, idxCorrecte, triadaOriginal, esCorrecte)
+              : `<div style="padding:14px;border-radius:10px;background:${esCorrecte ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)'};color:${esCorrecte ? '#065f46' : '#991b1b'};"><b>${esCorrecte ? '✅ Correcte' : '❌ Incorrecte'}</b>${q.explicacio ? `<div style="margin-top:5px;font-size:13px;">${escapeHtml(q.explicacio)}</div>` : ''}</div>`;
+
+            fb.innerHTML = `
+              ${explicacioHtml}
+              <button type="button" id="btn-next-oficial" style="margin-top:14px;width:100%;background:linear-gradient(135deg, #002B5E, #007aff);color:white;border:none;padding:14px 20px;border-radius:12px;font-weight:800;font-size:15.5px;cursor:pointer;box-shadow:0 4px 14px rgba(0,122,255,0.3);">
+                ${index === 29 ? 'Finalitzar examen 🏁' : 'Següent pregunta ➔'}
+              </button>
+            `;
+
+            const btnIA = fb.querySelector('.btn-ia-feedback-ask');
+            if (btnIA && typeof window.obrirModalDubteIA === 'function') {
+              btnIA.addEventListener('click', () => window.obrirModalDubteIA(q, triadaOriginal, esCorrecte));
+            }
+
+            const btnGuardar = fb.querySelector('.btn-guardar-star');
+            if (btnGuardar && typeof window.alternarGuardarPregunta === 'function') {
+              btnGuardar.addEventListener('click', () => window.alternarGuardarPregunta(q, btnGuardar));
+            }
+          } else {
+            // Mode Examen: condicions reals de simulacre, seleccionem l'opció i mostrem botó de següent
+            b.style.background = 'rgba(0,122,255,0.18)';
+            b.style.borderColor = '#007aff';
+            b.style.color = 'var(--text-main, #0f172a)';
+
+            fb.innerHTML = `
+              <button type="button" id="btn-next-oficial" style="margin-top:14px;width:100%;background:linear-gradient(135deg, #002B5E, #007aff);color:white;border:none;padding:14px 20px;border-radius:12px;font-weight:800;font-size:15.5px;cursor:pointer;box-shadow:0 4px 14px rgba(0,122,255,0.3);">
+                ${index === 29 ? 'Finalitzar examen 🏁' : 'Següent pregunta ➔'}
+              </button>
+            `;
+          }
+
+          document.getElementById('btn-next-oficial').onclick = () => {
+            index++;
+            render();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          };
         };
         lista.appendChild(b);
       });
@@ -4144,32 +4311,221 @@ function iniciarExamen(quantitatDeseada = 10, esRepasErrors = false, datasetPers
 }
 
 // Funció auxiliar per mostrar la pregunta amb el botó "Següent"
+function mostrarRepasExamenOficial(llistaItems, titolRepas = 'Repàs', onTornarAlResum = null) {
+  if (!Array.isArray(llistaItems) || !llistaItems.length) {
+    alert('No hi ha cap pregunta per repassar.');
+    if (typeof onTornarAlResum === 'function') onTornarAlResum();
+    return;
+  }
+  const contenedor = obtenirContenidorTest();
+  if (!contenedor) return;
+
+  let repasIndex = 0;
+  const lletres = ['A', 'B', 'C', 'D'];
+
+  function renderRepas() {
+    if (repasIndex >= llistaItems.length) {
+      contenedor.innerHTML = `
+        <div class="examen-finalitzat-card" style="background:var(--bg-card,#ffffff);padding:32px 24px;border-radius:18px;border:1.5px solid var(--border-card,#e2e8f0);text-align:center;margin:15px auto;max-width:650px;box-shadow:var(--shadow-card);">
+          <div style="font-size:44px;">🎉</div>
+          <h2 style="color:var(--text-main,#0f172a);margin:10px 0;font-size:22px;font-weight:900;">Repàs completat!</h2>
+          <p style="color:var(--text-muted,#64748b);font-size:15px;">Has revisat totes les <b>${llistaItems.length}</b> preguntes de: <b>${escapeHtml(titolRepas)}</b>.</p>
+          <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:22px;">
+            ${typeof onTornarAlResum === 'function' ? `
+              <button type="button" id="btn-repas-tornar-resum" style="background:var(--blue-primary,#002B5E);color:white;border:none;padding:12px 22px;border-radius:10px;font-weight:800;font-size:14px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
+                <span>📊</span> <span>Tornar al resum de notes</span>
+              </button>
+            ` : ''}
+            <button type="button" id="btn-repas-inici" style="background:var(--bg-card-subtle,#f1f5f9);color:var(--text-main,#1e293b);border:1px solid var(--border-card,#cbd5e1);padding:12px 22px;border-radius:10px;font-weight:800;font-size:14px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
+              <span>🏠</span> <span>Inici</span>
+            </button>
+          </div>
+        </div>`;
+      document.getElementById('btn-repas-tornar-resum')?.addEventListener('click', onTornarAlResum);
+      document.getElementById('btn-repas-inici')?.addEventListener('click', tornarAInici);
+      return;
+    }
+
+    const item = llistaItems[repasIndex];
+    const q = item.preguntaObj || item;
+    const opcions = Array.isArray(item.opcionsBarrejades) && item.opcionsBarrejades.length 
+      ? item.opcionsBarrejades 
+      : [...(q.opcions || [])];
+    const idxCorrecte = typeof item.correcteIndex === 'number' 
+      ? item.correcteIndex 
+      : opcions.indexOf(q.opcions[q.resposta]);
+    const idxTriat = (typeof item.triadaIndex === 'number') ? item.triadaIndex : undefined;
+    const esCorrecte = !!item.esCorrecte;
+    const esBlanc = item.enBlanc || idxTriat === undefined;
+
+    let idxTriatOriginal = undefined;
+    if (idxTriat !== undefined && opcions[idxTriat]) {
+      idxTriatOriginal = q.opcions.indexOf(opcions[idxTriat]);
+    }
+
+    contenedor.innerHTML = `
+      <div class="pregunta-box" style="background:var(--bg-card,#ffffff);padding:24px 26px;border-radius:18px;border:1.5px solid var(--border-card,#e2e8f0);margin-top:15px;box-shadow:var(--shadow-card);">
+        
+        <!-- Capçalera de repàs -->
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            ${typeof onTornarAlResum === 'function' ? `
+              <button type="button" id="btn-repas-quick-resum" style="background:var(--bg-card-subtle,#f1f5f9);color:var(--text-main,#475569);border:1px solid var(--border-card,#cbd5e1);padding:6px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:4px;">
+                <span>←</span> <span>Resum notes</span>
+              </button>
+            ` : ''}
+            <span style="font-size:13px;font-weight:800;color:var(--text-muted,#64748b);">
+              ${escapeHtml(titolRepas)}: Pregunta ${repasIndex + 1} de ${llistaItems.length}
+            </span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            ${esBlanc ? `
+              <span style="background:var(--bg-card-subtle,#f1f5f9);color:var(--text-muted,#64748b);border:1px solid var(--border-card,#cbd5e1);font-size:11.5px;font-weight:800;padding:4px 10px;border-radius:6px;">
+                ⚪ No contestada (en blanc)
+              </span>
+            ` : esCorrecte ? `
+              <span style="background:rgba(16,185,129,0.15);color:var(--text-correct,#065f46);border:1px solid #10b981;font-size:11.5px;font-weight:800;padding:4px 10px;border-radius:6px;">
+                ✅ Contestada correctament
+              </span>
+            ` : `
+              <span style="background:rgba(239,68,68,0.15);color:var(--text-incorrect,#991b1b);border:1px solid #ef4444;font-size:11.5px;font-weight:800;padding:4px 10px;border-radius:6px;">
+                ❌ Error comès a l'examen
+              </span>
+            `}
+            ${typeof etiquetaIdPreguntaHtml === 'function' ? etiquetaIdPreguntaHtml(q) : ''}
+          </div>
+        </div>
+
+        <!-- Barra de progrés del repàs -->
+        <div style="height:6px;background:var(--bg-card-subtle,#e2e8f0);border-radius:99px;overflow:hidden;margin-bottom:20px;">
+          <div style="width:${((repasIndex + 1) / llistaItems.length) * 100}%;height:100%;background:#10b981;transition:width 0.25s ease;"></div>
+        </div>
+
+        <!-- Enunciat de la pregunta -->
+        <h3 style="margin:0 0 16px;color:var(--text-main,#0f172a);font-size:17.5px;line-height:1.45;font-weight:800;">
+          ${escapeHtml(q.pregunta || '')}
+        </h3>
+
+        <!-- Opcions amb estil clar i contrastat -->
+        <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">
+          ${opcions.map((op, i) => {
+            const esOficial = (i === idxCorrecte);
+            const esTriada = (i === idxTriat);
+
+            let bg = 'var(--bg-card-subtle, #f8fafc)';
+            let bdr = '1.5px solid var(--border-card, #cbd5e1)';
+            let col = 'var(--text-muted, #64748b)';
+            let badge = '';
+
+            if (esOficial) {
+              bg = 'rgba(16,185,129,0.16)';
+              bdr = '2px solid #10b981';
+              col = 'var(--text-correct, #065f46)';
+              badge = '<span style="background:#10b981;color:white;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:800;margin-left:auto;">✓ RESPOSTA OFICIAL</span>';
+            } else if (esTriada && !esOficial) {
+              bg = 'rgba(239,68,68,0.16)';
+              bdr = '2px solid #ef4444';
+              col = 'var(--text-incorrect, #991b1b)';
+              badge = '<span style="background:#ef4444;color:white;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:800;margin-left:auto;">✗ La teva tria</span>';
+            }
+
+            return `
+              <div class="btn-opcio-test optio" style="padding:13px 16px;background:${bg};border:${bdr};border-radius:12px;font-size:14.5px;color:${col};font-weight:600;display:flex;align-items:center;gap:12px;line-height:1.45;">
+                <span style="flex-shrink:0;width:26px;height:26px;border-radius:50%;background:${esOficial ? '#10b981' : esTriada ? '#ef4444' : 'rgba(0,122,255,0.08)'};color:${esOficial || esTriada ? 'white' : '#007aff'};font-size:12px;font-weight:900;display:flex;align-items:center;justify-content:center;">
+                  ${lletres[i] || '•'}
+                </span>
+                <span style="flex:1;">${escapeHtml(op)}</span>
+                ${badge}
+              </div>
+            `;
+          }).join('')}
+        </div>
+
+        <!-- Explicació pedagògica completa amb mnemotècnia, justificació legal i botons interactius -->
+        <div id="repas-explicacio-contenidor">
+          ${(typeof window.generarExplicacioPedagogicaCompleta === 'function')
+            ? window.generarExplicacioPedagogicaCompleta(q, idxCorrecte, idxTriatOriginal, esCorrecte)
+            : `<div style="padding:14px;border-radius:10px;background:var(--bg-card-subtle,#f8fafc);color:var(--text-main,#0f172a);border:1px solid var(--border-card,#e2e8f0);">💡 <b>Resposta:</b> ${escapeHtml(q.opcions[q.resposta])}</div>`
+          }
+        </div>
+
+        <!-- Barra inferior de navegació entre preguntes del repàs -->
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:20px;flex-wrap:wrap;">
+          <div>
+            ${repasIndex > 0 ? `
+              <button type="button" id="btn-prev-repas-preg" style="background:var(--bg-card-subtle,#f1f5f9);color:var(--text-main,#1e293b);border:1.5px solid var(--border-card,#cbd5e1);padding:11px 18px;border-radius:10px;font-weight:800;font-size:13.5px;cursor:pointer;">
+                ← Anterior
+              </button>
+            ` : '<span></span>'}
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            ${typeof onTornarAlResum === 'function' ? `
+              <button type="button" id="btn-repas-footer-resum" style="background:var(--bg-card-subtle,#f1f5f9);color:var(--text-main,#1e293b);border:1.5px solid var(--border-card,#cbd5e1);padding:11px 16px;border-radius:10px;font-weight:800;font-size:13.5px;cursor:pointer;">
+                📊 Resum notes
+              </button>
+            ` : ''}
+            <button type="button" id="btn-next-repas-preg" style="background:linear-gradient(135deg, #002B5E, #007aff);color:white;border:none;padding:12px 24px;border-radius:10px;font-weight:800;font-size:14.5px;cursor:pointer;box-shadow:0 4px 14px rgba(0,122,255,0.25);">
+              ${repasIndex + 1 === llistaItems.length ? 'Finalitzar repàs ✓' : 'Següent pregunta ➔'}
+            </button>
+          </div>
+        </div>
+
+      </div>
+    `;
+
+    // Vincular botons de la targeta pedagògica
+    const contenidorExplicacio = document.getElementById('repas-explicacio-contenidor');
+    if (contenidorExplicacio) {
+      const btnIA = contenidorExplicacio.querySelector('.btn-ia-feedback-ask');
+      if (btnIA && typeof window.obrirModalDubteIA === 'function') {
+        btnIA.addEventListener('click', () => {
+          window.obrirModalDubteIA(q, idxTriatOriginal, esCorrecte);
+        });
+      }
+      const btnGuardar = contenidorExplicacio.querySelector('.btn-guardar-star');
+      if (btnGuardar && typeof window.alternarGuardarPregunta === 'function') {
+        btnGuardar.addEventListener('click', () => {
+          window.alternarGuardarPregunta(q, btnGuardar);
+        });
+      }
+    }
+
+    // Vincular botons de navegació
+    document.getElementById('btn-repas-quick-resum')?.addEventListener('click', onTornarAlResum);
+    document.getElementById('btn-repas-footer-resum')?.addEventListener('click', onTornarAlResum);
+    document.getElementById('btn-prev-repas-preg')?.addEventListener('click', () => {
+      if (repasIndex > 0) {
+        repasIndex--;
+        renderRepas();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    });
+    document.getElementById('btn-next-repas-preg')?.addEventListener('click', () => {
+      repasIndex++;
+      renderRepas();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  }
+
+  renderRepas();
+}
+
 function iniciarRepasUltimTest() {
+  if (window.ultimExamenOficialResum && Array.isArray(window.ultimExamenOficialResum.respostes) && window.ultimExamenOficialResum.respostes.length) {
+    mostrarRepasExamenOficial(window.ultimExamenOficialResum.respostes, 'Últim Examen Oficial', null);
+    return;
+  }
   const preguntes = Array.isArray(window.ultimTestPreguntes) ? window.ultimTestPreguntes : [];
   if (!preguntes.length) { alert('No hi ha cap test recent per repassar.'); return; }
   activeTestContainerId = 'test-container';
-  const contenedor = obtenirContenidorTest();
-  if (!contenedor) return;
-  let index = 0;
-  function render() {
-    if (index >= preguntes.length) {
-      contenedor.innerHTML = `<div style="background:white;padding:30px;border-radius:16px;border:1px solid #e2e8f0;text-align:center;margin-top:20px;"><h2>📚 Repàs del test completat</h2><p>Has repassat les <b>${preguntes.length}</b> preguntes de l'últim test.</p><button id="btn-tornar-inici-repas-test" style="background:#007aff;color:white;border:none;padding:12px 24px;border-radius:8px;font-weight:700;cursor:pointer;">🏠 Tornar a Inici</button></div>`;
-      document.getElementById('btn-tornar-inici-repas-test')?.addEventListener('click', tornarAInici);
-      return;
-    }
-    const q = preguntes[index];
-    const respostaCorrecta = q.opcions?.[q.resposta] ?? q.resposta ?? '';
-    contenedor.innerHTML = `<div style="background:white;padding:25px;border-radius:16px;border:1px solid #e2e8f0;margin-top:20px;"><div style="font-size:12px;color:#64748b;font-weight:700;margin-bottom:8px;">Repàs ${index+1} de ${preguntes.length}</div><h3 style="margin:0 0 18px;color:#0f172a;font-size:17px;">${q.pregunta || ''}</h3><div style="display:flex;flex-direction:column;gap:9px;">${(q.opcions||[]).map((op,i)=>`<div style="padding:12px 14px;border-radius:9px;border:1px solid ${i===q.resposta?'#86efac':'#cbd5e1'};background:${i===q.resposta?'#dcfce7':'#f8fafc'};color:${i===q.resposta?'#166534':'#334155'};font-weight:${i===q.resposta?'800':'500'};">${String.fromCharCode(65+i)}. ${op}${i===q.resposta?' ✅':''}</div>`).join('')}</div><div style="margin-top:16px;background:#eff6ff;border:1px solid #bfdbfe;padding:14px;border-radius:10px;color:#1e3a8a;"><b>Resposta correcta:</b> ${respostaCorrecta}${q.explicacio?`<div style="margin-top:7px;font-size:13px;">${q.explicacio}</div>`:''}</div><button id="btn-seguent-repas-test" style="width:100%;margin-top:16px;background:#007aff;color:white;border:none;padding:12px 20px;border-radius:8px;font-weight:700;cursor:pointer;">${index+1===preguntes.length?'Finalitzar repàs ✓':'Següent pregunta ➔'}</button></div>`;
-    document.getElementById('btn-seguent-repas-test')?.addEventListener('click',()=>{
-      index++;
-      render();
-      requestAnimationFrame(() => {
-        const y = Math.max(0, contenedor.getBoundingClientRect().top + window.scrollY - 20);
-        window.scrollTo({ top: y, behavior: 'smooth' });
-      });
-    });
-  }
-  render();
+  const items = preguntes.map(q => ({
+    preguntaObj: q,
+    opcionsBarrejades: [...q.opcions],
+    triadaIndex: undefined,
+    correcteIndex: q.resposta,
+    esCorrecte: true
+  }));
+  mostrarRepasExamenOficial(items, 'Repàs de preguntes', null);
 }
 
 function mostrarPreguntaAmbSeguent(preguntaObj, indexActual, totalPreguntes, onSeguentOrStats, maybeOnSeguent) {
@@ -4207,21 +4563,21 @@ function mostrarPreguntaAmbSeguent(preguntaObj, indexActual, totalPreguntes, onS
             <!-- Contador visual en temps real (Aciertos, Fallos, Sin responder) -->
             <div id="test-live-counter-bar" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; background: var(--bg-card-subtle, #f8fafc); border: 1.5px solid var(--border-card, #e2e8f0); border-radius: 12px; padding: 10px 14px; margin-bottom: 16px; flex-wrap: wrap;">
               <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                <div style="display: inline-flex; align-items: center; gap: 6px; background: #ecfdf5; border: 1px solid #a7f3d0; padding: 5px 12px; border-radius: 8px; font-size: 13px; font-weight: 700; color: #065f46;">
+                <div style="display: inline-flex; align-items: center; gap: 6px; background: rgba(16,185,129,0.15); border: 1px solid #10b981; padding: 5px 12px; border-radius: 8px; font-size: 13px; font-weight: 700; color: var(--text-correct, #065f46);">
                   <span style="font-size: 14px;">✅</span>
                   <span>Aciertos:</span>
-                  <strong id="contador-live-aciertos" style="font-size: 15px; font-weight: 900; color: #047857;">${encertsInicials}</strong>
+                  <strong id="contador-live-aciertos" style="font-size: 15px; font-weight: 900; color: var(--text-correct, #047857);">${encertsInicials}</strong>
                 </div>
-                <div style="display: inline-flex; align-items: center; gap: 6px; background: #fef2f2; border: 1px solid #fecaca; padding: 5px 12px; border-radius: 8px; font-size: 13px; font-weight: 700; color: #991b1b;">
+                <div style="display: inline-flex; align-items: center; gap: 6px; background: rgba(239,68,68,0.15); border: 1px solid #ef4444; padding: 5px 12px; border-radius: 8px; font-size: 13px; font-weight: 700; color: var(--text-incorrect, #991b1b);">
                   <span style="font-size: 14px;">❌</span>
                   <span>Fallos:</span>
-                  <strong id="contador-live-fallos" style="font-size: 15px; font-weight: 900; color: #b91c1c;">${falladesInicials}</strong>
+                  <strong id="contador-live-fallos" style="font-size: 15px; font-weight: 900; color: var(--text-incorrect, #b91c1c);">${falladesInicials}</strong>
                 </div>
               </div>
-              <div style="display: inline-flex; align-items: center; gap: 6px; background: #f1f5f9; border: 1px solid #cbd5e1; padding: 5px 12px; border-radius: 8px; font-size: 13px; font-weight: 700; color: #334155;">
+              <div style="display: inline-flex; align-items: center; gap: 6px; background: var(--bg-card, #f1f5f9); border: 1px solid var(--border-card, #cbd5e1); padding: 5px 12px; border-radius: 8px; font-size: 13px; font-weight: 700; color: var(--text-muted, #334155);">
                 <span style="font-size: 14px;">⏳</span>
                 <span>Sin responder:</span>
-                <strong id="contador-live-sin-responder" style="font-size: 15px; font-weight: 900; color: #0f172a;">${pendentsInicials}</strong>
+                <strong id="contador-live-sin-responder" style="font-size: 15px; font-weight: 900; color: var(--text-main, #0f172a);">${pendentsInicials}</strong>
               </div>
             </div>
 
@@ -4232,6 +4588,9 @@ function mostrarPreguntaAmbSeguent(preguntaObj, indexActual, totalPreguntes, onS
                   Pregunta ${indexActual + 1} de ${totalPreguntes}
                 </span>
                 <div style="display:flex;align-items:center;gap:6px;">
+                  <button type="button" class="btn-guardar-star" data-id="${escapeHtml(preguntaObj.id || '')}" style="background:var(--bg-card-subtle,#f8fafc);color:var(--text-muted,#475569);border:1px solid var(--border-card,#cbd5e1);border-radius:8px;padding:5px 10px;font-size:12px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:4px;" title="Guardar pregunta per repassar-la quan vulguis">
+                    ${(typeof window.esPreguntaGuardada === 'function' && window.esPreguntaGuardada(preguntaObj.id)) ? '⭐ <span class="lbl-guardar-txt">Guardada</span>' : '☆ <span class="lbl-guardar-txt">Guardar</span>'}
+                  </button>
                   <button type="button" class="btn-ia-dubte-head" title="Preguntar a la IA sobre aquesta pregunta" style="background:var(--bg-card-subtle,#eff6ff);color:#1d4ed8;border:1px solid #bfdbfe;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:5px;">
                     <span>🤖</span><span>Dubte IA</span>
                   </button>
@@ -4252,6 +4611,16 @@ function mostrarPreguntaAmbSeguent(preguntaObj, indexActual, totalPreguntes, onS
         <div id="feedback" style="margin-top: 16px; max-width: 820px; margin-left: auto; margin-right: auto;"></div>
     `;
 
+    const btnGuardarHead = contenedor.querySelector('.btn-guardar-star');
+    if (btnGuardarHead) {
+        btnGuardarHead.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (typeof window.alternarGuardarPregunta === 'function') {
+                window.alternarGuardarPregunta(preguntaObj, btnGuardarHead);
+            }
+        });
+    }
+
     const btnDubteHead = contenedor.querySelector('.btn-ia-dubte-head');
     if (btnDubteHead) {
         btnDubteHead.addEventListener('click', (e) => {
@@ -4267,6 +4636,7 @@ function mostrarPreguntaAmbSeguent(preguntaObj, indexActual, totalPreguntes, onS
     
     opcionsBarrejades.forEach((opcio, index) => {
         const btn = document.createElement('button');
+        btn.className = 'btn-opcio-test optio';
         btn.style.cssText = `
           padding: 14px 16px;
           background: var(--bg-card-subtle, #f8fafc);
@@ -4326,18 +4696,18 @@ function mostrarPreguntaAmbSeguent(preguntaObj, indexActual, totalPreguntes, onS
             }
 
             if (esCorrecte) {
-                btn.style.background = 'rgba(16,185,129,0.12)';
+                btn.style.background = 'rgba(16,185,129,0.18)';
                 btn.style.borderColor = '#10b981';
-                btn.style.color = '#065f46';
+                btn.style.color = 'var(--text-correct, #065f46)';
             } else {
-                btn.style.background = 'rgba(239,68,68,0.12)';
+                btn.style.background = 'rgba(239,68,68,0.18)';
                 btn.style.borderColor = '#ef4444';
-                btn.style.color = '#991b1b';
+                btn.style.color = 'var(--text-incorrect, #991b1b)';
                 llistaOpcions.querySelectorAll('button').forEach((b, idx) => {
                     if (idx === nouIndexCorrecte) {
-                        b.style.background = 'rgba(16,185,129,0.12)';
+                        b.style.background = 'rgba(16,185,129,0.18)';
                         b.style.borderColor = '#10b981';
-                        b.style.color = '#065f46';
+                        b.style.color = 'var(--text-correct, #065f46)';
                     }
                 });
             }
@@ -4351,12 +4721,18 @@ function mostrarPreguntaAmbSeguent(preguntaObj, indexActual, totalPreguntes, onS
                 </div>
             `;
 
+            const explicacioPedagogica = (typeof window.generarExplicacioPedagogicaCompleta === 'function')
+                ? window.generarExplicacioPedagogicaCompleta(preguntaObj, nouIndexCorrecte, index, esCorrecte)
+                : `
+                    <div style="background: ${esCorrecte ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)'}; border: 1.5px solid ${esCorrecte ? '#6ee7b7' : '#fca5a5'}; padding: 18px 20px; border-radius: 14px; color: ${esCorrecte ? '#065f46' : '#991b1b'}; margin-bottom: 16px;">
+                        <p style="margin: 0 0 6px 0; font-weight: 800; font-size: 15px;">${esCorrecte ? '✅ Resposta Correcta!' : '❌ Resposta Incorrecta.'}</p>
+                        <p style="margin: 0; font-size: 13.5px; line-height: 1.5;">${preguntaObj.explicacio || ''}</p>
+                        ${feedbackIAPrompt}
+                    </div>
+                `;
+
             feedback.innerHTML = `
-                <div style="background: ${esCorrecte ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)'}; border: 1.5px solid ${esCorrecte ? '#6ee7b7' : '#fca5a5'}; padding: 18px 20px; border-radius: 14px; color: ${esCorrecte ? '#065f46' : '#991b1b'}; margin-bottom: 16px;">
-                    <p style="margin: 0 0 6px 0; font-weight: 800; font-size: 15px;">${esCorrecte ? '✅ Resposta Correcta!' : '❌ Resposta Incorrecta.'}</p>
-                    <p style="margin: 0; font-size: 13.5px; line-height: 1.5;">${preguntaObj.explicacio || ''}</p>
-                    ${feedbackIAPrompt}
-                </div>
+                ${explicacioPedagogica}
                 <button id="btn-seguent-pregunta" style="background: linear-gradient(135deg, #002B5E, #007aff); color: white; border: none; padding: 14px 24px; border-radius: 12px; font-weight: 800; font-size: 15px; cursor: pointer; width: 100%; box-shadow: 0 4px 14px rgba(0,122,255,0.3); display: flex; align-items: center; justify-content: center; gap: 8px;">
                   <span>${indexActual + 1 === totalPreguntes ? '🏁 Finalitzar Test' : 'Següent Pregunta'}</span> <span>➔</span>
                 </button>
@@ -4388,6 +4764,8 @@ function mostrarPreguntaAmbSeguent(preguntaObj, indexActual, totalPreguntes, onS
 
   window.iniciarExamen = iniciarExamen;
   window.iniciarExamenOficial = iniciarExamenOficial;
+  window.mostrarRepasExamenOficial = mostrarRepasExamenOficial;
+  window.iniciarRepasUltimTest = iniciarRepasUltimTest;
   window.mostrarSelectorSeccions = mostrarSelectorSeccions;
   window.mostrarSelectorPreguntas = mostrarSelectorPreguntas;
   window.mostrarPreguntaAmbSeguent = mostrarPreguntaAmbSeguent;

@@ -181,22 +181,80 @@ Si us plau, respon de forma estructurada, clara i en català.`;
 
       if (carregant) carregant.style.display = 'none';
 
-      if (!res.ok && (!dades || !dades.text)) {
-        renderitzarErrorIA((dades && (dades.error || dades.message)) || `Error HTTP ${res.status}: ${res.statusText || 'Error al servidor'}`);
-        return;
+      // 1. Si la resposta remota és vàlida
+      if (res.ok) {
+        const textResposta = (dades && (dades.text || dades.resposta || dades.message));
+        if (textResposta && typeof textResposta === 'string' && textResposta.trim().length > 0 && !textResposta.includes('404: NOT_FOUND')) {
+          renderitzarRespostaIA(textResposta, 'Gemini IA (Backend)');
+          return;
+        }
       }
 
-      const textResposta = (dades && (dades.text || dades.resposta || dades.message)) || rawText;
-      if (textResposta && typeof textResposta === 'string' && textResposta.trim().length > 0) {
-        renderitzarRespostaIA(textResposta);
-      } else if (dades && typeof dades === 'object') {
-        renderitzarRespostaIA(dades);
-      } else {
-        renderitzarErrorIA((dades && dades.error) || 'No s\'ha rebut cap resposta de la IA.');
+      // 2. Intentar amb API local si està disponible
+      try {
+        const resLocal = await fetch('/api/gemini/dubte-pregunta', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            preguntaObj: preguntaActualDubte,
+            opcioTriada: opcioTriadaActual,
+            dubte: dubte,
+            banc: bancActual
+          })
+        });
+        if (resLocal.ok) {
+          const dadesLocal = await resLocal.json();
+          if (dadesLocal.success && dadesLocal.resposta) {
+            renderitzarRespostaIA(dadesLocal.resposta, 'Gemini IA (Local)');
+            return;
+          }
+        }
+      } catch (_) {}
+
+      // 3. Generar explicació pedagògica completa d'alta precisió
+      if (typeof window.generarExplicacioPedagogicaCompleta === 'function') {
+        const nouIndexCorrecte = (preguntaActualDubte.opcions && typeof preguntaActualDubte.resposta_correcta === 'number')
+          ? preguntaActualDubte.resposta_correcta
+          : 0;
+        const htmlPedagogic = window.generarExplicacioPedagogicaCompleta(
+          preguntaActualDubte,
+          nouIndexCorrecte,
+          opcioTriadaActual !== null ? opcioTriadaActual : nouIndexCorrecte,
+          opcioTriadaActual === nouIndexCorrecte
+        );
+        const contingut = document.getElementById('dia-resposta-contingut');
+        const zonaResposta = document.getElementById('dia-zona-resposta');
+        if (contingut && zonaResposta) {
+          contingut.innerHTML = htmlPedagogic;
+          zonaResposta.style.display = 'block';
+          return;
+        }
       }
+
+      renderitzarErrorIA((dades && (dades.error || dades.message)) || `El servidor remot de Gemini no està disponible (HTTP ${res.status}).`);
     } catch (err) {
-      console.error('Error enviant dubte a la IA:', err);
+      console.warn('Error en consulta remota, aplicant explicació pedagògica local:', err);
       if (carregant) carregant.style.display = 'none';
+
+      if (typeof window.generarExplicacioPedagogicaCompleta === 'function' && preguntaActualDubte) {
+        const nouIndexCorrecte = (preguntaActualDubte.opcions && typeof preguntaActualDubte.resposta_correcta === 'number')
+          ? preguntaActualDubte.resposta_correcta
+          : 0;
+        const htmlPedagogic = window.generarExplicacioPedagogicaCompleta(
+          preguntaActualDubte,
+          nouIndexCorrecte,
+          opcioTriadaActual !== null ? opcioTriadaActual : nouIndexCorrecte,
+          opcioTriadaActual === nouIndexCorrecte
+        );
+        const contingut = document.getElementById('dia-resposta-contingut');
+        const zonaResposta = document.getElementById('dia-zona-resposta');
+        if (contingut && zonaResposta) {
+          contingut.innerHTML = htmlPedagogic;
+          zonaResposta.style.display = 'block';
+          return;
+        }
+      }
+
       renderitzarErrorIA(err.message || 'Error de connexió.');
     } finally {
       if (btnConsultar) {

@@ -1147,9 +1147,80 @@ Article 47. Competència sancionadora
     }
   ];
 
+  function cercarGuiaMossosClient(pregunta) {
+    if (!window.GUIA_MOSSOS_2026 || !Array.isArray(window.GUIA_MOSSOS_2026.temes)) return null;
+    const q = (pregunta || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const paraules = q.split(/\s+/).filter(p => p.length > 3 && !['quin', 'quina', 'quins', 'quines', 'quan', 'on', 'com', 'perque', 'sobre', 'aquesta', 'aquest'].includes(p));
+
+    // Comprovació ràpida per al naixement de Catalunya
+    if ((q.includes('naix') || q.includes('neix') || q.includes('origen') || q.includes('fundacio') || q.includes('creacio')) && q.includes('catalunya')) {
+      const temaA1 = window.GUIA_MOSSOS_2026.temes.find(t => t.id === 'A1') || window.GUIA_MOSSOS_2026.temes[0];
+      return {
+        tema: temaA1,
+        contingut: `El **naixement de Catalunya** com a entitat política se situa entre els **segles IX i X** (Tema A.1, Pàg. 9-19 de la Guia Oficial).
+
+📌 **Fites cronològiques oficials d'oposició:**
+• **Segle VIII (Marca Hispànica):** Territori de frontera defensiva creat per l'emperador franc Carlemany per aturar l'avanç musulmà.
+• **Any 897 (Guifré el Pelós):** Mort del comte Guifré el Pelós. Per primera vegada els comtats catalans (Barcelona, Girona, Osona) es transmeten per herència familiar sense designació del rei franc.
+• **Any 988 (Borrell II):** Després de la destrucció de Barcelona per Almansor (985) sense rebre auxili franc, el comte Borrell II es nega a renovar el vassallatge al nou rei franc Hug Capet, consolidant la independència *de facto* dels comtats catalans.
+
+💡 **Com recordar-ho al test:**
+Si et pregunten pel segle: **Segles IX i X**. Si pregunten per l'any d'inici de la transmissió hereditària comtal: **897** (Guifré el Pelós). Si pregunten per la desvinculació del rei franc: **988** (Borrell II).`
+      };
+    }
+
+    let millorTema = null;
+    let maxPunts = 0;
+    let textTrobat = '';
+
+    for (const t of window.GUIA_MOSSOS_2026.temes) {
+      let punts = 0;
+      const tNorm = (t.titol + ' ' + (t.epigrafs || []).join(' ') + ' ' + (t.ideesForca || []).join(' ') + ' ' + (t.paraulesClau || []).join(' ')).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      
+      for (const p of paraules) {
+        if (tNorm.includes(p)) punts += 2;
+      }
+      if (punts > maxPunts) {
+        maxPunts = punts;
+        millorTema = t;
+        const idea = (t.ideesForca || []).find(f => {
+          const fNorm = f.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+          return paraules.some(p => fNorm.includes(p));
+        });
+        textTrobat = idea || (t.ideesForca && t.ideesForca[0]) || (t.epigrafs && t.epigrafs[0]) || '';
+      }
+    }
+
+    if (millorTema && maxPunts >= 3) {
+      return {
+        tema: millorTema,
+        contingut: `Segons la **Guia d'Estudi Oficial de Mossos d'Esquadra (Juny 2026)** per al **${millorTema.codi}: ${millorTema.titol}** (Pàgines ${millorTema.pagines}):
+
+📌 **Contingut clau d'examen:**
+${textTrobat}
+
+📋 **Epígrafs relacionats:**
+${(millorTema.epigrafs || []).slice(0, 3).map(e => `• ${e}`).join('\n')}
+
+💡 **Idea força oficial:**
+${(millorTema.ideesForca || [])[0] || 'Revisa aquest tema a la guia oficial per consolidar el coneixement.'}`
+      };
+    }
+    return null;
+  }
+
   function generarRespostaEstructuradaAgentMedina(pregunta, cos, ambit, docContext) {
     const q = (pregunta || '').toLowerCase();
     const cosNom = cos === 'pl' ? 'Policia Local' : cos === 'mossos' ? "Mossos d'Esquadra" : 'PL / Mossos';
+
+    // 1. Cerca a la Guia Oficial de Mossos d'Esquadra
+    const resultatGuia = cercarGuiaMossosClient(pregunta);
+    if (resultatGuia) {
+      return `📚 **Base de Coneixement Oficial Mossos d'Esquadra 2026**
+${resultatGuia.contingut}
+
+ℹ️ *Nota: Aquesta resposta s'ha obtingut directament de la Guia Oficial d'Estudi integrada a l'aplicació.*`;
+    }
 
     if (q.includes('495') || (q.includes('delicte') && q.includes('lleu')) || (q.includes('detencio') && q.includes('falta'))) {
       return `**Regla general:** Per delictes lleus no s'ha de detenir, *excepte* si el presumpte autor no té domicili conegut o no presta fiança bastant (Art. 495 LECrim).
@@ -1206,15 +1277,29 @@ El robatori amb força o amb violència **MAI és delicte lleu**, encara que l'o
 El trasllat a comissaria per identificació **NO és una detenció penal**. No s'informa dels drets de l'Art. 520 LECrim com a detingut sinó del procediment identificatiu de seguretat ciutadana.`;
     }
 
-    return `**Regla general:** Actuació segons el marc jurídic de ${cosNom} d'acord amb la Constitució Espanyola (Arts. 9.3, 14, 17, 104) i Llei Orgànica 2/1986.
+    // Si la pregunta sembla una infracció o actuació policial concreta
+    if (q.includes('multa') || q.includes('infraccio') || q.includes('denuncia') || q.includes('sancio') || q.includes('policia') || q.includes('agent') || q.includes('carrer') || q.includes('via publica')) {
+      return `**Regla general:** Actuació segons el marc jurídic de ${cosNom} d'acord amb la Constitució Espanyola (Arts. 9.3, 14, 17, 104) i Llei Orgànica 2/1986.
 
 📄 **Procediment d'actuació:**
-1. **Tipicitat:** Valoració de si la conducta de "${escapeHtml(pregunta.trim())}" és infracció penal, administrativa (LO 4/2015 o RGC) o ordenança municipal.
+1. **Tipicitat:** Valoració de la conducta segons la normativa aplicable (LO 4/2015, Codi Penal, RGC o ordenança municipal).
 2. **Principis d'intervenció:** Congruència, oportunitat i proporcionalitat permanent en la resposta policial.
 3. **Diligències:** Confecció de l'acta de denúncia o atestat policial amb recollida objectiva d'indicis.
 
 💡 **Clau d'oposició:**
 Verifica sempre la competència sancionadora: Alcaldia per ordenances i trànsit urbà (PL), o Departament d'Interior per àmbit autonòmic (Mossos d'Esquadra).`;
+    }
+
+    // Resposta general pedagògica i diagnòstic de connexió
+    return `📚 **Consulta sobre el temari: "${escapeHtml(pregunta.trim())}"**
+
+Per respondre amb màxima precisió a preguntes específiques d'aquest tipus, la IA consulta el temari complet i les lleis vigents.
+
+⚙️ **Estat del servei d'Intel·ligència Artificial:**
+• El backend remot a Vercel (\`https://backend-opos-tests.vercel.app/api/chat\`) ha retornat un error o no està disponible actualment.
+• Pots revisar el temari oficial a la pestanya **Guia Mossos 2026** o **Policia Local**, o fer una consulta directa sobre procediments policials (detenció, alcoholèmia, furts, identificacions).
+
+💡 *Consell:* Perquè la IA respongui lliurement des del teu repositori de GitHub a Vercel, assegura't de tenir configurat el fitxer \`vercel.json\` i la variable d'entorn \`GEMINI_API_KEY\` a Vercel.`;
   }
 
   function renderitzarInterficieXatTelegram(container) {
@@ -1240,6 +1325,9 @@ Verifica sempre la competència sancionadora: Alcaldia per ordenances i trànsit
           </div>
 
           <div style="display: flex; align-items: center; gap: 6px;">
+            <button type="button" class="tutor-topbar-btn" onclick="window.obrirModalPerfil()" title="Configura el teu àlies / nom amb què et tractarà la IA" style="font-size: 11px; padding: 4px 8px; border-radius: 8px;">
+              <span>👤</span> <span>${(localStorage.getItem('agentmedina_user_nickname') || '').trim() || 'Àlies'}</span>
+            </button>
             <button type="button" id="tutor-btn-filtres" class="tutor-topbar-btn ${panellFiltresObert ? 'active' : ''}" onclick="window.toggleTutorFiltres()" title="Filtres de cos i àmbit normatiu">
               <span>⚙️ Filtres</span>
               <span style="font-size: 10px; opacity: 0.85;">${panellFiltresObert ? '▲' : '▼'}</span>
@@ -2024,7 +2112,14 @@ Format requerit per a cadascuna:
           municipi: docActiu ? docActiu.municipi : null,
           cos: cosActiu,
           guiaTemaId: guiaTemaId,
-          usuariNom: uFb?.displayName || (uFb?.email ? uFb.email.split('@')[0] : 'Òscar'),
+          usuariNom: (() => {
+            const nickPersonalitzat = (localStorage.getItem('agentmedina_user_nickname') || '').trim();
+            if (nickPersonalitzat) return nickPersonalitzat;
+            if (uFb?.displayName && !uFb.displayName.toLowerCase().includes('oscar') && !uFb.displayName.toLowerCase().includes('òscar')) {
+              return uFb.displayName;
+            }
+            return 'Aspirant';
+          })(),
           usuariEmail: uFb?.email || null
         })
       });

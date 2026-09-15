@@ -26,6 +26,8 @@
   --purple-accent: #8b5cf6;
   --amber-accent: #f59e0b;
   --cyan-accent: #06b6d4;
+  --text-correct: #065f46;
+  --text-incorrect: #991b1b;
 
   --sidebar-bg: #0f172a;
   --sidebar-text: #ffffff;
@@ -44,6 +46,8 @@ body.theme-dark {
   --text-main: #f8fafc;
   --text-muted: #94a3b8;
   --text-dim: #64748b;
+  --text-correct: #34d399;
+  --text-incorrect: #f87171;
   --shadow-card: 0 6px 20px rgba(0, 0, 0, 0.45);
   --shadow-hover: 0 12px 30px rgba(0, 122, 255, 0.25);
   
@@ -1069,7 +1073,13 @@ html[data-theme="dark"] .convocatories-box-btn-add:hover {
 /* Question box & test options in dark mode */
 html.theme-dark .pregunta-box,
 body.theme-dark .pregunta-box,
-html[data-theme="dark"] .pregunta-box {
+html[data-theme="dark"] .pregunta-box,
+html.theme-dark #pl-zona-test > div,
+body.theme-dark #pl-zona-test > div,
+html[data-theme="dark"] #pl-zona-test > div,
+html.theme-dark #mossos-zona-test > div,
+body.theme-dark #mossos-zona-test > div,
+html[data-theme="dark"] #mossos-zona-test > div {
   background: #151e32 !important;
   border-color: #263554 !important;
   color: #f8fafc !important;
@@ -1077,7 +1087,13 @@ html[data-theme="dark"] .pregunta-box {
 
 html.theme-dark .btn-opcio-test,
 body.theme-dark .btn-opcio-test,
-html[data-theme="dark"] .btn-opcio-test {
+html[data-theme="dark"] .btn-opcio-test,
+html.theme-dark #llista-opcions button,
+body.theme-dark #llista-opcions button,
+html[data-theme="dark"] #llista-opcions button,
+html.theme-dark #llista-opcions-oficial button,
+body.theme-dark #llista-opcions-oficial button,
+html[data-theme="dark"] #llista-opcions-oficial button {
   background: #1e2942 !important;
   border-color: #263554 !important;
   color: #f8fafc !important;
@@ -1085,9 +1101,106 @@ html[data-theme="dark"] .btn-opcio-test {
 
 html.theme-dark .btn-opcio-test:hover,
 body.theme-dark .btn-opcio-test:hover,
-html[data-theme="dark"] .btn-opcio-test:hover {
+html[data-theme="dark"] .btn-opcio-test:hover,
+html.theme-dark #llista-opcions button:hover,
+body.theme-dark #llista-opcions button:hover,
+html[data-theme="dark"] #llista-opcions button:hover,
+html.theme-dark #llista-opcions-oficial button:hover,
+body.theme-dark #llista-opcions-oficial button:hover,
+html[data-theme="dark"] #llista-opcions-oficial button:hover {
   border-color: #38bdf8 !important;
-  background: rgba(56, 189, 248, 0.15) !important;
+  background: rgba(56, 189, 248, 0.18) !important;
+  color: #ffffff !important;
+}
+
+/* Counter bars in test and exam */
+html.theme-dark #test-live-counter-bar,
+body.theme-dark #test-live-counter-bar,
+html[data-theme="dark"] #test-live-counter-bar,
+html.theme-dark #oficial-live-counter-bar,
+body.theme-dark #oficial-live-counter-bar,
+html[data-theme="dark"] #oficial-live-counter-bar {
+  background: #151e32 !important;
+  border-color: #263554 !important;
+  color: #f8fafc !important;
+}
+
+html.theme-dark #test-live-counter-bar div[style*="background: #f1f5f9"],
+body.theme-dark #test-live-counter-bar div[style*="background: #f1f5f9"],
+html.theme-dark #oficial-live-counter-bar div[style*="background: #f1f5f9"],
+body.theme-dark #oficial-live-counter-bar div[style*="background: #f1f5f9"] {
+  background: #1e2942 !important;
+  border-color: #263554 !important;
+  color: #94a3b8 !important;
+}
+
+html.theme-dark #contador-live-sin-responder,
+body.theme-dark #contador-live-sin-responder,
+html.theme-dark #oficial-live-sin-responder,
+body.theme-dark #oficial-live-sin-responder {
+  color: #f8fafc !important;
+}
+
+/* Exit/return buttons in test */
+html.theme-dark #btn-pl-sortir-test,
+body.theme-dark #btn-pl-sortir-test,
+html[data-theme="dark"] #btn-pl-sortir-test,
+html.theme-dark #btn-mossos-sortir-test,
+body.theme-dark #btn-mossos-sortir-test,
+html[data-theme="dark"] #btn-mossos-sortir-test {
+  background: #1e2942 !important;
+  border-color: #263554 !important;
+  color: #f8fafc !important;
+}
+
+/* Pedagogical card in dark mode */
+html.theme-dark .explicacio-pedagogica-card,
+body.theme-dark .explicacio-pedagogica-card,
+html[data-theme="dark"] .explicacio-pedagogica-card {
+  color: #f8fafc !important;
+}
+
+html.theme-dark .explicacio-pedagogica-card div[style*="background:var(--bg-card"],
+body.theme-dark .explicacio-pedagogica-card div[style*="background:var(--bg-card"],
+html.theme-dark .explicacio-pedagogica-card div[style*="background: var(--bg-card"],
+body.theme-dark .explicacio-pedagogica-card div[style*="background: var(--bg-card"],
+html[data-theme="dark"] .explicacio-pedagogica-card div[style*="background:var(--bg-card"] {
+  background: #1e2942 !important;
+  border-color: #263554 !important;
+  color: #f8fafc !important;
+}
+
+html.theme-dark .btn-guardar-star,
+body.theme-dark .btn-guardar-star,
+html[data-theme="dark"] .btn-guardar-star {
+  background: #1e2942 !important;
+  border-color: #263554 !important;
+  color: #e2e8f0 !important;
+}
+
+/* Modal Selector de preguntes */
+html.theme-dark #modal-selector-preguntes > div > div,
+body.theme-dark #modal-selector-preguntes > div > div,
+html[data-theme="dark"] #modal-selector-preguntes > div > div {
+  background: #151e32 !important;
+  border-color: #263554 !important;
+  color: #f8fafc !important;
+}
+
+html.theme-dark .btn-preset-q-modal:not([style*="background: rgb(0, 122, 255)"]):not([style*="background:#007aff"]):not([style*="background: #007aff"]),
+body.theme-dark .btn-preset-q-modal:not([style*="background: rgb(0, 122, 255)"]):not([style*="background:#007aff"]):not([style*="background: #007aff"]) {
+  background: #1e2942 !important;
+  border-color: #263554 !important;
+  color: #f8fafc !important;
+}
+
+/* Results / Finish card */
+html.theme-dark .examen-finalitzat-card,
+body.theme-dark .examen-finalitzat-card,
+html[data-theme="dark"] .examen-finalitzat-card {
+  background: #151e32 !important;
+  border-color: #263554 !important;
+  color: #f8fafc !important;
 }
 
 /* ==========================================================================
