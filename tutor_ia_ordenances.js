@@ -1085,7 +1085,16 @@ Article 47. Competència sancionadora
             <form id="tutor-fs-chat-form" onsubmit="window.enviarMissatgeTutor(event)" style="display: flex; gap: 12px; align-items: flex-end;">
               <div style="flex: 1; background: #0f172a; border: 1.5px solid #334155; border-radius: 14px; padding: 10px 14px; display: flex; flex-direction: column; gap: 4px; box-shadow: 0 4px 16px rgba(0,0,0,0.3);">
                 <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #64748b;">
-                  <span>Escriu la teva consulta jurídica, article o cas pràctic:</span>
+                  <span style="display:inline-flex; align-items:center; gap:6px;">
+                    <span style="color:#10b981;">●</span> <span>Prioritat: <b>Documents & Temari Oficial</b></span>
+                    <button 
+                      type="button" 
+                      class="tutor-toggle-internet-btn" 
+                      onclick="window.toggleCercaInternetGlobal()" 
+                      style="margin-left: 8px; font-size: 10px; padding: 2px 7px; border-radius: 5px; cursor: pointer; background: ${window.__cercarInternetActiva ? 'rgba(56,189,248,0.2)' : 'rgba(255,255,255,0.05)'}; border: 1px solid ${window.__cercarInternetActiva ? '#38bdf8' : 'rgba(255,255,255,0.12)'}; color: ${window.__cercarInternetActiva ? '#38bdf8' : '#94a3b8'};">
+                      🌐 Cerca Internet: ${window.__cercarInternetActiva ? 'ACTIVA' : 'DESACTIVADA'}
+                    </button>
+                  </span>
                   <span>Enter per enviar · Shift+Enter salt de línia</span>
                 </div>
                 <textarea 
@@ -1290,16 +1299,12 @@ El trasllat a comissaria per identificació **NO és una detenció penal**. No s
 Verifica sempre la competència sancionadora: Alcaldia per ordenances i trànsit urbà (PL), o Departament d'Interior per àmbit autonòmic (Mossos d'Esquadra).`;
     }
 
-    // Resposta general pedagògica i diagnòstic de connexió
+    // Resposta general quan no es troba referència directa als documents locals
     return `📚 **Consulta sobre el temari: "${escapeHtml(pregunta.trim())}"**
 
-Per respondre amb màxima precisió a preguntes específiques d'aquest tipus, la IA consulta el temari complet i les lleis vigents.
+Als teus documents i temari oficial no he trobat cap referència directa sobre aquest concepte.
 
-⚙️ **Estat del servei d'Intel·ligència Artificial:**
-• El backend remot a Vercel (\`https://backend-opos-tests.vercel.app/api/chat\`) ha retornat un error o no està disponible actualment.
-• Pots revisar el temari oficial a la pestanya **Guia Mossos 2026** o **Policia Local**, o fer una consulta directa sobre procediments policials (detenció, alcoholèmia, furts, identificacions).
-
-💡 *Consell:* Perquè la IA respongui lliurement des del teu repositori de GitHub a Vercel, assegura't de tenir configurat el fitxer \`vercel.json\` i la variable d'entorn \`GEMINI_API_KEY\` a Vercel.`;
+Vols que busqui a Internet i a la legislació general vigent per complementar la resposta?`;
   }
 
   function renderitzarInterficieXatTelegram(container) {
@@ -1407,6 +1412,20 @@ Per respondre amb màxima precisió a preguntes específiques d'aquest tipus, la
             </button>
             <button type="button" class="tutor-prompt-chip" onclick="window.enviarPromptRapid('Planteja\\'m un supòsit pràctic policial breu amb preguntes tipus test i solució jurídica.')">
               📝 Supòsit pràctic d'examen
+            </button>
+          </div>
+
+          <!-- Barra d'estat de fonts i mode de cerca -->
+          <div style="display: flex; align-items: center; justify-content: space-between; padding: 2px 6px 6px 6px; font-size: 11px;">
+            <span style="color: #94a3b8; display: inline-flex; align-items: center; gap: 4px;">
+              <span style="color: #10b981;">●</span> <span>Prioritat: <b>Documents & Temari Oficial</b></span>
+            </span>
+            <button 
+              type="button" 
+              class="tutor-toggle-internet-btn" 
+              onclick="window.toggleCercaInternetGlobal()" 
+              style="font-size: 11px; padding: 2px 8px; border-radius: 6px; cursor: pointer; transition: all 0.2s; background: ${window.__cercarInternetActiva ? 'rgba(56,189,248,0.2)' : 'rgba(255,255,255,0.05)'}; border: 1px solid ${window.__cercarInternetActiva ? '#38bdf8' : 'rgba(255,255,255,0.12)'}; color: ${window.__cercarInternetActiva ? '#38bdf8' : '#94a3b8'};">
+              🌐 Cerca Internet: ${window.__cercarInternetActiva ? 'ACTIVA' : 'DESACTIVADA'}
             </button>
           </div>
 
@@ -1568,7 +1587,32 @@ Per respondre amb màxima precisió a preguntes específiques d'aquest tipus, la
     }
 
     // Missatge del Tutor (Agent Medina)
-    const contextText = msg.contextDoc || (cosActiu === 'pl' ? 'PL' : cosActiu === 'mossos' ? 'Mossos' : 'PL / Mossos');
+    const textNet = msg.text || '';
+    const esJuridic = textNet.includes('⚖️') || textNet.includes('🎯') || textNet.includes('Article') || textNet.includes('Llei') || textNet.includes('Fonamentació') || textNet.includes('LECrim') || textNet.includes('Codi Penal');
+    const esTest = textNet.includes('📝') || (textNet.includes('pregunta') && textNet.includes('opcions'));
+    const esInternet = textNet.includes('🌐') || msg.cercatInternet;
+    
+    let titolHeader = 'Tutor Agent Medina';
+    let iconaHeader = '👮';
+    let badgeContext = '💬 Xat en directe';
+    
+    if (esTest) {
+      iconaHeader = '📝';
+      titolHeader = 'Test d\'Avaluació · Agent Medina';
+      badgeContext = msg.contextDoc || (cosActiu === 'pl' ? 'Policia Local' : 'Guia Mossos 2026');
+    } else if (esInternet) {
+      iconaHeader = '🌐';
+      titolHeader = 'Cerca Ampliada · Agent Medina';
+      badgeContext = 'Internet & Legislació General';
+    } else if (esJuridic) {
+      iconaHeader = '⚖️';
+      titolHeader = 'Anàlisi Jurídica · Agent Medina';
+      badgeContext = msg.contextDoc ? `Context: ${msg.contextDoc}` : (cosActiu === 'pl' ? 'Policia Local' : 'Guia Mossos 2026');
+    }
+
+    const haDeProposarInternet = msg.proposarCercaInternet || (textNet.includes('Vols que busqui a Internet') || textNet.includes('Als teus documents i temari oficial no trobo'));
+    const consultaOriginalVal = msg.consultaOriginal || '';
+
     return `
       <div style="display:flex; gap:10px; align-items:flex-start; max-width:92%; margin-bottom:8px;">
         <div style="width:34px; height:34px; border-radius:50%; background:#0084ff; color:#ffffff; display:flex; align-items:center; justify-content:center; font-size:12.5px; font-weight:900; flex-shrink:0; box-shadow:0 2px 8px rgba(0,132,255,0.4); margin-top:2px;">
@@ -1578,12 +1622,23 @@ Per respondre amb màxima precisió a preguntes específiques d'aquest tipus, la
         <div style="background:#111e32; border:1.5px solid #1c314e; border-radius:18px; padding:14px 16px; color:#f1f5f9; box-shadow:0 4px 14px rgba(0,0,0,0.3); flex:1; font-size:13.5px; line-height:1.55; word-break:break-word;">
           <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; padding-bottom:6px; border-bottom:1px solid rgba(255,255,255,0.06); font-size:13px; font-weight:800; color:#38bdf8;">
             <span style="display:flex; align-items:center; gap:6px;">
-              <span>⚖️</span> <span>Anàlisi Jurídica</span>
+              <span>${iconaHeader}</span> <span>${escapeHtml(titolHeader)}</span>
             </span>
-            <span style="font-size:11px; font-weight:500; color:#94a3b8;">Context: ${escapeHtml(contextText)}</span>
+            <span style="font-size:11px; font-weight:500; color:#94a3b8;">${escapeHtml(badgeContext)}</span>
           </div>
 
           <div style="white-space:pre-line;">${formatejarTextResposta(msg.text)}</div>
+
+          ${haDeProposarInternet ? `
+            <div style="margin-top:14px; padding:12px 14px; background:rgba(2,132,199,0.14); border:1.5px dashed #0284c7; border-radius:12px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+              <div style="font-size:12.5px; color:#e0f2fe; display:flex; align-items:center; gap:6px;">
+                <span>🌐</span> <span><b>No trobat als documents oficials:</b> Vols cercar a Internet i a la legislació general vigent?</span>
+              </div>
+              <button type="button" onclick="window.confirmarCercaInternet('${encodeURIComponent(consultaOriginalVal)}')" style="background:#0284c7; color:#ffffff; border:none; padding:8px 16px; border-radius:8px; font-size:12px; font-weight:800; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(2,132,199,0.4); transition:all 0.15s;">
+                🔍 Sí, cerca a Internet
+              </button>
+            </div>
+          ` : ''}
 
           <div style="display:flex; align-items:center; justify-content:flex-end; gap:8px; margin-top:8px; padding-top:4px; border-top:1px solid rgba(255,255,255,0.04);">
             <button type="button" data-text="${encodeURIComponent(msg.text || '')}" onclick="window.copiarTextRespostaTutor(this)" style="background:none; border:none; color:#94a3b8; font-size:10.5px; cursor:pointer; padding:2px 4px; display:flex; align-items:center; gap:3px;" title="Copiar resposta">
@@ -1606,15 +1661,161 @@ Per respondre amb màxima precisió a preguntes específiques d'aquest tipus, la
 
   function formatejarTextResposta(text) {
     if (!text) return '';
-    let html = escapeHtml(text);
+
+    // Si el contingut és un JSON amb les seccions del tutor, normalitzar-lo
+    let net = text.trim();
+    if (net.startsWith('```json') && net.endsWith('```')) {
+      net = net.replace(/^```json\s*/, '').replace(/\s*```$/, '').trim();
+    } else if (net.startsWith('```') && net.endsWith('```')) {
+      net = net.replace(/^```\s*/, '').replace(/\s*```$/, '').trim();
+    }
+
+    if ((net.startsWith('{') && net.endsWith('}')) || (net.startsWith('[') && net.endsWith(']'))) {
+      try {
+        let parsed = JSON.parse(net);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          parsed = parsed[0];
+        }
+
+        const teBlocsPedagogics = !!(
+          parsed.blocs || parsed.blocs_estudi || parsed.agent_medina_response ||
+          parsed.idea_forca || parsed.idea_forca_concepte_clau || parsed.concepte_clau ||
+          parsed.regla_mnemotecnica || parsed.fonamentacio_legal || parsed.trampa_tribunal ||
+          (parsed.resposta && typeof parsed.resposta === 'object')
+        );
+
+        if (!teBlocsPedagogics) {
+          if (typeof parsed.resposta === 'string' && parsed.resposta.trim()) {
+            return parsed.resposta.trim();
+          }
+          if (typeof parsed.text === 'string' && parsed.text.trim()) {
+            return parsed.text.trim();
+          }
+          if (typeof parsed.message === 'string' && parsed.message.trim()) {
+            return parsed.message.trim();
+          }
+        }
+
+        let obj = parsed;
+        if (obj.agent_medina_response && typeof obj.agent_medina_response === 'object') {
+          obj = obj.agent_medina_response;
+        }
+        if (obj.resposta && typeof obj.resposta === 'object') {
+          obj = obj.resposta;
+        }
+        if (obj.blocs_estudi && typeof obj.blocs_estudi === 'object') {
+          obj = { ...obj, ...obj.blocs_estudi };
+        }
+        if (obj.blocs && typeof obj.blocs === 'object') {
+          obj = { ...obj, ...obj.blocs };
+        }
+
+        function extreureTextClient(val) {
+          if (!val) return '';
+          if (typeof val === 'string') return val;
+          if (Array.isArray(val)) {
+            return val.map(item => typeof item === 'string' ? `• ${item}` : Object.entries(item).map(([k, v]) => `• **${k}**: ${v}`).join('\n')).join('\n');
+          }
+          if (typeof val === 'object') {
+            if (val.taula) return val.taula;
+            if (val.text && val.cita) return `${val.cita}\n\n${val.text}`;
+            if (val.nom && val.explicacio) return `**${val.nom}**\n${val.explicacio}`;
+            if (val.concepte && val.focalitzacio) return `${val.concepte}\n\n${val.focalitzacio}`;
+            if (val.concepte) return val.concepte;
+            if (val.advertencia) return val.advertencia;
+            if (val.explicacio) return val.explicacio;
+            if (val.text) return val.text;
+            return Object.entries(val).map(([k, v]) => `• **${k.replace(/_/g, ' ')}:** ${typeof v === 'object' ? JSON.stringify(v) : v}`).join('\n');
+          }
+          return String(val);
+        }
+
+        const blocs = [];
+        if (obj.introduccio && typeof obj.introduccio === 'string') {
+          blocs.push(obj.introduccio);
+        } else if (parsed.text && typeof parsed.text === 'string' && teBlocsPedagogics) {
+          blocs.push(parsed.text.trim());
+        }
+
+        const idea = obj.idea_forca_concepte_clau || obj.idea_forca || obj.concepte_clau;
+        if (idea) blocs.push(`🎯 **Idea Força & Concepte Clau:**\n${extreureTextClient(idea)}`);
+
+        const mnemonic = obj.regla_mnemonic_truc_oposicio || obj.regla_mnemotecnica_truc_oposicio || obj.regla_mnemotecnica || obj.mnemotecnica;
+        if (mnemonic) blocs.push(`🧠 **Regla Mnemotècnica / Truc d'Oposició:**\n${extreureTextClient(mnemonic)}`);
+
+        const f = obj.fonamentacio_legal_i_literalitat || obj.fonamentacio_legal || obj.base_legal;
+        if (f) {
+          blocs.push(`⚖️ **Fonamentació Legal i Literalitat:**\n${extreureTextClient(f)}`);
+        }
+
+        const trampa = obj.trampa_tipica_de_tribunal || obj.trampa_de_tribunal || obj.clau_de_test_pel_tribunal || obj.trampa_tribunal || obj.trampa;
+        if (trampa) blocs.push(`⚠️ **Trampa Típica de Tribunal:**\n${extreureTextClient(trampa)}`);
+
+        const esq = obj.esquema_visual_repas || obj.esquema_visual_o_taula_de_repas || obj.esquema_visual_o_taula_de_repàs || obj.esquema_visual || obj.taula;
+        if (esq) {
+          blocs.push(`📊 **Esquema Visual o Taula de Repàs:**\n${extreureTextClient(esq)}`);
+        }
+        if (blocs.length > 0) return blocs.join('\n\n');
+      } catch (_) {}
+    }
+
+    let html = escapeHtml(net);
     
     // Regla general en color ambre
     html = html.replace(/\*\*Regla general:\*\*/g, '<span style="color:#f59e0b; font-weight:800;">Regla general:</span>');
     html = html.replace(/Regla general:/g, '<span style="color:#f59e0b; font-weight:800;">Regla general:</span>');
 
-    // Negreta estàndard
+    // Negreta i cursiva estàndard
     html = html.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
     html = html.replace(/\*(.*?)\*/g, '<i>$1</i>');
+
+    // 1. Estilització d'Idea Força
+    if (html.includes('🎯') && html.includes('Idea Força')) {
+      html = html.replace(
+        /(🎯\s*(?:<b>)?Idea Força[^<]*(?:<\/b>)?[:\s]*[\s\S]*?)(?=(?:🧠|⚖️|⚠️|📊|🌐|📘|📄|💡|$))/i,
+        '<div style="background:rgba(16,185,129,0.09); border:1px solid rgba(16,185,129,0.3); border-radius:10px; padding:10px 14px; margin:10px 0; color:#a7f3d0;">$1</div>'
+      );
+    }
+
+    // 2. Estilització de Regla Mnemotècnica
+    if (html.includes('🧠') && (html.includes('Mnemotècnica') || html.includes('Truc'))) {
+      html = html.replace(
+        /(🧠\s*(?:<b>)?(?:Regla Mnemotècnica|Truc)[^<]*(?:<\/b>)?[:\s]*[\s\S]*?)(?=(?:🎯|⚖️|⚠️|📊|🌐|📘|📄|💡|$))/i,
+        '<div style="background:rgba(139,92,246,0.1); border:1px solid rgba(139,92,246,0.3); border-radius:10px; padding:10px 14px; margin:10px 0; color:#ddd6fe;">$1</div>'
+      );
+    }
+
+    // 3. Estilització de Fonamentació Legal
+    if (html.includes('⚖️') && html.includes('Fonamentació Legal')) {
+      html = html.replace(
+        /(⚖️\s*(?:<b>)?Fonamentació Legal[^<]*(?:<\/b>)?[:\s]*[\s\S]*?)(?=(?:🎯|🧠|⚠️|📊|🌐|📘|📄|💡|$))/i,
+        '<div style="background:rgba(2,132,199,0.12); border-left:4px solid #0284c7; border-radius:0 8px 8px 0; padding:10px 14px; margin:10px 0; color:#e0f2fe;">$1</div>'
+      );
+    }
+
+    // 4. Estilització de Trampa Típica de Tribunal
+    if (html.includes('⚠️') && (html.includes('Trampa') || html.includes('Tribunal') || html.includes('Clau de Test'))) {
+      html = html.replace(
+        /(⚠️\s*(?:<b>)?(?:Trampa Típica de Tribunal|Clau de Test pel Tribunal)[^<]*(?:<\/b>)?[:\s]*[\s\S]*?)(?=(?:🎯|🧠|⚖️|📊|🌐|📘|📄|💡|$))/i,
+        '<div style="background:rgba(239,68,68,0.1); border:1.5px solid rgba(239,68,68,0.3); border-radius:10px; padding:10px 14px; margin:10px 0; color:#fca5a5;">$1</div>'
+      );
+    }
+
+    // 5. Estilització d'Esquema Visual
+    if (html.includes('📊') && html.includes('Esquema Visual')) {
+      html = html.replace(
+        /(📊\s*(?:<b>)?Esquema Visual[^<]*(?:<\/b>)?[:\s]*[\s\S]*?)(?=(?:🎯|🧠|⚖️|⚠️|🌐|📘|📄|💡|$))/i,
+        '<div style="background:#091321; border:1px solid #162942; border-radius:10px; padding:10px 14px; margin:10px 0; color:#cbd5e1;">$1</div>'
+      );
+    }
+
+    // 6. Estilització de Cerca a Internet
+    if (html.includes('🌐') && html.includes('Internet')) {
+      html = html.replace(
+        /(🌐\s*(?:<b>)?(?:Cerca a Internet|Informació complementària d'Internet)[^<]*(?:<\/b>)?[:\s]*[\s\S]*?)(?=(?:🎯|🧠|⚖️|⚠️|📊|📘|📄|💡|$))/i,
+        '<div style="background:rgba(14,165,233,0.12); border:1.5px solid #0ea5e9; border-radius:10px; padding:10px 14px; margin:10px 0; color:#bae6fd;">$1</div>'
+      );
+    }
 
     // Estilització de Procediment d'actuació com a sub-card fosca
     if (html.includes('📄 <b>Procediment d\'actuació:</b>') || html.includes('📄 Procediment d\'actuació:')) {
@@ -1637,14 +1838,6 @@ Per respondre amb màxima precisió a preguntes específiques d'aquest tipus, la
       html = html.replace(
         /(📘\s*(?:<b>)?(?:Citat de la Guia|Font oficial)[^<]*(?:<\/b>)?[\s\S]*?)(?=(?:⚠️|📄|💡|<b>\d+\.|$))/i,
         '<div style="background:rgba(2,132,199,0.12); border-left:4px solid #0284c7; border-radius:0 8px 8px 0; padding:10px 14px; margin:10px 0; color:#e0f2fe;">$1</div>'
-      );
-    }
-
-    // Estilització de Clau de Test pel Tribunal
-    if (html.includes('⚠️') && html.includes('Clau de Test')) {
-      html = html.replace(
-        /(⚠️\s*(?:<b>)?Clau de Test pel Tribunal(?:<\/b>)?[:\s]*[\s\S]*?)$/i,
-        '<div style="background:rgba(239,68,68,0.1); border:1.5px solid rgba(239,68,68,0.3); border-radius:10px; padding:10px 14px; margin-top:12px; color:#fca5a5;">$1</div>'
       );
     }
 
@@ -1983,15 +2176,17 @@ Format requerit per a cadascuna:
     }
   };
 
-  window.enviarMissatgeTutor = async function (e) {
+  window.enviarMissatgeTutor = async function (e, textDirecte, forcarInternet) {
     if (e && e.preventDefault) e.preventDefault();
 
     const inputFs = document.getElementById('tutor-fs-input-msg');
     const inputStd = document.getElementById('tutor-input-msg');
     const input = (modePantallaCompletaXat && inputFs) ? inputFs : (inputFs && inputFs.value.trim() ? inputFs : inputStd);
-    if (!input) return;
-    const missatge = input.value.trim();
+    
+    let missatge = textDirecte ? textDirecte.trim() : (input ? input.value.trim() : '');
     if (!missatge) return;
+
+    const cercaInternetActiva = !!(forcarInternet || window.__cercarInternetActiva);
 
     const d = new Date();
     const hora = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
@@ -2022,12 +2217,15 @@ Format requerit per a cadascuna:
     historialXat.push({
       role: 'user',
       text: missatge,
+      cercaInternet: cercaInternetActiva,
       hora
     });
     sessio.missatges = historialXat;
     guardarSessions();
 
-    input.value = '';
+    if (input) {
+      input.value = '';
+    }
     if (inputFs) {
       inputFs.value = '';
       window.handleTutorInputAutoResize(inputFs);
@@ -2066,7 +2264,7 @@ Format requerit per a cadascuna:
           AM
         </div>
         <div style="background: #111e32; color: #cbd5e1; border: 1.5px solid #1c314e; padding: 10px 16px; border-radius: 18px 18px 18px 4px; font-size: 13px; display: flex; align-items: center; gap: 8px;">
-          <span style="display:inline-block; animation: spin 1s linear infinite;">⏳</span> <span>Agent Medina està analitzant la normativa i elaborant la resposta...</span>
+          <span style="display:inline-block; animation: spin 1s linear infinite;">⏳</span> <span>${cercaInternetActiva ? "Agent Medina està consultant la normativa i cercant a Internet..." : "Agent Medina està analitzant la normativa i documents oficials..."}</span>
         </div>
       `;
       container.appendChild(loadingDiv);
@@ -2077,14 +2275,15 @@ Format requerit per a cadascuna:
       document.querySelectorAll('.' + loadingId).forEach(el => el.remove());
     }
 
-    function desarResposta(role, text, font) {
+    function desarResposta(role, text, font, extraProps) {
       treureLoaders();
       const respostaObj = {
         role,
         text,
         contextDoc: docActiu ? `${docActiu.titol} (${docActiu.municipi || 'General'})` : null,
         font: font || 'Tutor Agent Medina',
-        hora: `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`
+        hora: `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`,
+        ...(extraProps || {})
       };
       historialXat.push(respostaObj);
       if (sessio) {
@@ -2098,7 +2297,7 @@ Format requerit per a cadascuna:
       }
     }
 
-    // 1. Prioritat: Servidor local amb la base de dades completa de la Guia de Mossos 2026
+    // 1. Prioritat: Servidor local amb la base de dades completa de la Guia de Mossos 2026 i temaris
     try {
       const uFb = (typeof window.obtenirUsuariFirebase === 'function') ? window.obtenirUsuariFirebase() : null;
       const localRes = await fetch('/api/gemini/tutor-xat', {
@@ -2112,11 +2311,19 @@ Format requerit per a cadascuna:
           municipi: docActiu ? docActiu.municipi : null,
           cos: cosActiu,
           guiaTemaId: guiaTemaId,
+          cercarInternet: cercaInternetActiva,
           usuariNom: (() => {
             const nickPersonalitzat = (localStorage.getItem('agentmedina_user_nickname') || '').trim();
             if (nickPersonalitzat) return nickPersonalitzat;
             if (uFb?.displayName && !uFb.displayName.toLowerCase().includes('oscar') && !uFb.displayName.toLowerCase().includes('òscar')) {
               return uFb.displayName;
+            }
+            if (uFb?.email) {
+              const prefix = uFb.email.split('@')[0].replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[0-9_.-]/g, ' ').trim();
+              const firstWord = prefix.split(/\s+/)[0];
+              if (firstWord && firstWord.length >= 2 && !/^(òscar|oscar|usuari)$/i.test(firstWord)) {
+                return firstWord.charAt(0).toUpperCase() + firstWord.slice(1);
+              }
             }
             return 'Aspirant';
           })(),
@@ -2131,17 +2338,22 @@ Format requerit per a cadascuna:
           if (localData.font === 'guia_oficial_servidor') {
             fontNom = 'Guia Oficial Mossos 2026 (Servidor)';
           } else if (localData.font && localData.font.includes('gemini')) {
-            fontNom = `Gemini IA + Guia Mossos 2026`;
+            fontNom = localData.cercatInternet ? 'Gemini IA + Cerca Internet' : 'Gemini IA + Guia Mossos 2026';
           }
-          desarResposta('model', localData.resposta, fontNom);
+          const extra = {};
+          if (localData.proposarCercaInternet) {
+            extra.proposarCercaInternet = true;
+            extra.consultaOriginal = localData.consultaOriginal || missatge;
+          }
+          desarResposta('model', localData.resposta, fontNom, extra);
           return;
         }
       }
     } catch (localErr) {
-      console.warn('Avís connectant amb /api/gemini/tutor-xat local, utilitzant connexió de reserva:', localErr);
+      console.warn('Avís connectant amb /api/gemini/tutor-xat local:', localErr);
     }
 
-    // 2. Connexió de reserva
+    // 2. Connexió de reserva al backend local (/api/chat)
     try {
       const promptParts = [
         `Ets el Tutor virtual expert en temari i normativa policial d'Agent Medina (Mossos d'Esquadra i Policia Local de Catalunya).`,
@@ -2157,11 +2369,13 @@ Format requerit per a cadascuna:
       promptParts.push(`Pregunta actual de l'opositor:\n"${missatge}"`);
       promptParts.push(`Respon de forma clara, pedagògica, precisa amb articles legals si escau i en català.`);
 
-      const res = await fetch('https://backend-opos-tests.vercel.app/api/chat', {
+      const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prompt: promptParts.join('\n\n')
+          prompt: promptParts.join('\n\n'),
+          missatge,
+          cos: cosActiu
         })
       });
 
@@ -2175,16 +2389,53 @@ Format requerit per a cadascuna:
 
       const respostaText = (dades && (dades.text || dades.resposta || dades.message)) || rawText;
       if (respostaText && typeof respostaText === 'string' && respostaText.trim().length > 0) {
-        desarResposta('model', respostaText, 'Vercel AI Backend');
+        desarResposta('model', respostaText, 'Tutor Agent Medina');
       } else {
         const respostaFallback = generarRespostaEstructuradaAgentMedina(missatge, cosActiu, ambitNormatiuActiu, docActiu);
-        desarResposta('model', respostaFallback, 'Agent Medina (Base de Coneixement)');
+        desarResposta('model', respostaFallback, 'Agent Medina (Base de Coneixement)', {
+          proposarCercaInternet: true,
+          consultaOriginal: missatge
+        });
       }
     } catch (err) {
-      console.warn('Error en xat remot, aplicant base de coneixement directa:', err);
+      console.warn('Error en xat, aplicant base de coneixement directa:', err);
       const respostaFallback = generarRespostaEstructuradaAgentMedina(missatge, cosActiu, ambitNormatiuActiu, docActiu);
-      desarResposta('model', respostaFallback, 'Agent Medina (Base de Coneixement)');
+      desarResposta('model', respostaFallback, 'Agent Medina (Base de Coneixement)', {
+        proposarCercaInternet: true,
+        consultaOriginal: missatge
+      });
     }
+  };
+
+  // Handlers globals per a la cerca a Internet
+  window.toggleCercaInternetGlobal = function (forcarValor) {
+    if (typeof forcarValor === 'boolean') {
+      window.__cercarInternetActiva = forcarValor;
+    } else {
+      window.__cercarInternetActiva = !window.__cercarInternetActiva;
+    }
+    const btns = document.querySelectorAll('.tutor-toggle-internet-btn');
+    btns.forEach(b => {
+      b.textContent = window.__cercarInternetActiva ? '🌐 Cerca Internet: ACTIVA' : '🌐 Cerca Internet: DESACTIVADA';
+      b.style.background = window.__cercarInternetActiva ? 'rgba(56,189,248,0.2)' : 'rgba(255,255,255,0.05)';
+      b.style.borderColor = window.__cercarInternetActiva ? '#38bdf8' : 'rgba(255,255,255,0.12)';
+      b.style.color = window.__cercarInternetActiva ? '#38bdf8' : '#94a3b8';
+    });
+  };
+
+  window.confirmarCercaInternet = function (encodedQuery) {
+    let query = '';
+    try {
+      query = decodeURIComponent(encodedQuery || '');
+    } catch (_) {
+      query = encodedQuery || '';
+    }
+    if (!query) {
+      const darrereUser = [...historialXat].reverse().find(m => m.role === 'user');
+      query = darrereUser ? darrereUser.text : '';
+    }
+    window.toggleCercaInternetGlobal(true);
+    window.enviarMissatgeTutor(null, query, true);
   };
 
   // ==========================================================================

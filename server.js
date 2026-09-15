@@ -299,17 +299,19 @@ function getGeminiClient() {
   return geminiClient;
 }
 
-async function executarGeminiAmbFallback(ai, promptOrContents, responseMimeType = 'application/json', tools = undefined) {
-  // Models actuals suportats per l'API de Gemini
-  const models = ['gemini-3.6-flash', 'gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-3.6-pro'];
+async function executarGeminiAmbFallback(ai, promptOrContents, responseMimeType = 'application/json', tools = undefined, extraConfig = {}) {
+  // Models oficials suportats per l'API de Gemini a Google AI Studio
+  const models = ['gemini-3.1-flash-lite', 'gemini-flash-latest'];
   let lastErr = null;
 
   // Fem fins a 2 rondes completes alternant entre models
   for (let ronda = 0; ronda < 2; ronda++) {
     for (const model of models) {
       try {
-        const config = {};
-        if (responseMimeType) config.responseMimeType = responseMimeType;
+        const config = { ...extraConfig };
+        if (responseMimeType && responseMimeType === 'application/json') {
+          config.responseMimeType = 'application/json';
+        }
         if (tools) config.tools = tools;
 
         const response = await ai.models.generateContent({
@@ -340,6 +342,10 @@ async function executarGeminiAmbFallback(ai, promptOrContents, responseMimeType 
   }
   throw lastErr;
 }
+
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', time: new Date().toISOString() });
+});
 
 // Endpoint universal /api/chat compatible amb Vercel i clients remots
 app.all('/api/chat', async (req, res) => {
@@ -1153,21 +1159,151 @@ ${rawText.slice(0, 30000)}
     return res.status(500).json({ success: false, error: err.message });
   }
 });
+
+// Resposta estructurada de suport per a contingut policial en cas de caiguda o desconnexió de Gemini
+function generarRespostaEstructuradaAgentMedina(pregunta, cos, ambit, docContext) {
+  const q = (pregunta || '').toLowerCase().trim();
+  const cosNom = cos === 'pl' ? 'Policia Local' : cos === 'mossos' ? "Mossos d'Esquadra" : 'PL / Mossos';
+
+  if (q.includes('com estas') || q.includes('com estàs') || q.includes('que tal') || q.includes('què tal') || q.startsWith('hola') || q.startsWith('bon dia') || q.startsWith('bona tarda') || q === 'hola' || q === 'bones') {
+    return `Hola! Estic al 100% i amb moltes ganes d'ajudar-te a aconseguir la plaça. Com et trobes avui? Digues-me si vols practicar un test ràpid o repassar algun tema concret!`;
+  }
+
+  if (q.includes('495') || (q.includes('delicte') && q.includes('lleu')) || (q.includes('detencio') && q.includes('falta'))) {
+    return `🎯 **Idea Força & Concepte Clau:**
+Com a regla general, per delictes lleus **NO** s'ha de detenir a ningú, llevat que concorrin les excepcions taxades de l'article 495 LECrim.
+
+🧠 **Regla Mnemotècnica / Truc d'Oposició:**
+Recorda la regla **DO-FI**: Sense **DO**micili conegut i sense **FI**ança bastant -> Només llavors procedeix la detenció.
+
+⚖️ **Fonamentació Legal i Literalitat:**
+- **Article 495 LECrim:** *"No se podrá detener por simples faltas [delitos leves], a no ser que el presunto reo no tuviese domicilio conocido ni diese fianza bastante, a juicio de la Autoridad o agente que intente detenerle."*
+- **Article 17 CE:** Dret fonamental a la llibertat i seguretat personal.
+
+⚠️ **Trampa Típica de Tribunal:**
+Els tribunals de test solen posar preguntes trampa afirmant que «la reiteració delictiva o els antecedents policials faculten la detenció per delicte lleu». Això és **FALS**: Si el presumpte autor té domicili conegut i acreditat, és preceptiva la citació (Art. 962 LECrim) i està prohibida la detenció.
+
+📊 **Esquema d'Actuació Operativa:**
+| Situació de l'autor | Acció Policial Exigible | Base Legal |
+|---|---|---|
+| Amb domicili acreditat | Identificació i citació formal a judici immediat | Art. 962 LECrim |
+| Sense domicili ni fiança | Detenció tècnica i custòdia policial | Art. 495 LECrim |`;
+  }
+
+  if (q.includes('alcohol') || q.includes('drog') || q.includes('taxa') || q.includes('383') || q.includes('379')) {
+    return `🎯 **Idea Força & Concepte Clau:**
+Conduir superant les taxes permeses és infracció administrativa molt greu (RGC / LSV) o delicte contra la seguretat viària (Art. 379.2 CP). La negativa a sotmetre's a les proves és delicte autònom de desobediència greu (Art. 383 CP).
+
+🧠 **Regla Mnemotècnica / Truc d'Oposició:**
+Recorda **15 - 25 - 60**:
+- **15** (0,15 mg/l): Novells (fins a 2 anys) i Conductors Professionals.
+- **25** (0,25 mg/l): Taxa General, ciclistes i VMP.
+- **60** (0,60 mg/l en aire / 1,2 g/l en sang): Delicte Penal automàtic (Art. 379.2 CP).
+
+⚖️ **Fonamentació Legal i Literalitat:**
+- **Art. 379.2 Codi Penal:** Delicte si supera 0,60 mg/l d'alcohol en aire expirat (o 1,2 g/l en sang).
+- **Art. 383 Codi Penal:** Negativa a les proves legalment establertes (presó de 6 mesos a 1 any i retirada del permís d'1 a 4 anys).
+- **Taxa 0,0:** Menors d'edat conductors de qualsevol vehicle (ciclistes, VMP, ciclomotors).
+
+⚠️ **Trampa Típica de Tribunal:**
+Pregunten si un ciclista o usuari de VMP pot incórrer en el delicte de l'Art. 383 CP per negativa: La jurisprudència estableix que només és delicte en conductors de vehicles a motor o ciclomotors; per a VMP o bicicletes és sanció administrativa molt greu (1.000 €).
+
+📊 **Taula de Taxes d'Alcoholèmia:**
+| Tipus de Conductor | Taxa Màx. Aire | Taxa Màx. Sang | Tipus d'Infracció |
+|---|---|---|---|
+| General / VMP / Bici | 0,25 mg/l | 0,50 g/l | Administrativa |
+| Novell (fins a 2 anys) | 0,15 mg/l | 0,30 g/l | Administrativa |
+| Menors d'edat | 0,00 mg/l | 0,00 g/l | Administrativa |
+| Qualsevol > 0,60 mg/l | > 0,60 mg/l | > 1,20 g/l | Delicte Penal (379.2 CP) |`;
+  }
+
+  if (docContext && docContext.contingutText) {
+    return `🎯 **Idea Força & Concepte Clau:**
+Anàlisi de l'ordenança/document oficial **${docContext.titol || 'Normativa'}**.
+
+⚖️ **Fonamentació Legal Aplicable:**
+${docContext.contingutText.slice(0, 700)}
+
+💡 **Consell d'Estudi:** Consulta els articles destacats per aprofundir en les competències sancionadores de ${cosNom}.`;
+  }
+
+  return `🎯 **Idea Força & Concepte Clau:**
+Per a preparar l'examen de **${cosNom}**, és fonamental estructurar els conceptes legals amb claredat i distingir les competències sancionadores de les operatives.
+
+⚖️ **Marc Jurídic Bàsic:**
+- **Constitució Espanyola:** Drets fonamentals (Arts. 14 a 29 CE) i principis rectors.
+- **Llei Orgànica 2/1986 de Forces i Cossos de Seguretat:** Principis bàsics d'actuació (Art. 5).
+- **Llei 10/1994 de la Policia de la Generalitat - Mossos d'Esquadra** / **Llei 16/1991 de Policies Locals**.
+
+💡 **Recomanació de l'Agent Medina:** Pots demanar un test de 3 preguntes o consultar un article o procediment concret per memoritzar-lo amb tot el detall.`;
+}
+
 app.post('/api/gemini/tutor-xat', async (req, res) => {
-  const { missatge, historial, documentContext, titolDocument, municipi, cos, guiaTemaId, usuariNom, usuariEmail } = req.body || {};
+  const {
+    missatge,
+    historial,
+    documentContext,
+    titolDocument,
+    municipi,
+    cos,
+    guiaTemaId,
+    plTemaId,
+    usuariNom,
+    usuariEmail,
+    cercarInternet
+  } = req.body || {};
+
   if (!missatge || !missatge.trim()) {
     return res.status(400).json({ success: false, error: 'Missatge buit' });
   }
 
-  const ai = getGeminiClient();
-  const cosTxt = cos === 'mossos' ? "Mossos d'Esquadra" : cos === 'pl' ? 'Policia Local' : 'Policia Local i Mossos d\'Esquadra';
+  const textNet = missatge.trim();
+  const qLow = textNet.toLowerCase();
 
   let nomTractament = (usuariNom || '').trim();
+  if (!nomTractament || /^(òscar|oscar|oposcarmossos|usuari|aspirant)$/i.test(nomTractament)) {
+    if (usuariEmail) {
+      const nomFromEmail = usuariEmail.split('@')[0].replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[0-9_.-]/g, ' ').trim();
+      const firstWord = nomFromEmail.split(/\s+/)[0];
+      if (firstWord && firstWord.length >= 2 && !/^(òscar|oscar|usuari)$/i.test(firstWord)) {
+        nomTractament = firstWord.charAt(0).toUpperCase() + firstWord.slice(1);
+      }
+    }
+  }
   if (!nomTractament || /^(òscar|oscar|oposcarmossos|usuari)$/i.test(nomTractament)) {
     nomTractament = 'Aspirant';
   }
 
-  // Cerca automàtica o directa a la Guia Oficial de Mossos d'Esquadra
+  const cosTxt = cos === 'mossos' ? "Mossos d'Esquadra" : cos === 'pl' ? 'Policia Local' : 'Policia Local i Mossos d\'Esquadra';
+
+  // 1. Detecció de consultes conversacionals, salutacions, cortesia, suport a l'opositor o seguiment de conversa
+  const esSalutacio = /^(hola|bon dia|bona tarda|bona nit|bones|ei|eiii|hey|salut|qui ets|com estas|com estàs|què fas|com va|com et trobes|què tal|hello|hi)\b/i.test(qLow);
+  const esCortesia = /^(gràcies|moltes gràcies|merci|molt bé|perfecte|genial|d'acord|ok|entès|clar|moltes mercès|adéu|fins després|fins demà|adeu)\b/i.test(qLow);
+  const esSuportPedagogic = /(com estudiar|com començar|consell|metodologia|mètode|motivaci|cansat|nervi|bloquej|estrès|desanimat|planific|planificar|horari|quantes hores|repassar|repassos|com memoritzar|organitzar l'estudi|què em recomanes|ajuda|ajuda'm)/i.test(qLow);
+  const esSeguimentConversa = /^(i si|i en el cas|i quan|per què|pots posar un exemple|un exemple|no ho entenc|no ho he entès|més senzill|explica-m'ho|continua|següent)\b/i.test(qLow);
+  const esConversacional = esSalutacio || esCortesia || esSuportPedagogic || esSeguimentConversa;
+
+  // 2. Cerca a documents i temaris oficials de la plataforma
+  let docContextFinal = (documentContext || '').trim();
+  let titolDocFinal = titolDocument || null;
+  let municipiDocFinal = municipi || null;
+
+  // Si no hi ha documentContext explícit, cerquem si coincideix amb alguna ordenança carregada
+  if (!docContextFinal) {
+    const totsDocs = getDocuments();
+    for (const d of totsDocs) {
+      const nomM = (d.municipi || '').toLowerCase();
+      const titM = (d.titol || '').toLowerCase();
+      if ((nomM && qLow.includes(nomM)) || (titM && qLow.includes(titM)) || (qLow.includes('ordenança') && qLow.includes(nomM))) {
+        docContextFinal = d.contingutText || '';
+        titolDocFinal = d.titol;
+        municipiDocFinal = d.municipi;
+        break;
+      }
+    }
+  }
+
+  // Cerca a la Guia Oficial de Mossos 2026
   let contextGuia = '';
   let trobatsGuia = [];
   try {
@@ -1176,171 +1312,297 @@ app.post('/api/gemini/tutor-xat', async (req, res) => {
       : null;
 
     if (guiaIdNet && guiaIdNet !== 'auto' && guiaIdNet !== 'guia_auto') {
-      contextGuia = construirContextGuiaPerPrompt(missatge, guiaIdNet);
+      contextGuia = construirContextGuiaPerPrompt(textNet, guiaIdNet);
     } else if (guiaIdNet === 'auto' || guiaIdNet === 'guia_auto' || cos === 'mossos') {
-      contextGuia = construirContextGuiaPerPrompt(missatge, 'auto');
+      contextGuia = construirContextGuiaPerPrompt(textNet, 'auto');
+      trobatsGuia = cercarALaGuia(textNet, 3);
     } else {
-      trobatsGuia = cercarALaGuia(missatge, 3);
+      trobatsGuia = cercarALaGuia(textNet, 3);
       if (trobatsGuia.length > 0 && trobatsGuia[0].puntuacio >= 8) {
-        contextGuia = construirContextGuiaPerPrompt(missatge, null);
+        contextGuia = construirContextGuiaPerPrompt(textNet, null);
       }
     }
   } catch (e) {
     console.warn('Avís processant Guia Mossos per a tutor:', e?.message);
   }
 
-  // Fallback si no hi ha Gemini configurat
+  // Avaluació de coincidència documental
+  const teDocActiu = !!(docContextFinal && docContextFinal.length > 20);
+  const teGuia = !!(trobatsGuia.length > 0 && trobatsGuia[0].puntuacio >= 6);
+  const paraulesClauPolicials = /(art|article|llei|constitucio|constitucional|penal|delicte|detencio|detingut|alcohol|transit|policia|mossos|guardia|civisme|ordenan|infraccio|multa|sancio|habeas|dret|atestat|denuncia|jutjat|fiscal|parlament|generalitat|ajuntament|alcalde|test|suposit|pregunt|pregunta|competenci|competència|16\/1991|10\/1994|4\/2015|2\/1986|7\/1985|lecrim|cp|rgc|trltsv)/i;
+  const esTemariPolicial = paraulesClauPolicials.test(qLow);
+
+  const coincideixAmbDocuments = teDocActiu || teGuia || esTemariPolicial;
+
+  // 3. Avaluació de sol·licitud de cerca a Internet
+  const volInternet = cercarInternet === true || /cerca(?:r)? a internet|busca(?:r)? a internet|a internet/i.test(qLow);
+
+  // Si la informació NO és als documents, NO és conversa/coaching i NO s'ha sol·licitat cerca a Internet
+  const esPreguntaExterna = !coincideixAmbDocuments && !esConversacional && !volInternet;
+
+  if (esPreguntaExterna) {
+    return res.json({
+      success: true,
+      font: 'sense_coincidencia_documents',
+      proposarCercaInternet: true,
+      consultaOriginal: textNet,
+      resposta: `Als teus documents i temari oficial no trobo referències a la teva consulta: "${textNet}".\n\nVols que busqui a Internet per a complementar la resposta?`
+    });
+  }
+
+  const ai = getGeminiClient();
+
+  // 4. Si no tenim client Gemini (o clau no disponible), retornem contingut estructurat del repositori o resposta conversacional
   if (!ai) {
+    if (esConversacional) {
+      if (esSalutacio) {
+        const h = new Date().getHours();
+        const sal = h < 14 ? 'Bon dia' : h < 21 ? 'Bona tarda' : 'Bona nit';
+        return res.json({
+          success: true,
+          font: 'agent_medina_conversacio',
+          resposta: `👋 **${sal}, ${nomTractament}! Molt bé i a punt per treballar amb tu.**
+
+Com portes la sessió d'estudi d'avui? Què et ve de gust que repassem ara mateix: temari de ${cosTxt}, resolució d'un supòsit pràctic o unes quantes preguntes tipus test per escalfar motors?`
+        });
+      }
+      if (esCortesia) {
+        return res.json({
+          success: true,
+          font: 'agent_medina_conversacio',
+          resposta: `De res, ${nomTractament}! Per a això estic aquí. Quan vulguis continuem amb qualsevol dubte o nou tema!`
+        });
+      }
+      return res.json({
+        success: true,
+        font: 'agent_medina_conversacio',
+        resposta: `I tant, ${nomTractament}! Per a qualsevol dubte d'estudi o de temari de ${cosTxt}, pregunta'm el que necessitis i ho analitzem plegats.`
+      });
+    }
+
     if (trobatsGuia.length > 0) {
       const top = trobatsGuia[0];
       const fragments = top.coincidencies.slice(0, 3).map(c => `> *${c.text}*`).join('\n\n');
       return res.json({
         success: true,
         font: 'guia_oficial_servidor',
-        resposta: `📌 **FONAMENTACIÓ JURÍDICA I MARC NORMATIU**
-• **Guia Oficial de la Policia de la Generalitat - Mossos d'Esquadra (Juny 2026)**
-• **${top.codi}: ${top.titol} [Pàgines ${top.pagines}]**
+        resposta: `📘 **Guia Oficial de la Policia de la Generalitat - Mossos d'Esquadra (Juny 2026)**
+📌 **${top.codi}: ${top.titol} [Pàgines ${top.pagines}]**
 
-⚖️ **ANÀLISI TÈCNIC DEL SUPÒSIT O DUBTE**
+🎯 **Idea Força & Concepte Clau:**
+Informació extreta directament del temari oficial de Mossos d'Esquadra emmagatzemat a la plataforma.
+
+⚖️ **Contingut Oficial de Referència:**
 ${fragments || (top.contingutText || '').slice(0, 800)}
 
-💡 **APLICACIÓ PRÀCTICA I CLAU D'EXAMEN**
-• Informació oficial extreta directament de la Guia de Mossos d'Esquadra emmagatzemada al servidor. Revisa els termes literals destacats per a les preguntes test!`
+⚠️ **Clau d'Examen:** Revisa els termes literals destacats per a les preguntes test!`
       });
     }
 
-    const q = (missatge || '').toLowerCase();
-    let respostaEstructurada = '';
-
-    if (q.includes('495') || (q.includes('delicte') && q.includes('lleu')) || q.includes('detencio') && q.includes('falta')) {
-      respostaEstructurada = `📌 **FONAMENTACIÓ JURÍDICA I MARC NORMATIU**
-• **Article 495 de la Llei d'Enjudiciament Criminal (LECrim)**: Principi general de no detenció per delictes lleus.
-• **Article 17 de la Constitució Espanyola**: Garantia constitucional del dret a la llibertat i seguretat.
-• **Article 962 LECrim**: Procediment per a l'enjudiciament immediat de delictes lleus mitjançant citació policial.
-
-⚖️ **ANÀLISI TÈCNIC DEL SUPÒSIT POLICIAL**
-Com a norma general, **no es pot detenir** per delictes lleus. Només és legítim procedir a la detenció si concorren de forma cumulativa dues circumstàncies:
-1. Que el presumpte autor **no tingui domicili conegut** a l'Estat.
-2. Que **no presti fiança bastant**, a judici de l'agent de l'autoritat, per comparèixer davant del Jutjat quan sigui citat.
-
-💡 **APLICACIÓ PRÀCTICA I CLAU D'EXAMEN**
-• **Pregunta clàssica de test**: Si l'autor té 20 antecedents penals per furts lleus però disposa de domicili conegut i documentació vàlida a Espanya, **NO ES POT DETENIR**. L'actuació policial legalment procedent és la identificació, presa de dades i citació directa per a judici immediat (mai detenció).`;
-    } else if (q.includes('alcohol') || q.includes('drog') || q.includes('taxa') || q.includes('383') || q.includes('379')) {
-      respostaEstructurada = `📌 **FONAMENTACIÓ JURÍDICA I MARC NORMATIU**
-• **Via administrativa**: Articles 20 a 28 del Reglament General de Circulació (RGC) i Art. 14 del TRLTSV (RDL 6/2015).
-• **Via penal**: Articles 379.2 (conducció sota la influència) i 383 (negativa a les proves) del Codi Penal.
-
-⚖️ **ANÀLISI TÈCNIC DEL SUPÒSIT POLICIAL**
-• **Taxes d'alcohol en aire expirat (mg/l)**:
-  - Conductors generals, ciclistes i vehicles mobilitat: **0,25 mg/l** (0,50 g/l en sang).
-  - Novells (2 primers anys de permís) i professionals: **0,15 mg/l** (0,30 g/l en sang).
-  - Menors d'edat (ciclomotors, bicicletes o VMP): **0,0 mg/l** (taxa zero).
-• **Límit penal directe**: Superar **0,60 mg/l** en aire (o 1,2 g/l en sang) és delicte de perill abstracte de l'Art. 379.2 CP, encara que no mostri símptomes evidents d'afectació.
-
-💡 **APLICACIÓ PRÀCTICA I CLAU D'EXAMEN**
-• **Negativa a sotmetre's a les proves (Art. 383 CP)**: És un delicte autònom amb pena de presó de 6 mesos a 1 any i retirada del permís d'1 a 4 anys. Si el conductor bufa al mostrejador (propius) però després es nega a fer les dues proves reglamentàries a l'etilòmetre evidencial de precisió, s'incorre plenament en el delicte de negativa!`;
-    } else if (q.includes('furt') || q.includes('robatori') || q.includes('234') || q.includes('237') || q.includes('238')) {
-      respostaEstructurada = `📌 **FONAMENTACIÓ JURÍDICA I MARC NORMATIU**
-• **Delicte de Furt**: Article 234 del Codi Penal (apropiació de cosa moble aliena sense la voluntat del seu amo i amb ànim de lucre, sense força en les coses ni violència/intimidació).
-• **Delicte de Robatori**: Article 237 del Codi Penal (apropiació emprant força en les coses per accedir o abandonar el lloc, o violència/intimidació en les persones).
-
-⚖️ **ANÀLISI TÈCNIC DEL SUPÒSIT POLICIAL**
-Les **5 circumstàncies taxades de força en les coses (Art. 238 CP)**:
-1. **Escalament**: Entrada per lloc no destinat a l'efecte o superació de desnivell amb esforç/destresa destacada.
-2. **Ruptura de paret, sostre o terra**, o fractura de porta o finestra de l'immoble.
-3. **Fractura d'armaris, arques o mobles tancats** o dels seus panys, al lloc del fet o traslladats fora.
-4. **Ús de claus falses**: Rossinyols, claus perdudes pel propietari, targetes magnètiques o claus legítimes sostretes.
-5. **Inutilització de sistemes específics d'alarma o guarda**.
-
-💡 **APLICACIÓ PRÀCTICA I CLAU D'EXAMEN**
-• El límit del **delicte lleu de furt** és de **400 €** (Art. 234.2 CP).
-• **Atenció oposicions**: El robatori amb força o amb violència **MAI NO ÉS DELICTE LLEU**, sense importar que el valor del que s'ha sostret sigui de tan sols 5 €!`;
-    } else if (q.includes('identificacio') || q.includes('16') || q.includes('seguretat ciutadana') || q.includes('4/2015')) {
-      respostaEstructurada = `📌 **FONAMENTACIÓ JURÍDICA I MARC NORMATIU**
-• **Article 16 de la Llei Orgànica 4/2015**, de protecció de la seguretat ciutadana (LOSC).
-• **Article 104 de la Constitució Espanyola**: Missió de les Forces i Cossos de Seguretat.
-
-⚖️ **ANÀLISI TÈCNIC DEL SUPÒSIT POLICIAL**
-• Els agents poden requerir la identificació quan:
-  1. Existeixin indicis que la persona ha participat en una infracció penal o administrativa.
-  2. Sigui raonablement necessari per prevenir la comissió d'un delicte.
-• **Trasllat a dependències policials**: Només procedent si no és possible la identificació per cap altre mitjà (inclosa via telemàtica) o es nega a identificar-se. El temps màxim és el strictly necessari, amb un topall absolut de **6 hores**.
-
-💡 **APLICACIÓ PRÀCTICA I CLAU D'EXAMEN**
-• El trasllat a comissaria als sols efectes d'identificació **no és una detenció en sentit penal**, però gaudeix del registre al Llibre d'Identificacions i expedició de volant acreditatiu si l'interessat ho demana.`;
-    } else {
-      respostaEstructurada = `📌 **FONAMENTACIÓ JURÍDICA I MARC NORMATIU**
-• **Marc aplicable a ${cosTxt}**: Constitució Espanyola (Arts. 9, 14, 17, 104), Llei Orgànica 2/1986 (LOFCS), Llei 16/1991 (Policia Local) i Llei 10/1994 (Mossos d'Esquadra).
-${documentContext ? `• **Document actiu**: *${titolDocument || 'Ordenança Municipal'}*` : ''}
-
-⚖️ **ANÀLISI TÈCNIC DEL SUPÒSIT O DUBTE**
-Pel que fa a la teva consulta sobre *"${missatge.trim()}"*:
-1. **Tipicitat i competència**: Verifica sempre si la conducta està tipificada com a delicte al Codi Penal, infracció administrativa a la LO 4/2015, normativa sectorial de trànsit (TRLTSV/RGC) o ordenança municipal de convivència.
-2. **Procediment operatiu de la patrulla**: Aplicació escrupolosa dels principis bàsics de **congruència, oportunitat i proporcionalitat** (Art. 5 LO 2/1986).
-3. **Documentació**: Redacció de l'acta de denúncia o atestat policial amb descripció objectiva dels fets, testimonis i proves.
-
-💡 **APLICACIÓ PRÀCTICA I CLAU D'EXAMEN**
-• Fixa't en les paraules clau dels enunciats: "obligatòriament", "sempre", "podrà facultativament" o "òrgan competent per sancionar" (l'Alcalde a Policia Local o el Director General d'Administració de Seguretat a Interior).`;
-    }
-
+    const respostaEstructurada = generarRespostaEstructuradaAgentMedina(textNet, cos, 'general', docContextFinal ? { titol: titolDocFinal, contingutText: docContextFinal } : null);
     return res.json({
       success: true,
-      font: 'agent_medina_estructurat',
+      font: 'agent_medina_local',
       resposta: respostaEstructurada
     });
   }
 
+  // 5. Construcció del prompt per a Gemini amb màxima precisió de rol, memorització visual i memòria de xat
   try {
-    // Construcció del prompt amb context i historial
     const historialTxt = Array.isArray(historial) && historial.length > 0
-      ? historial.slice(-6).map(h => `${h.role === 'user' ? 'Opositor' : 'Tutor'}: ${h.text}`).join('\n')
+      ? historial.slice(-8).map(h => `${h.role === 'user' ? 'Opositor' : 'Tutor Agent Medina'}: ${h.text}`).join('\n\n')
       : '';
 
     let contextInstruccions = '';
+
+    if (volInternet) {
+      contextInstruccions += `\nAUTORITZACIÓ DE CERCA A INTERNET I LEGISLACIÓ GENERAL:
+L'aspirant ha demanat expressament consultar a Internet i legislació general vigent. Complementa la resposta amb la màxima actualització normativa i marca clarament a l'inici:
+🌐 **Informació complementària d'Internet i Marc Jurídic General**\n`;
+    }
+
+    if (docContextFinal) {
+      contextInstruccions += `\nDOCUMENT / ORDENANÇA MUNICIPAL SELECCIONADA COM A BASE PRINCIPAL:
+Títol: ${titolDocFinal || 'Ordenança Municipal'} ${municipiDocFinal ? `(Municipi: ${municipiDocFinal})` : ''}
+---
+${docContextFinal.slice(0, 45000)}
+---
+REGLA D'OR:
+La base de la teva resposta ha de ser aquest document. Cita literalment l'article concret, les infraccions (lleus, greus, molt greus) i els imports exactes de les sancions previstos en aquesta ordenança.\n`;
+    }
+
     if (contextGuia) {
       contextInstruccions += `\n${contextGuia}\n`;
     }
 
-    if (documentContext && documentContext.trim()) {
-      contextInstruccions += `
-DOCUMENT / ORDENANÇA ADJUNTA DE REFERÈNCIA:
-Títol: ${titolDocument || 'Document adjunt'} ${municipi ? `(Municipi: ${municipi})` : ''}
----
-${documentContext.slice(0, 45000)}
----
-REGLA D'OR DE CERCA:
-1. Analitza en primer lloc el text del document adjunt anterior. Si la resposta es troba a l'articulat o contingut d'aquest document, respon citant literalment l'article o apartat d'aquesta ordenança/document.
-2. Si la informació NO es troba al document adjunt, o si es tracta d'una consulta de normativa general policial (Codi Penal, LECrim, Constitució, Llei 16/1991, Llei 10/1994, etc.), utilitza la teva base de coneixement jurídica i dades actualitzades per respondre amb precisió. Especifica clarament a l'opositor quan la resposta prové del document adjunt i quan prové de la legislació general.
+    const directriusCos = cos === 'mossos' ? `
+🎯 ENFOCAMENT EXCLUSIU DE COS: MOSSOS D'ESQUADRA (PG-ME)
+Totes les teves respostes han d'estar estricta i prioritàriament PENSADES PER A MOSSOS D'ESQUADRA:
+• Marc competencial: Generalitat de Catalunya i Departament d'Interior.
+• Aplicació de la Llei 10/1994 de la PG-ME i Decret d'estructura (Prefectura de Policia, Comissaries Generals, Àrees Bàsiques Policials ABP, ARRO, etc.).
+• En trànsit: competència del Servei Català de Trànsit (SCT) en vies interurbanes.
+• Procediments policials: actuació de la dotació de Mossos, atestats i instrucció de diligències penals i de seguretat ciutadana (LO 4/2015).
+• Model d'examen oficial de la Generalitat de Catalunya per a Mossos d'Esquadra (criteris de correcció oficials).
+` : cos === 'pl' ? `
+🎯 ENFOCAMENT EXCLUSIU DE COS: POLICIA LOCAL
+Totes les teves respostes han d'estar estricta i prioritàriament PENSADES PER A POLICIA LOCAL:
+• Marc competencial municipal: Ajuntament i Alcaldia (Llei 7/1985 LRBRL, DL 2/2003 TRMRLC). L'òrgan sancionador principal és l'Alcalde/Alcaldessa.
+• Aplicació de la Llei 16/1991 de les Policies Locals de Catalunya.
+• Àmbits clau d'oposició: Policia administrativa, disciplina urbanística, ordenances municipals de convivència i civisme, venda no sedentària, terrasses, trànsit i atestats en vies urbanes.
+• Model d'examen d'oposició de Policia Local dels Ajuntaments catalans.
+` : `
+🎯 ENFOCAMENT COMPARTIT: MOSSOS D'ESQUADRA I POLICIA LOCAL
+Distingeix clarament les competències exclusives i compartides entre ambdós cossos d'acord amb la Llei 4/2003 de Seguretat Pública de Catalunya.
 `;
+
+    const prompt = `Ets el Tutor d'Intel·ligència Artificial personal de referència de l'acadèmia policial "Agent Medina" a Catalunya.
+Estàs acompanyant a l'aspirant ${nomTractament} en la seva preparació integral per aprovar l'oposició.
+${directriusCos}
+
+OBJECTIU PEDAGÒGIC I COMUNICATIU:
+L'aspirant vol un acompanyament real, proper, motivador i eficaç per assolir tots els conceptes i memoritzar-los de manera fàcil i molt visual per anar a l'examen amb garanties d'èxit.
+Escriu en català correcte, natural i proper com Agent Medina.
+
+${esConversacional ? `🎯 MODALITAT CONVERSACIONAL I COACHING PERSONALITZAT (MÀXIMA BREVETAT):
+L'aspirant (${nomTractament}) s'adreça a tu de forma conversacional, cordial o d'acompanyament (ex: "com estàs?", "hola", "què tal?", "gràcies", demanant un consell ràpid):
+- REGLA D'OR: MÀXIMA BREVETAT. Respon en 2 o 3 frases curtes com a màxim (MÀXIM 35-45 PARAULES EN TOTAL).
+- Sigues proper, motivador, empàtic i enèrgic com a company/mentor, però NO facis discursos llargs ni paràgrafs densos.
+- Saluda pel nom, respon com et trobes i pregunta-li com està o proposa-li fer un test o repàs ràpid.
+- NO utilitzis la plantilla dels 5 blocs per a xerrades cordials.` : `🎯 ESTRUCTURA VISUAL PER A MEMORITZAR FÀCILMENT (SINTÈTICA I DIRECTA AL GRA):
+IMPORTANT: Sigues molt sintètic, visual i concís. Prohibit fer paràgrafs llargs o redundants. L'aspirant vol memoritzar en segons:
+
+1. 🎯 **Idea Força & Concepte Clau**: 1 sola frase contundent i directa.
+2. 🧠 **Regla Mnemotècnica / Truc d'Oposició**: 1 truc de memòria o acrònim breu (1-2 línies).
+3. ⚖️ **Fonamentació Legal i Literalitat**: L'article clau exacte i el text essencial (sense textos feixucs).
+4. ⚠️ **Trampa Típica de Tribunal**: 1 advertència breu de test (1 línia).
+5. 📊 **Esquema Visual o Taula de Repàs**: Una taula Markdown compacta (màxim 3 files) o 2-3 punts clau.`}
+
+SI L'ASPIRANT DEMANA PREGUNTES DE TEST (ex: "Test 3 preguntes"):
+Genera 3 preguntes tipus test breus d'alta qualitat d'examen amb 4 opcions (a, b, c, d), solució i justificació legal concisa.
+
+${contextInstruccions}
+
+${historialTxt ? `HISTORIAL DE LA CONVERSA RECENT (Mantingues la coherència i continuïtat):\n${historialTxt}\n` : ''}
+
+CONSULTA ACTUAL DE L'ASPIRANT ${nomTractament.toUpperCase()}:
+"${textNet}"
+
+DIRECTRIU FINAL: Resposta curta, directa i sense palla.
+Genera la resposta adequada:`;
+
+    const extraCfg = esConversacional ? { maxOutputTokens: 200 } : { maxOutputTokens: 800 };
+    const responseMime = esConversacional ? 'text/plain' : 'application/json';
+    const { response, model } = await executarGeminiAmbFallback(ai, prompt, responseMime, undefined, extraCfg);
+    let textResposta = response.text ? response.text.trim() : 'No s\'ha pogut generar una resposta.';
+
+    // Normalització pedagògica si el model respon en JSON estructurat
+    function normalitzarRespostaJSON(str) {
+      if (!str) return '';
+      let net = str.trim();
+      if (net.startsWith('```json') && net.endsWith('```')) {
+        net = net.replace(/^```json\s*/, '').replace(/\s*```$/, '').trim();
+      } else if (net.startsWith('```') && net.endsWith('```')) {
+        net = net.replace(/^```\s*/, '').replace(/\s*```$/, '').trim();
+      }
+      if ((net.startsWith('{') && net.endsWith('}')) || (net.startsWith('[') && net.endsWith(']'))) {
+        try {
+          let parsed = JSON.parse(net);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            parsed = parsed[0];
+          }
+
+          const teBlocsPedagogics = !!(
+            parsed.blocs || parsed.blocs_estudi || parsed.agent_medina_response ||
+            parsed.idea_forca || parsed.idea_forca_concepte_clau || parsed.concepte_clau ||
+            parsed.regla_mnemotecnica || parsed.fonamentacio_legal || parsed.trampa_tribunal ||
+            (parsed.resposta && typeof parsed.resposta === 'object')
+          );
+
+          if (!teBlocsPedagogics) {
+            if (typeof parsed.resposta === 'string' && parsed.resposta.trim()) {
+              return parsed.resposta.trim();
+            }
+            if (typeof parsed.text === 'string' && parsed.text.trim()) {
+              return parsed.text.trim();
+            }
+            if (typeof parsed.message === 'string' && parsed.message.trim()) {
+              return parsed.message.trim();
+            }
+          }
+
+          let obj = parsed;
+          if (obj.agent_medina_response && typeof obj.agent_medina_response === 'object') {
+            obj = obj.agent_medina_response;
+          }
+          if (obj.resposta && typeof obj.resposta === 'object') {
+            obj = obj.resposta;
+          }
+          if (obj.blocs_estudi && typeof obj.blocs_estudi === 'object') {
+            obj = { ...obj, ...obj.blocs_estudi };
+          }
+          if (obj.blocs && typeof obj.blocs === 'object') {
+            obj = { ...obj, ...obj.blocs };
+          }
+
+          function extreureText(val) {
+            if (!val) return '';
+            if (typeof val === 'string') return val;
+            if (Array.isArray(val)) {
+              return val.map(item => typeof item === 'string' ? `• ${item}` : Object.entries(item).map(([k, v]) => `• **${k}**: ${v}`).join('\n')).join('\n');
+            }
+            if (typeof val === 'object') {
+              if (val.taula) return val.taula;
+              if (val.text && val.cita) return `${val.cita}\n\n${val.text}`;
+              if (val.nom && val.explicacio) return `**${val.nom}**\n${val.explicacio}`;
+              if (val.concepte && val.focalitzacio) return `${val.concepte}\n\n${val.focalitzacio}`;
+              if (val.concepte) return val.concepte;
+              if (val.advertencia) return val.advertencia;
+              if (val.explicacio) return val.explicacio;
+              if (val.text) return val.text;
+              return Object.entries(val).map(([k, v]) => `• **${k.replace(/_/g, ' ')}:** ${typeof v === 'object' ? JSON.stringify(v) : v}`).join('\n');
+            }
+            return String(val);
+          }
+
+          const blocs = [];
+
+          if (obj.introduccio && typeof obj.introduccio === 'string') {
+            blocs.push(obj.introduccio);
+          } else if (parsed.text && typeof parsed.text === 'string' && teBlocsPedagogics) {
+            blocs.push(parsed.text.trim());
+          }
+          
+          const idea = obj.idea_forca_concepte_clau || obj.idea_forca || obj.concepte_clau;
+          if (idea) {
+            blocs.push(`🎯 **Idea Força & Concepte Clau:**\n${extreureText(idea)}`);
+          }
+          
+          const mnemonic = obj.regla_mnemonic_truc_oposicio || obj.regla_mnemotecnica_truc_oposicio || obj.regla_mnemotecnica || obj.mnemotecnica;
+          if (mnemonic) {
+            blocs.push(`🧠 **Regla Mnemotècnica / Truc d'Oposició:**\n${extreureText(mnemonic)}`);
+          }
+          
+          const f = obj.fonamentacio_legal_i_literalitat || obj.fonamentacio_legal || obj.base_legal;
+          if (f) {
+            blocs.push(`⚖️ **Fonamentació Legal i Literalitat:**\n${extreureText(f)}`);
+          }
+          
+          const trampa = obj.trampa_tipica_de_tribunal || obj.trampa_de_tribunal || obj.clau_de_test_pel_tribunal || obj.trampa_tribunal || obj.trampa;
+          if (trampa) {
+            blocs.push(`⚠️ **Trampa Típica de Tribunal:**\n${extreureText(trampa)}`);
+          }
+          
+          const esq = obj.esquema_visual_repas || obj.esquema_visual_o_taula_de_repas || obj.esquema_visual_o_taula_de_repàs || obj.esquema_visual || obj.taula;
+          if (esq) {
+            blocs.push(`📊 **Esquema Visual o Taula de Repàs:**\n${extreureText(esq)}`);
+          }
+          if (blocs.length > 0) return blocs.join('\n\n');
+        } catch (_) {}
+      }
+      return str;
     }
 
-    const prompt = `Ets el Tutor d'Intel·ligència Artificial personal de l'acadèmia "Agent Medina", especialitzat en la preparació d'oposicions de ${cosTxt} a Catalunya.
-${nomTractament ? `Estàs acompanyant personalment a l'aspirant opositor amb el nom o àlies "${nomTractament}". Adreça't a ell utilitzant aquest nom "${nomTractament}" quan sigui oportú i MAI no l'anomenis d'una altra manera.` : ''}
-
-El teu to és proper, pedagògic, d'alt rigor jurídic i molt motivador.
-Escriu SEMPRE en català correcte.
-
-INSTRUCCIONS PRINCIPALS D'ESTUDI I EXAMEN:
-1. CITACIÓ TEXTUAL DE LA GUIA DE MOSSOS 2026: Sempre que la consulta faci referència a conceptes del temari oficial de Mossos d'Esquadra presents al context, comença la teva resposta citant el paràgraf o concepte textual oficial amb aquest encapçalament exacte:
-📘 **Citat de la Guia Oficial de Mossos 2026 — [Tema X.Y, Pàg. Z]**:
-> *"Text literal del document oficial..."*
-
-2. ANÀLISI TÈCNIC I OPERATIU: Desglossa la normativa amb claredat, citant articles concrets (Constitució, CP, LECrim, Llei 10/1994, Llei 16/1991, LOFCS 2/1986).
-
-3. CLAU DE TEST PEL TRIBUNAL (MOLT IMPORTANT): Afegeix sempre un bloc final titulat:
-⚠️ **Clau de Test pel Tribunal**:
-Destaca-hi les trampes típiques dels tribunals d'oposició (canvis de terminis, diferències entre facultatiu i preceptiu, confusió de competències municipals vs autonòmiques, etc.).
-
-4. PREGUNTES DE TEST: Si l'opositor et demana preguntes de test (per exemple amb la petició de 3 preguntes), redueix la teoria al mínim i genera directament preguntes d'examen oficial amb 4 opcions (a, b, c, d), indicant la solució correcta justificada amb la pàgina de la Guia Oficial o l'article de la llei.
-${contextInstruccions}
-${historialTxt ? `HISTORIAL DE LA CONVERSA:\n${historialTxt}\n` : ''}
-CONSULTA DE L'OPOSITOR:
-"${missatge.trim()}"
-
-Respon de manera clara, pedagògica, estricta en la literalitat oficial i altament estructurada:`;
-
-    const { response, model } = await executarGeminiAmbFallback(ai, prompt, 'text/plain');
-    const textResposta = response.text ? response.text.trim() : 'No s\'ha pogut generar una resposta.';
+    textResposta = normalitzarRespostaJSON(textResposta);
 
     return res.json({
       success: true,
@@ -1349,27 +1611,31 @@ Respon de manera clara, pedagògica, estricta en la literalitat oficial i altame
     });
   } catch (error) {
     console.error('Error a /api/gemini/tutor-xat:', error?.message);
+
+    // Si Gemini falla temporalment, retornem resposta estructurada de qualitat de la base de dades local
     if (trobatsGuia.length > 0) {
       const top = trobatsGuia[0];
       const fragments = top.coincidencies.slice(0, 3).map(c => `> *${c.text}*`).join('\n\n');
       return res.json({
         success: true,
         font: 'guia_oficial_servidor',
-        resposta: `📖 **Guia Oficial d'Estudi Mossos d'Esquadra (Juny 2026)**
+        resposta: `📘 **Guia Oficial de la Policia de la Generalitat - Mossos d'Esquadra (Juny 2026)**
 📌 **${top.codi}: ${top.titol} [Pàgines ${top.pagines}]**
 
+🎯 **Idea Força & Concepte Clau:**
+Informació obtinguda directament de la Guia Oficial d'Estudi emmagatzemada a la plataforma.
+
+⚖️ **Articulat i Contingut Oficial:**
 ${fragments || (top.contingutText || '').slice(0, 900)}
 
----
-*(Informació oficial extreta directament del temari de Mossos d'Esquadra emmagatzemat al servidor).*`
+💡 **Consell d'Examen:** Revisa les paraules clau i terminis destacats per a les preguntes de test!`
       });
     }
 
-    const textCons = (missatge || '').trim();
-    const respostaLocal = `📚 **Resposta d'assistència:**\n\nPel que fa a la teva consulta sobre *"${textCons.slice(0, 100)}"*, recorda tenir en compte la jerarquia normativa:\n- **Constitució Espanyola (CE):** Drets fonamentals (art. 14 a 29 i 30.2), detenció preventiva màxima de 72 hores (art. 17).\n- **Llei Orgànica 2/1986 i Llei 16/1991:** Principis bàsics d'actuació (congruència, oportunitat i proporcionalitat).\n- **Llei Orgànica 4/2015:** Règim de seguretat ciutadana, identificacions i escorcolls.\n- **Codi Penal (LO 10/1995):** Tipicitat dels delictes contra les persones, patrimoni i seguretat viària.\n\n*(Nota: Hi ha hagut una alta demanda temporal del servidor de IA. Pots formular una nova pregunta o especificar l'article exacte.)*`;
+    const respostaLocal = generarRespostaEstructuradaAgentMedina(textNet, cos, 'general', docContextFinal ? { titol: titolDocFinal, contingutText: docContextFinal } : null);
     return res.json({
       success: true,
-      font: 'assistit_local',
+      font: 'agent_medina_estructurat',
       resposta: respostaLocal
     });
   }

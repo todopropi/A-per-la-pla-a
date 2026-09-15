@@ -137,7 +137,7 @@
     if (carregant) carregant.style.display = 'flex';
     if (contingut) contingut.innerHTML = '';
 
-    const BACKEND_CHAT_URL = 'https://backend-opos-tests.vercel.app/api/chat';
+    const BACKEND_CHAT_URL = '/api/chat';
 
     try {
       const idxResp = (typeof preguntaActualDubte.resposta === 'number') ? preguntaActualDubte.resposta : 0;
